@@ -1,0 +1,151 @@
+{
+  "name": "Intervention",
+  "type": "object",
+  "properties": {
+    "number": {
+      "type": "string",
+      "title": "N\u00ba Parte"
+    },
+    "client_id": {
+      "type": "string",
+      "title": "ID Cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "title": "Nombre Cliente"
+    },
+    "technician_email": {
+      "type": "string",
+      "title": "Email T\u00e9cnico"
+    },
+    "technician_name": {
+      "type": "string",
+      "title": "Nombre T\u00e9cnico"
+    },
+    "date": {
+      "type": "string",
+      "title": "Fecha",
+      "format": "date-time"
+    },
+    "end_date": {
+      "type": "string",
+      "title": "Fecha Fin",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "title": "Estado",
+      "enum": [
+        "en_curso",
+        "pendiente_revision",
+        "completado",
+        "facturado"
+      ],
+      "default": "en_curso"
+    },
+    "location_lat": {
+      "type": "number",
+      "title": "Latitud"
+    },
+    "location_lng": {
+      "type": "number",
+      "title": "Longitud"
+    },
+    "location_address": {
+      "type": "string",
+      "title": "Direcci\u00f3n GPS"
+    },
+    "gas_type": {
+      "type": "string",
+      "title": "Tipo de Gas",
+      "enum": [
+        "R449A",
+        "R134a",
+        "R404A",
+        "R410A",
+        "R407C",
+        "R22",
+        "R32",
+        "R290",
+        "R600a",
+        "R744",
+        "otro"
+      ]
+    },
+    "gas_loaded_kg": {
+      "type": "number",
+      "title": "Kilos Cargados",
+      "default": 0
+    },
+    "gas_recovered_kg": {
+      "type": "number",
+      "title": "Kilos Recuperados",
+      "default": 0
+    },
+    "gas_leak_kg": {
+      "type": "number",
+      "title": "Fuga Estimada (kg)",
+      "default": 0
+    },
+    "description": {
+      "type": "string",
+      "title": "Descripci\u00f3n del Trabajo"
+    },
+    "technician_notes": {
+      "type": "string",
+      "title": "Notas del T\u00e9cnico"
+    },
+    "materials_json": {
+      "type": "string",
+      "title": "Materiales (JSON)"
+    },
+    "subtotal": {
+      "type": "number",
+      "title": "Subtotal (\u20ac)",
+      "default": 0
+    },
+    "iva_total": {
+      "type": "number",
+      "title": "Total IVA (\u20ac)",
+      "default": 0
+    },
+    "total": {
+      "type": "number",
+      "title": "Total (\u20ac)",
+      "default": 0
+    },
+    "discount_percent": {
+      "type": "number",
+      "title": "Descuento (%)",
+      "default": 0
+    },
+    "technician_signature": {
+      "type": "string",
+      "title": "Firma T\u00e9cnico (URL)"
+    },
+    "client_signature": {
+      "type": "string",
+      "title": "Firma Cliente (URL)"
+    },
+    "pdf_url": {
+      "type": "string",
+      "title": "PDF URL"
+    },
+    "email_sent": {
+      "type": "boolean",
+      "title": "Email Enviado",
+      "default": false
+    },
+    "auto_send_email": {
+      "type": "boolean",
+      "title": "Enviar Email Autom\u00e1tico",
+      "default": false
+    }
+  },
+  "required": [
+    "client_id",
+    "client_name",
+    "technician_email",
+    "date"
+  ]
+}

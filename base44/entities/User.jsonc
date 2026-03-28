@@ -1,0 +1,13 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "enum": [
+        "admin",
+        "tecnico"
+      ]
+    }
+  }
+}
