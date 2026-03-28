@@ -99,7 +99,7 @@ export default function Interventions() {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(i => (
-            <InterventionCard key={i.id} intervention={i} />
+            <InterventionCard key={i.id} intervention={i} isAdmin={user?.role === "admin"} />
           ))}
         </div>
       )}

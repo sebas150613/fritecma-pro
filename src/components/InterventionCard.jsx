@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import { Clock, MapPin, User, ChevronRight, Flame } from "lucide-react";
+import { useEffect, useState } from "react";
+import { base44 } from "@/api/base44Client";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import moment from "moment";
@@ -18,7 +20,7 @@ const statusLabels = {
   facturado: "Facturado",
 };
 
-export default function InterventionCard({ intervention }) {
+export default function InterventionCard({ intervention, isAdmin }) {
   const i = intervention;
   return (
     <Link
@@ -65,7 +67,11 @@ export default function InterventionCard({ intervention }) {
       </div>
 
       <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
-        <p className="text-lg font-bold">{(i.total || 0).toFixed(2)} €</p>
+        {isAdmin ? (
+          <p className="text-lg font-bold">{(i.total || 0).toFixed(2)} €</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">Ver detalle</p>
+        )}
         <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
       </div>
     </Link>

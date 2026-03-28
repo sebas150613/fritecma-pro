@@ -13,6 +13,7 @@ import InterventionDetail from './pages/InterventionDetail';
 import Materials from './pages/Materials';
 import Clients from './pages/Clients';
 import AppSettings from './pages/AppSettings';
+import TimeRecords from './pages/TimeRecords';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -48,6 +49,7 @@ const AuthenticatedApp = () => {
         <Route path="/materials" element={<Materials />} />
         <Route path="/clients" element={<Clients />} />
         <Route path="/settings" element={<AppSettings />} />
+        <Route path="/time-records" element={<TimeRecords />} />
         <Route path="*" element={<PageNotFound />} />
       </Route>
     </Routes>

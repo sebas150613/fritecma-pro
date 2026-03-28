@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, MapPin, Loader2, Save } from "lucide-react";
+import { ArrowLeft, Plus, MapPin, Loader2, Save, LogIn } from "lucide-react";
 import MaterialLineForm from "../components/MaterialLineForm";
 import SignaturePad from "../components/SignaturePad";
 import moment from "moment";
@@ -20,6 +20,7 @@ export default function NewIntervention() {
   const [materials, setMaterials] = useState([]);
   const [saving, setSaving] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
+  const [checkedIn, setCheckedIn] = useState(null); // null=loading, true/false
 
   const [form, setForm] = useState({
     client_id: "",
@@ -48,6 +49,21 @@ export default function NewIntervention() {
   const loadInitialData = async () => {
     const me = await base44.auth.me();
     setUser(me);
+    const isAdmin = me.role === "admin";
+
+    if (!isAdmin) {
+      const today = new Date().toISOString().slice(0, 10);
+      const records = await base44.entities.TimeRecord.filter(
+        { technician_email: me.email, work_date: today },
+        "-timestamp",
+        1
+      );
+      const lastType = records[0]?.type;
+      setCheckedIn(lastType === "entrada" || lastType === "reanudacion");
+    } else {
+      setCheckedIn(true);
+    }
+
     const [clientList, materialList] = await Promise.all([
       base44.entities.Client.list("name", 500),
       base44.entities.Material.filter({ is_active: true }, "name", 500),
@@ -153,6 +169,31 @@ export default function NewIntervention() {
     setSaving(false);
     navigate(`/interventions/${created.id}`);
   };
+
+  if (checkedIn === false) {
+    return (
+      <div className="p-8 max-w-xl mx-auto text-center space-y-4 mt-12">
+        <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto">
+          <LogIn className="h-8 w-8 text-amber-600" />
+        </div>
+        <h2 className="text-xl font-bold">Fichaje de entrada requerido</h2>
+        <p className="text-muted-foreground">Debes registrar tu entrada antes de crear un nuevo parte de trabajo.</p>
+        <Button onClick={() => navigate("/")} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6">
+          Ir a Fichar Entrada
+        </Button>
+      </div>
+    );
+  }
+
+  if (checkedIn === null) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="w-8 h-8 border-4 border-muted border-t-accent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const isAdmin = user?.role === "admin";
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6 pb-32">
@@ -299,13 +340,14 @@ export default function NewIntervention() {
                 materials={materials}
                 onUpdate={updateLine}
                 onRemove={removeLine}
+                isAdmin={isAdmin}
               />
             ))}
           </div>
         )}
 
         {/* Totals */}
-        {lines.length > 0 && (
+        {lines.length > 0 && isAdmin && (
           <div className="border-t border-border pt-4 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
@@ -340,8 +382,12 @@ export default function NewIntervention() {
       <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-card/80 backdrop-blur-xl border-t border-border p-4">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div>
-            <p className="text-sm text-muted-foreground">Total</p>
-            <p className="text-2xl font-bold">{totals.total.toFixed(2)} €</p>
+            {isAdmin && (
+              <>
+                <p className="text-sm text-muted-foreground">Total</p>
+                <p className="text-2xl font-bold">{totals.total.toFixed(2)} €</p>
+              </>
+            )}
           </div>
           <Button
             onClick={handleSave}

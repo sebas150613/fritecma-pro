@@ -11,7 +11,8 @@ import {
   X,
   LogOut,
   Snowflake,
-  ChevronRight
+  ChevronRight,
+  Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,7 @@ const adminLinks = [
   { to: "/interventions", label: "Intervenciones", icon: ClipboardList },
   { to: "/materials", label: "Stock / Materiales", icon: Package },
   { to: "/clients", label: "Clientes", icon: Users },
+  { to: "/time-records", label: "Registro Jornada", icon: Clock },
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
 

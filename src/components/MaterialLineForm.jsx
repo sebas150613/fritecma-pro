@@ -1,12 +1,9 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Trash2 } from "lucide-react";
 
-export default function MaterialLineForm({ line, index, materials, onUpdate, onRemove }) {
-  const selectedMaterial = materials.find(m => m.id === line.material_id);
-
+export default function MaterialLineForm({ line, index, materials, onUpdate, onRemove, isAdmin }) {
   const handleMaterialChange = (materialId) => {
     const mat = materials.find(m => m.id === materialId);
     if (mat) {
@@ -48,13 +45,14 @@ export default function MaterialLineForm({ line, index, materials, onUpdate, onR
         <SelectContent>
           {materials.map(m => (
             <SelectItem key={m.id} value={m.id}>
-              {m.code ? `[${m.code}] ` : ""}{m.name} — {m.sell_price?.toFixed(2)}€/{m.unit || "ud"}
+              {m.code ? `[${m.code}] ` : ""}{m.name}
+              {isAdmin ? ` — ${m.sell_price?.toFixed(2)}€/${m.unit || "ud"}` : ""}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className={`grid gap-2 ${isAdmin ? "grid-cols-3" : "grid-cols-1"}`}>
         <div>
           <label className="text-xs text-muted-foreground">Cantidad</label>
           <Input
@@ -66,22 +64,26 @@ export default function MaterialLineForm({ line, index, materials, onUpdate, onR
             className="bg-card"
           />
         </div>
-        <div>
-          <label className="text-xs text-muted-foreground">Precio Ud.</label>
-          <Input
-            type="number"
-            value={line.unit_price || ""}
-            onChange={(e) => {
-              const p = parseFloat(e.target.value) || 0;
-              onUpdate(index, { ...line, unit_price: p, total: (line.quantity || 0) * p });
-            }}
-            className="bg-card"
-          />
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground">Total</label>
-          <Input value={`${(line.total || 0).toFixed(2)} €`} readOnly className="bg-muted font-semibold" />
-        </div>
+        {isAdmin && (
+          <div>
+            <label className="text-xs text-muted-foreground">Precio Ud.</label>
+            <Input
+              type="number"
+              value={line.unit_price || ""}
+              onChange={(e) => {
+                const p = parseFloat(e.target.value) || 0;
+                onUpdate(index, { ...line, unit_price: p, total: (line.quantity || 0) * p });
+              }}
+              className="bg-card"
+            />
+          </div>
+        )}
+        {isAdmin && (
+          <div>
+            <label className="text-xs text-muted-foreground">Total</label>
+            <Input value={`${(line.total || 0).toFixed(2)} €`} readOnly className="bg-muted font-semibold" />
+          </div>
+        )}
       </div>
 
       <Input

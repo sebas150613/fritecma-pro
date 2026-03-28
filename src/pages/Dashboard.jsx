@@ -5,12 +5,14 @@ import { ClipboardList, Package, Users, AlertTriangle, Plus, TrendingUp } from "
 import { Button } from "@/components/ui/button";
 import StatsCard from "../components/StatsCard";
 import InterventionCard from "../components/InterventionCard";
+import FichajeWidget from "../components/FichajeWidget";
 import moment from "moment";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [interventions, setInterventions] = useState([]);
   const [stats, setStats] = useState({ total: 0, pending: 0, today: 0, revenue: 0 });
+  const [fichajeStatus, setFichajeStatus] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -49,6 +51,21 @@ export default function Dashboard() {
     setLoading(false);
   };
 
+  const loadFichajeStatus = async () => {
+    if (!user) return;
+    const today = moment().format("YYYY-MM-DD");
+    const records = await base44.entities.TimeRecord.filter(
+      { technician_email: user.email, work_date: today },
+      "-timestamp",
+      1
+    );
+    setFichajeStatus(records[0]?.type || "sin_fichar");
+  };
+
+  useEffect(() => {
+    if (user) loadFichajeStatus();
+  }, [user]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -58,6 +75,7 @@ export default function Dashboard() {
   }
 
   const isAdmin = user?.role === "admin";
+  const hasCheckedIn = isAdmin || fichajeStatus === "entrada" || fichajeStatus === "reanudacion";
   const recentInterventions = interventions.slice(0, 6);
 
   return (
@@ -72,13 +90,25 @@ export default function Dashboard() {
             {moment().format("dddd, D [de] MMMM YYYY")}
           </p>
         </div>
-        <Link to="/interventions/new">
-          <Button className="bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg shadow-accent/25 rounded-xl px-6">
+        {hasCheckedIn ? (
+          <Link to="/interventions/new">
+            <Button className="bg-accent hover:bg-accent/90 text-accent-foreground shadow-lg shadow-accent/25 rounded-xl px-6">
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Parte
+            </Button>
+          </Link>
+        ) : (
+          <Button disabled className="rounded-xl px-6" title="Debes fichar entrada primero">
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Parte
           </Button>
-        </Link>
+        )}
       </div>
+
+      {/* Fichaje */}
+      {!isAdmin && (
+        <FichajeWidget user={user} onStatusChange={loadFichajeStatus} />
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -116,7 +146,7 @@ export default function Dashboard() {
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {recentInterventions.map(i => (
-              <InterventionCard key={i.id} intervention={i} />
+              <InterventionCard key={i.id} intervention={i} isAdmin={isAdmin} />
             ))}
           </div>
         )}
