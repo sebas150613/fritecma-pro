@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Plus, MapPin, Loader2, Save, LogIn } from "lucide-react";
 import MaterialLineForm from "../components/MaterialLineForm";
+import LaborSection from "../components/LaborSection";
 import SignaturePad from "../components/SignaturePad";
 import moment from "moment";
 
@@ -40,6 +41,7 @@ export default function NewIntervention() {
   });
 
   const [lines, setLines] = useState([]);
+  const [laborLines, setLaborLines] = useState([]);
 
   useEffect(() => {
     loadInitialData();
@@ -117,11 +119,12 @@ export default function NewIntervention() {
   };
 
   const calcTotals = () => {
-    const subtotal = lines.reduce((sum, l) => sum + (l.total || 0), 0);
+    const allLines = [...laborLines, ...lines];
+    const subtotal = allLines.reduce((sum, l) => sum + (l.total || 0), 0);
     const discountAmount = subtotal * (form.discount_percent / 100);
     const subtotalAfterDiscount = subtotal - discountAmount;
     const ivaByRate = {};
-    lines.forEach(l => {
+    allLines.forEach(l => {
       const rate = l.iva_percent || 21;
       const lineAfterDiscount = (l.total || 0) * (1 - form.discount_percent / 100);
       ivaByRate[rate] = (ivaByRate[rate] || 0) + lineAfterDiscount * (rate / 100);
@@ -139,6 +142,7 @@ export default function NewIntervention() {
 
     const interventionNumber = `FRI-${moment().format("YYMMDD")}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
 
+    const allLines = [...laborLines, ...lines];
     const data = {
       number: interventionNumber,
       client_id: form.client_id,
@@ -155,7 +159,7 @@ export default function NewIntervention() {
       gas_leak_kg: gasLeak,
       description: form.description,
       technician_notes: form.technician_notes,
-      materials_json: JSON.stringify(lines),
+      materials_json: JSON.stringify(allLines),
       subtotal: totals.subtotal,
       iva_total: totals.ivaTotal,
       total: totals.total,
@@ -317,6 +321,13 @@ export default function NewIntervention() {
         />
       </div>
 
+      {/* Labor Section */}
+      <LaborSection
+        materials={materials}
+        isAdmin={isAdmin}
+        onLaborLines={setLaborLines}
+      />
+
       {/* Material Lines */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <div className="flex items-center justify-between">
@@ -347,7 +358,7 @@ export default function NewIntervention() {
         )}
 
         {/* Totals */}
-        {lines.length > 0 && isAdmin && (
+        {(lines.length > 0 || laborLines.length > 0) && isAdmin && (
           <div className="border-t border-border pt-4 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
