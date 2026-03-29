@@ -66,7 +66,7 @@ export default function WorkDayReport() {
     setLoading(false);
   };
 
-  const isAdmin = user?.role === "admin" || user?.role === "oficina";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "oficina";
 
   const filtered = records.filter(r => {
     const matchMonth = r.work_date?.startsWith(selectedMonth);

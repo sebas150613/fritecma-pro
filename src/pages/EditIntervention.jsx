@@ -154,7 +154,7 @@ export default function EditIntervention() {
   }
 
   const totals = calcTotals();
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6 pb-32">

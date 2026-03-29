@@ -21,7 +21,7 @@ export default function AppSettings() {
   const loadData = async () => {
     const me = await base44.auth.me();
     setUser(me);
-    if (me.role === "admin") {
+    if (me.role === "admin" || me.role === "superadmin") {
       const allUsers = await base44.entities.User.list("full_name", 100);
       setUsers(allUsers);
     }
@@ -51,7 +51,7 @@ export default function AppSettings() {
     );
   }
 
-  if (user?.role !== "admin") {
+  if (user?.role !== "admin" && user?.role !== "superadmin") {
     return (
       <div className="p-8 flex flex-col items-center justify-center h-full gap-4">
         <Shield className="h-12 w-12 text-muted-foreground" />
@@ -88,6 +88,7 @@ export default function AppSettings() {
           >
             <option value="tecnico">Técnico</option>
             <option value="admin">Admin</option>
+            <option value="superadmin">Super Admin</option>
           </select>
           <Button onClick={handleInvite} disabled={inviting} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl">
             Invitar
@@ -107,6 +108,7 @@ export default function AppSettings() {
                   onChange={e => setUserRole(u.id, e.target.value)}
                   className="text-xs rounded-lg border border-input bg-card px-2 py-1"
                 >
+                  <option value="superadmin">Super Admin</option>
                   <option value="admin">Admin</option>
                   <option value="oficina">Oficina</option>
                   <option value="user">Técnico</option>

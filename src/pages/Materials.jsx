@@ -61,7 +61,7 @@ export default function Materials() {
     setLoading(false);
   };
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isOficina = user?.role === "oficina";
   const isTecnico = user?.role === "user" || user?.role === "tecnico";
   const canSeePrices = !isTecnico;

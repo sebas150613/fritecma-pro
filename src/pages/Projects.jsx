@@ -192,11 +192,11 @@ export default function Projects() {
     setDeleteProjectTarget(null);
   };
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isTecnico = user?.role === "user" || user?.role === "tecnico";
   const canCreate = !isTecnico;
   const selectedMat = materials.find(m => m.id === valeForm.material_id);
-  const canSeePrices = user?.role === "admin" || user?.role === "oficina";
+  const canSeePrices = isAdmin || user?.role === "oficina";
 
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-muted border-t-accent rounded-full animate-spin" /></div>;
 

@@ -63,7 +63,7 @@ export default function Layout() {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isOficina = user?.role === "oficina";
   const links = isAdmin ? adminLinks : isOficina ? oficinaLinks : techLinks;
 

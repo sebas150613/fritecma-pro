@@ -38,7 +38,7 @@ export default function TimeRecords() {
     setLoading(false);
   };
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   const filteredRecords = records.filter((r) => {
     const matchMonth = r.work_date?.startsWith(selectedMonth);
