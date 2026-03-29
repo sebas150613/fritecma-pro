@@ -232,6 +232,15 @@ export default function Materials() {
                     </Link>
                   )}
                   <span className="text-xs text-muted-foreground">{new Date(mv.created_date).toLocaleDateString("es")}</span>
+                  {isAdmin && (
+                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive rounded-xl h-7 w-7 p-0" onClick={async () => {
+                      if (!confirm("¿Eliminar este movimiento del historial?")) return;
+                      await base44.entities.StockMovement.delete(mv.id);
+                      setMovements(prev => prev.filter(x => x.id !== mv.id));
+                    }}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
               );
             })}
