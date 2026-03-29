@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ArrowLeft, Plus, MapPin, Loader2, Save, LogIn, AlertTriangle } from "lucide-react";
 import MaterialLineForm from "../components/MaterialLineForm";
 import LaborSection from "../components/LaborSection";
-import SignaturePad from "../components/SignaturePad";
+import { Checkbox } from "@/components/ui/checkbox";
 import { validateStockAvailability, deductStockForIntervention } from "../lib/stockUtils";
 import moment from "moment";
 
@@ -43,8 +43,9 @@ export default function NewIntervention() {
     description: "",
     technician_notes: "",
     discount_percent: 0,
-    technician_signature: "",
-    client_signature: "",
+    receptor_name: "",
+    receptor_dni: "",
+    client_conformidad: false,
   });
 
   const [lines, setLines] = useState([]);
@@ -186,8 +187,10 @@ export default function NewIntervention() {
       iva_total: totals.ivaTotal,
       total: totals.total,
       discount_percent: form.discount_percent,
-      technician_signature: form.technician_signature,
-      client_signature: form.client_signature,
+      receptor_name: form.receptor_name || undefined,
+      receptor_dni: form.receptor_dni || undefined,
+      client_conformidad: form.client_conformidad,
+      saved_at: new Date().toISOString(),
       status: "pendiente_revision",
       technician_notes: sinFichaje
         ? `[SIN FICHAJE PREVIO] ${form.technician_notes || ""}`
@@ -465,11 +468,39 @@ export default function NewIntervention() {
         )}
       </div>
 
-      {/* Signatures */}
+      {/* Conformidad Cliente */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
-        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Firmas</h2>
-        <SignaturePad label="Firma del Técnico" onSave={(sig) => setForm(f => ({ ...f, technician_signature: sig }))} />
-        <SignaturePad label="Firma del Cliente (Conformidad)" onSave={(sig) => setForm(f => ({ ...f, client_signature: sig }))} />
+        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Conformidad del Cliente</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label>Nombre Receptor *</Label>
+            <Input
+              value={form.receptor_name}
+              onChange={(e) => setForm(f => ({ ...f, receptor_name: e.target.value }))}
+              placeholder="Nombre completo del receptor"
+              className="mt-1 rounded-xl"
+            />
+          </div>
+          <div>
+            <Label>DNI / Código Trabajador *</Label>
+            <Input
+              value={form.receptor_dni}
+              onChange={(e) => setForm(f => ({ ...f, receptor_dni: e.target.value }))}
+              placeholder="DNI o código de trabajador"
+              className="mt-1 rounded-xl"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-xl">
+          <Checkbox
+            id="conformidad"
+            checked={form.client_conformidad}
+            onCheckedChange={(v) => setForm(f => ({ ...f, client_conformidad: v }))}
+          />
+          <label htmlFor="conformidad" className="text-sm font-medium cursor-pointer">
+            El cliente/receptor confirma su conformidad con el trabajo realizado
+          </label>
+        </div>
       </div>
 
       {/* Save Button */}

@@ -104,16 +104,12 @@ Details:
 - Gas Leak: ${intervention.gas_leak_kg || 0} kg
 - Description: ${intervention.description || "N/A"}
 - Technical Notes: ${intervention.technician_notes || "N/A"}
+- Receptor Name: ${intervention.receptor_name || "N/A"}
+- Receptor DNI: ${intervention.receptor_dni || "N/A"}
+- Saved At: ${intervention.saved_at ? moment(intervention.saved_at).format("DD/MM/YYYY HH:mm:ss") : moment().format("DD/MM/YYYY HH:mm:ss")}
+- Client Conformidad: ${intervention.client_conformidad ? "Confirmada" : "Pendiente"}
 
-Materials:
-${materialsTable || "No materials"}
-
-Subtotal: ${(intervention.subtotal || 0).toFixed(2)}€
-Discount: ${intervention.discount_percent || 0}%
-IVA: ${(intervention.iva_total || 0).toFixed(2)}€
-TOTAL: ${(intervention.total || 0).toFixed(2)}€
-
-Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, clean table layout, IVA breakdown, and signature areas. The style should be corporate blue (#1e3a5f) and clean white. Format it as a printable A4 document.`;
+Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, clean table layout, IVA breakdown. Instead of signature fields, include a validation section that shows: 'Validado por: [Receptor Name] con DNI: [Receptor DNI]' and the exact save date/time. The style should be corporate blue (#1e3a5f) and clean white. Format it as a printable A4 document.`;
 
     const result = await base44.integrations.Core.InvokeLLM({ prompt });
     
@@ -378,23 +374,35 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
         </div>
       )}
 
-      {/* Signatures */}
-      {(intervention.technician_signature || intervention.client_signature) && (
-        <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
-          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Firmas</h2>
-          <div className="grid grid-cols-2 gap-4">
-            {intervention.technician_signature && (
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">Técnico</p>
-                <img src={intervention.technician_signature} alt="Firma técnico" className="h-24 border rounded-lg" />
+      {/* Conformidad / Receptor */}
+      {(intervention.receptor_name || intervention.client_conformidad) && (
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Conformidad del Cliente</h2>
+          <div className="space-y-2 text-sm">
+            {intervention.receptor_name && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Nombre Receptor</span>
+                <span className="font-medium">{intervention.receptor_name}</span>
               </div>
             )}
-            {intervention.client_signature && (
-              <div>
-                <p className="text-xs text-muted-foreground mb-2">Cliente</p>
-                <img src={intervention.client_signature} alt="Firma cliente" className="h-24 border rounded-lg" />
+            {intervention.receptor_dni && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">DNI / Código</span>
+                <span className="font-medium">{intervention.receptor_dni}</span>
               </div>
             )}
+            {intervention.saved_at && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Fecha/Hora Guardado</span>
+                <span className="font-medium">{moment(intervention.saved_at).format("DD/MM/YYYY HH:mm:ss")}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Conformidad</span>
+              <span className={intervention.client_conformidad ? "text-emerald-600 font-semibold" : "text-amber-600"}>
+                {intervention.client_conformidad ? "✓ Confirmada" : "Pendiente"}
+              </span>
+            </div>
           </div>
         </div>
       )}

@@ -32,6 +32,11 @@
       "title": "Fecha Fin",
       "format": "date-time"
     },
+    "saved_at": {
+      "type": "string",
+      "title": "Fecha/Hora Guardado",
+      "format": "date-time"
+    },
     "status": {
       "type": "string",
       "title": "Estado",
@@ -137,13 +142,18 @@
       "title": "Descuento (%)",
       "default": 0
     },
-    "technician_signature": {
+    "receptor_name": {
       "type": "string",
-      "title": "Firma T\u00e9cnico (URL)"
+      "title": "Nombre Receptor"
     },
-    "client_signature": {
+    "receptor_dni": {
       "type": "string",
-      "title": "Firma Cliente (URL)"
+      "title": "DNI / C\u00f3digo Trabajador"
+    },
+    "client_conformidad": {
+      "type": "boolean",
+      "title": "Conformidad del Cliente",
+      "default": false
     },
     "pdf_url": {
       "type": "string",
