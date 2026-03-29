@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Package, Edit, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Search, Package, Edit, Trash2, AlertTriangle, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +37,17 @@ export default function Materials() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState(null);
   const [form, setForm] = useState({ ...emptyMaterial });
+  const [historyMaterial, setHistoryMaterial] = useState(null);
+  const [movements, setMovements] = useState([]);
+  const [loadingMovements, setLoadingMovements] = useState(false);
+
+  const openHistory = async (mat) => {
+    setHistoryMaterial(mat);
+    setLoadingMovements(true);
+    const items = await base44.entities.StockMovement.filter({ material_id: mat.id }, "-created_date", 100);
+    setMovements(items);
+    setLoadingMovements(false);
+  };
 
   useEffect(() => {
     loadData();
@@ -173,6 +185,9 @@ export default function Materials() {
                 <Button variant="outline" size="sm" onClick={() => openEdit(m)} className="flex-1 rounded-xl">
                   <Edit className="h-3 w-3 mr-1" /> {isTecnico ? "Actualizar Stock" : "Editar"}
                 </Button>
+                <Button variant="outline" size="sm" onClick={() => openHistory(m)} className="rounded-xl gap-1 text-xs">
+                  <History className="h-3 w-3" /> Historial
+                </Button>
                 {isAdmin && (
                   <Button variant="outline" size="sm" onClick={() => handleDelete(m.id)} className="text-destructive rounded-xl">
                     <Trash2 className="h-3 w-3" />
@@ -183,6 +198,46 @@ export default function Materials() {
           ))}
         </div>
       )}
+
+      {/* History Dialog */}
+      <Dialog open={!!historyMaterial} onOpenChange={(v) => !v && setHistoryMaterial(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" /> Movimientos: {historyMaterial?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-2 space-y-2">
+            {loadingMovements ? (
+              <div className="flex justify-center py-8"><div className="w-6 h-6 border-4 border-muted border-t-accent rounded-full animate-spin" /></div>
+            ) : movements.length === 0 ? (
+              <p className="text-center text-muted-foreground py-8">Sin movimientos registrados.</p>
+            ) : movements.map(mv => {
+              const isOut = mv.quantity < 0;
+              return (
+                <div key={mv.id} className="bg-muted/40 rounded-xl p-3 flex flex-wrap items-center gap-3">
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isOut ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
+                    {isOut ? `─ ${Math.abs(mv.quantity)}` : `+ ${mv.quantity}`}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{mv.movement_type?.replace(/_/g, " ")}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Stock: {mv.stock_before} → {mv.stock_after} · {mv.technician_name}
+                      {mv.notes && ` · ${mv.notes}`}
+                    </p>
+                  </div>
+                  {mv.intervention_id && (
+                    <Link to={`/interventions/${mv.intervention_id}`} className="text-xs text-blue-600 hover:underline font-medium">
+                      Parte: {mv.intervention_number} →
+                    </Link>
+                  )}
+                  <span className="text-xs text-muted-foreground">{new Date(mv.created_date).toLocaleDateString("es")}</span>
+                </div>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Material Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

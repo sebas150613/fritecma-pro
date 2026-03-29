@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Link } from "react-router-dom";
 import { Plus, ArrowRightLeft, FlaskConical, History, AlertTriangle, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import moment from "moment";
@@ -37,14 +38,21 @@ export default function GasBottles() {
   const [saving, setSaving] = useState(false);
   const [transferError, setTransferError] = useState("");
 
+  const [interventionMap, setInterventionMap] = useState({});
+
   useEffect(() => {
     Promise.all([
       base44.auth.me(),
       base44.entities.GasBottle.list("-created_date", 200),
       base44.entities.GasTransfer.list("-timestamp", 200),
       base44.entities.Client.list("name", 200),
-    ]).then(([u, b, t, c]) => {
+      base44.entities.Intervention.list("-created_date", 500),
+    ]).then(([u, b, t, c, invs]) => {
       setUser(u); setBottles(b); setTransfers(t); setClients(c);
+      // Build number → id map
+      const map = {};
+      invs.forEach(i => { if (i.number) map[i.number] = i.id; });
+      setInterventionMap(map);
       setLoading(false);
     });
   }, []);
@@ -400,7 +408,11 @@ export default function GasBottles() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold">{t.kg_transferred} kg · {t.gas_type}</p>
                         <p className="text-xs text-muted-foreground">{isSalida ? `→ ${t.to_bottle_serial}` : `← ${t.from_bottle_serial}`} · {t.technician_name} · {moment(t.timestamp).format("DD/MM/YY HH:mm")}</p>
-                        {t.intervention_number && <p className="text-xs text-blue-600">Parte: {t.intervention_number}</p>}
+                        {t.intervention_number && (
+                          interventionMap[t.intervention_number]
+                            ? <Link to={`/interventions/${interventionMap[t.intervention_number]}`} className="text-xs text-blue-600 hover:underline font-medium">Parte: {t.intervention_number} →</Link>
+                            : <p className="text-xs text-blue-600">Parte: {t.intervention_number}</p>
+                        )}
                         {t.notes && <p className="text-xs text-muted-foreground">{t.notes}</p>}
                       </div>
                     </div>

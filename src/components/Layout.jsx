@@ -29,7 +29,6 @@ const adminLinks = [
   { to: "/time-records", label: "Registro Jornada", icon: Clock },
   { to: "/workday-report", label: "Jornadas", icon: CalendarDays },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
-  { to: "/stock-movements", label: "Movimientos Stock", icon: Package },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
@@ -42,7 +41,6 @@ const oficinaLinks = [
   { to: "/time-records", label: "Registro Jornada", icon: Clock },
   { to: "/workday-report", label: "Jornadas", icon: CalendarDays },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
-  { to: "/stock-movements", label: "Movimientos Stock", icon: TrendingDown },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
 ];
 
