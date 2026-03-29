@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Clock, LogIn, LogOut, Coffee, RefreshCw } from "lucide-react";
+import { Download, Clock, LogIn, LogOut, Coffee, RefreshCw, Trash2 } from "lucide-react";
 import moment from "moment";
 
 const TYPE_ICONS = {
@@ -20,6 +20,7 @@ const TYPE_LABELS = {
 };
 
 export default function TimeRecords() {
+  const [user, setUser] = useState(null);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(moment().format("YYYY-MM"));
@@ -30,18 +31,25 @@ export default function TimeRecords() {
   }, []);
 
   const loadData = async () => {
+    const me = await base44.auth.me();
+    setUser(me);
     const allRecords = await base44.entities.TimeRecord.list("-timestamp", 2000);
     setRecords(allRecords);
     setLoading(false);
   };
 
+  const isAdmin = user?.role === "admin";
+
   const filteredRecords = records.filter((r) => {
     const matchMonth = r.work_date?.startsWith(selectedMonth);
     const matchTech = selectedTech === "all" || r.technician_email === selectedTech;
-    return matchMonth && matchTech;
+    const matchOwn = isAdmin || r.technician_email === user?.email;
+    return matchMonth && matchTech && matchOwn;
   });
 
-  const technicians = [...new Set(records.map((r) => r.technician_email))].filter(Boolean);
+  const technicians = isAdmin
+    ? [...new Set(records.map((r) => r.technician_email))].filter(Boolean)
+    : [];
 
   // Group by technician + date and compute hours
   const computeSummary = () => {
@@ -162,17 +170,19 @@ export default function TimeRecords() {
           </SelectContent>
         </Select>
 
-        <Select value={selectedTech} onValueChange={setSelectedTech}>
-          <SelectTrigger className="w-full sm:w-56 rounded-xl bg-card">
-            <SelectValue placeholder="Todos los técnicos" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los técnicos</SelectItem>
-            {technicians.map((t) => (
-              <SelectItem key={t} value={t}>{t}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {isAdmin && (
+          <Select value={selectedTech} onValueChange={setSelectedTech}>
+            <SelectTrigger className="w-full sm:w-56 rounded-xl bg-card">
+              <SelectValue placeholder="Todos los técnicos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los técnicos</SelectItem>
+              {technicians.map((t) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Summary Table */}
@@ -193,6 +203,7 @@ export default function TimeRecords() {
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Salida</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Horas</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Detalle</th>
+                  {isAdmin && <th className="text-center px-4 py-3 font-semibold text-muted-foreground">Acciones</th>}
                 </tr>
               </thead>
               <tbody>
@@ -220,6 +231,22 @@ export default function TimeRecords() {
                         })}
                       </div>
                     </td>
+                    {isAdmin && (
+                      <td className="px-4 py-3 text-center">
+                        <Button
+                          size="sm" variant="ghost"
+                          className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 rounded-lg"
+                          title={`Eliminar registros del ${s.date} de ${s.technician}`}
+                          onClick={async () => {
+                            if (!window.confirm(`¿Eliminar todos los fichajes del ${moment(s.date).format("DD/MM/YYYY")} de ${s.technician}? Esta acción no se puede deshacer.`)) return;
+                            await Promise.all(s.records.map(r => base44.entities.TimeRecord.delete(r.id)));
+                            setRecords(prev => prev.filter(r => !s.records.some(sr => sr.id === r.id)));
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
