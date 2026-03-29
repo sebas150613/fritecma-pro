@@ -51,7 +51,7 @@ export default function AppSettings() {
     );
   }
 
-  if (user?.role !== "superadmin") {
+  if (user?.role !== "admin" && user?.role !== "superadmin") {
     return (
       <div className="p-8 flex flex-col items-center justify-center h-full gap-4">
         <Shield className="h-12 w-12 text-muted-foreground" />
@@ -61,6 +61,8 @@ export default function AppSettings() {
     );
   }
 
+  const isSuperAdmin = user?.role === "superadmin";
+
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
@@ -68,7 +70,8 @@ export default function AppSettings() {
         <h1 className="text-2xl font-bold tracking-tight">Configuración</h1>
       </div>
 
-      {/* User Management */}
+      {/* User Management — Solo SuperAdmin */}
+      {isSuperAdmin && (
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2">
           <Users className="h-4 w-4 text-muted-foreground" /> Gestión de Usuarios
@@ -118,6 +121,7 @@ export default function AppSettings() {
           ))}
         </div>
       </div>
+      )}
 
       {/* App Info */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
