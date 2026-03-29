@@ -4,7 +4,8 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, FileText, Mail, Clock, MapPin, Flame, User, Loader2, Package, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, FileText, Mail, Clock, MapPin, Flame, User, Loader2, Package, CheckCircle2, Pencil, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import moment from "moment";
 
@@ -34,6 +35,8 @@ export default function InterventionDetail() {
   const [loading, setLoading] = useState(true);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -143,6 +146,23 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
   const canEdit = isAdmin || isOficina;
   const materials = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    await base44.entities.AuditLog.create({
+      action: "eliminacion",
+      entity_type: "Intervention",
+      entity_id: id,
+      entity_reference: intervention.number,
+      user_email: user.email,
+      user_name: user.full_name,
+      changes_summary: `Parte eliminado: ${intervention.client_name} - ${intervention.number}`,
+      timestamp: new Date().toISOString(),
+    });
+    await base44.entities.Intervention.delete(id);
+    setDeleting(false);
+    navigate("/interventions");
+  };
+
   const validatePart = async () => {
     const now = new Date().toISOString();
     await base44.entities.Intervention.update(id, {
@@ -173,6 +193,24 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
+      {/* Delete Confirm Modal */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="h-5 w-5" /> Eliminar Parte
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">¿Estás seguro de que quieres eliminar el parte <strong>{intervention?.number}</strong>? Esta acción no se puede deshacer pero quedará registrada en el log de auditoría.</p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} className="rounded-xl">Cancelar</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting} className="rounded-xl">
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />} Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -221,10 +259,18 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
             </Button>
           </div>
           {intervention.validated_by && (
-            <p className="text-xs text-muted-foreground">✓ Validado por {intervention.validated_by} el {intervention.validated_at ? new Date(intervention.validated_at).toLocaleString("es") : ""}</p>
+          <p className="text-xs text-muted-foreground">✓ Validado por {intervention.validated_by} el {intervention.validated_at ? new Date(intervention.validated_at).toLocaleString("es") : ""}</p>
           )}
-        </div>
-      )}
+          <div className="flex gap-2 pt-2 border-t border-border">
+          <Button variant="outline" onClick={() => navigate(`/interventions/${id}/edit`)} className="rounded-xl gap-2">
+            <Pencil className="h-4 w-4" /> Editar Parte
+          </Button>
+          <Button variant="outline" onClick={() => setShowDeleteConfirm(true)} className="rounded-xl gap-2 text-destructive border-destructive/30 hover:bg-destructive/10">
+            <Trash2 className="h-4 w-4" /> Eliminar Parte
+          </Button>
+          </div>
+          </div>
+          )}
 
       {/* Info */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
