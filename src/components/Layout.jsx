@@ -46,7 +46,8 @@ const oficinaLinks = [
 const techLinks = [
   { to: "/", label: "Mis Partes", icon: LayoutDashboard },
   { to: "/interventions", label: "Intervenciones", icon: ClipboardList },
-  { to: "/materials", label: "Catálogo", icon: Package },
+  { to: "/materials", label: "Stock / Materiales", icon: Package },
+  { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
   { to: "/settings", label: "Configuración", icon: Settings },
 ];

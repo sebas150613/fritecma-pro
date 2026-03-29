@@ -50,6 +50,8 @@ export default function Materials() {
   };
 
   const isAdmin = user?.role === "admin";
+  const isOficina = user?.role === "oficina";
+  const canSeePrices = isAdmin || isOficina;
 
   const openNew = () => {
     setEditingMaterial(null);
@@ -144,10 +146,12 @@ export default function Materials() {
               </div>
 
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Precio Venta</span>
-                  <span className="font-semibold">{(m.sell_price || 0).toFixed(2)} €/{m.unit || "ud"}</span>
-                </div>
+                {canSeePrices && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Precio Venta</span>
+                    <span className="font-semibold">{(m.sell_price || 0).toFixed(2)} €/{m.unit || "ud"}</span>
+                  </div>
+                )}
                 {isAdmin && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Precio Coste</span>
