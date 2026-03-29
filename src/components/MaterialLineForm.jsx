@@ -17,6 +17,7 @@ export default function MaterialLineForm({ line, index, materials, onUpdate, onR
     ...materials.filter(m => m.category !== GAS_CATEGORY),
   ];
 
+  const isFreeText = line.material_id === "__free_text__";
   const selectedMaterial = materials.find(m => m.id === line.material_id);
 
   const handleMaterialSelect = (mat) => {
@@ -60,9 +61,11 @@ export default function MaterialLineForm({ line, index, materials, onUpdate, onR
             className="w-full justify-between bg-card font-normal"
           >
             <span className="truncate">
-              {selectedMaterial
-                ? `${selectedMaterial.code ? `[${selectedMaterial.code}] ` : ""}${selectedMaterial.name}`
-                : "Buscar material..."}
+              {isFreeText
+                ? "⚠️ Material no registrado"
+                : selectedMaterial
+                  ? `${selectedMaterial.code ? `[${selectedMaterial.code}] ` : ""}${selectedMaterial.name}`
+                  : "Buscar material..."}
             </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
           </Button>
@@ -72,6 +75,28 @@ export default function MaterialLineForm({ line, index, materials, onUpdate, onR
             <CommandInput placeholder="Escribe para buscar..." className="h-10" />
             <CommandList className="max-h-64">
               <CommandEmpty>No se encontró ningún material.</CommandEmpty>
+              <CommandGroup heading="">
+                <CommandItem
+                  value="__free_text__ material no registrado"
+                  onSelect={() => {
+                    onUpdate(index, {
+                      ...line,
+                      material_id: "__free_text__",
+                      material_name: "",
+                      material_code: "",
+                      unit: "ud",
+                      unit_price: 0,
+                      iva_percent: 21,
+                      total: 0,
+                    });
+                    setOpen(false);
+                  }}
+                  className="flex items-center gap-2 text-amber-700 font-medium"
+                >
+                  <Check className={cn("h-3.5 w-3.5 shrink-0", isFreeText ? "opacity-100" : "opacity-0")} />
+                  ⚠️ MATERIAL NO REGISTRADO
+                </CommandItem>
+              </CommandGroup>
               {gasItems.length > 0 && (
                 <CommandGroup heading="⬆ Gas Refrigerante">
                   {gasItems.map(m => (
@@ -118,6 +143,16 @@ export default function MaterialLineForm({ line, index, materials, onUpdate, onR
           </Command>
         </PopoverContent>
       </Popover>
+
+      {/* Free text description */}
+      {isFreeText && (
+        <Input
+          placeholder="Descripción del material (obligatorio) *"
+          value={line.material_name || ""}
+          onChange={(e) => onUpdate(index, { ...line, material_name: e.target.value })}
+          className="bg-amber-50 border-amber-300 text-sm font-medium"
+        />
+      )}
 
       {/* Quantity / Price / Total */}
       <div className={`grid gap-2 ${isAdmin ? "grid-cols-3" : "grid-cols-1"}`}>

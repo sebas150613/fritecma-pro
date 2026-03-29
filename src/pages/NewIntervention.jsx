@@ -158,7 +158,7 @@ export default function NewIntervention() {
     if (!form.client_id) return;
 
     // Validate stock availability before saving
-    const materialOnlyLines = lines.filter(l => l.material_id);
+    const materialOnlyLines = lines.filter(l => l.material_id && l.material_id !== "__free_text__");
     const warnings = await validateStockAvailability(materialOnlyLines);
     if (warnings.length > 0) {
       const proceed = window.confirm(
