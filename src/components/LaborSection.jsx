@@ -5,9 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Clock, Users } from "lucide-react";
 
 const OPERATOR_MODES = [
-  { value: "1_oficial", label: "1 Oficial" },
-  { value: "2_oficiales", label: "2 Oficiales (misma tarifa)" },
-  { value: "oficial_ayudante", label: "Oficial + Ayudante (tarifas distintas)" },
+  { value: "1_oficial", label: "1 Oficial (solo técnico principal)" },
+  { value: "oficial_ayudante", label: "Oficial + Ayudante" },
   { value: "custom", label: "Nº personalizado de operarios" },
 ];
 
@@ -19,21 +18,22 @@ function calcHours(start, end) {
   return mins > 0 ? Math.round((mins / 60) * 100) / 100 : 0;
 }
 
-export default function LaborSection({ materials, isAdmin, onLaborLines }) {
+export default function LaborSection({ materials, isAdmin, onLaborLines, currentUser, allUsers = [] }) {
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [mode, setMode] = useState("1_oficial");
   const [customCount, setCustomCount] = useState(2);
+  // helper for oficial_ayudante mode
+  const [helperEmail, setHelperEmail] = useState("");
+  // additional operators for custom mode (array of emails, length = customCount - 1)
+  const [extraOperators, setExtraOperators] = useState([]);
 
-  // Prices from catalog (mano_de_obra category), fallback to 45
   const moMaterials = materials.filter(m => m.category === "mano_de_obra");
   const defaultPrice = moMaterials[0]?.sell_price || 45;
   const defaultId = moMaterials[0]?.id || "";
   const defaultName = moMaterials[0]?.name || "Mano de Obra";
   const defaultUnit = moMaterials[0]?.unit || "h";
   const defaultIva = moMaterials[0]?.iva_percent || 21;
-
-  // Ayudante price — second MO material or 80% of default
   const ayudantePrice = moMaterials[1]?.sell_price || Math.round(defaultPrice * 0.8 * 100) / 100;
   const ayudanteName = moMaterials[1]?.name || "Mano de Obra - Ayudante";
   const ayudanteId = moMaterials[1]?.id || "";
@@ -46,88 +46,85 @@ export default function LaborSection({ materials, isAdmin, onLaborLines }) {
     setAyudanteCustomPrice(ayudantePrice);
   }, [materials.length]);
 
+  // Sync extra operators array size with customCount
+  useEffect(() => {
+    const additional = Math.max(0, customCount - 1);
+    setExtraOperators(prev => {
+      const next = [...prev];
+      while (next.length < additional) next.push("");
+      return next.slice(0, additional);
+    });
+  }, [customCount]);
+
   const hours = calcHours(startTime, endTime);
+  const principalName = currentUser?.full_name || "Técnico Principal";
+
+  // Helpers
+  const otherUsers = allUsers.filter(u => u.email !== currentUser?.email);
+  const getUserName = (email) => allUsers.find(u => u.email === email)?.full_name || email;
 
   useEffect(() => {
-    if (hours <= 0) {
-      onLaborLines([]);
-      return;
-    }
+    if (hours <= 0) { onLaborLines([]); return; }
 
     let lines = [];
 
     if (mode === "1_oficial") {
       lines = [{
-        material_id: defaultId,
-        material_name: defaultName,
-        unit: defaultUnit,
-        iva_percent: defaultIva,
-        quantity: hours,
-        unit_price: oficialPrice,
-        total: hours * oficialPrice,
-        observation: `Jornada: ${startTime} - ${endTime}`,
-        _isLabor: true,
-      }];
-    } else if (mode === "2_oficiales") {
-      lines = [{
-        material_id: defaultId,
-        material_name: defaultName,
-        unit: defaultUnit,
-        iva_percent: defaultIva,
-        quantity: hours * 2,
-        unit_price: oficialPrice,
-        total: hours * 2 * oficialPrice,
-        observation: `2 Oficiales · Jornada: ${startTime} - ${endTime}`,
+        material_id: defaultId, material_name: defaultName, unit: defaultUnit, iva_percent: defaultIva,
+        quantity: hours, unit_price: oficialPrice, total: hours * oficialPrice,
+        observation: `${principalName} · ${startTime} - ${endTime}`,
         _isLabor: true,
       }];
     } else if (mode === "oficial_ayudante") {
+      const helperName = helperEmail ? getUserName(helperEmail) : "Ayudante";
       lines = [
         {
-          material_id: defaultId,
-          material_name: defaultName,
-          unit: defaultUnit,
-          iva_percent: defaultIva,
-          quantity: hours,
-          unit_price: oficialPrice,
-          total: hours * oficialPrice,
-          observation: `Oficial · ${startTime} - ${endTime}`,
+          material_id: defaultId, material_name: defaultName, unit: defaultUnit, iva_percent: defaultIva,
+          quantity: hours, unit_price: oficialPrice, total: hours * oficialPrice,
+          observation: `${principalName} · ${startTime} - ${endTime}`,
           _isLabor: true,
         },
         {
-          material_id: ayudanteId,
-          material_name: ayudanteName,
-          unit: defaultUnit,
-          iva_percent: defaultIva,
-          quantity: hours,
-          unit_price: ayudanteCustomPrice,
-          total: hours * ayudanteCustomPrice,
-          observation: `Ayudante · ${startTime} - ${endTime}`,
+          material_id: ayudanteId, material_name: ayudanteName, unit: defaultUnit, iva_percent: defaultIva,
+          quantity: hours, unit_price: ayudanteCustomPrice, total: hours * ayudanteCustomPrice,
+          observation: `${helperName} · ${startTime} - ${endTime}`,
           _isLabor: true,
         },
       ];
     } else if (mode === "custom") {
-      const n = Math.max(1, customCount);
+      // Principal line
       lines = [{
-        material_id: defaultId,
-        material_name: defaultName,
-        unit: defaultUnit,
-        iva_percent: defaultIva,
-        quantity: hours * n,
-        unit_price: oficialPrice,
-        total: hours * n * oficialPrice,
-        observation: `${n} operarios · ${startTime} - ${endTime}`,
+        material_id: defaultId, material_name: defaultName, unit: defaultUnit, iva_percent: defaultIva,
+        quantity: hours, unit_price: oficialPrice, total: hours * oficialPrice,
+        observation: `${principalName} · ${startTime} - ${endTime}`,
         _isLabor: true,
       }];
+      // Additional operators
+      extraOperators.forEach((email, i) => {
+        const name = email ? getUserName(email) : `Operario ${i + 2}`;
+        lines.push({
+          material_id: defaultId, material_name: defaultName, unit: defaultUnit, iva_percent: defaultIva,
+          quantity: hours, unit_price: oficialPrice, total: hours * oficialPrice,
+          observation: `${name} · ${startTime} - ${endTime}`,
+          _isLabor: true,
+        });
+      });
     }
 
     onLaborLines(lines);
-  }, [startTime, endTime, mode, oficialPrice, ayudanteCustomPrice, customCount]);
+  }, [startTime, endTime, mode, oficialPrice, ayudanteCustomPrice, customCount, helperEmail, extraOperators.join(","), hours]);
 
   return (
     <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
       <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
         <Clock className="h-4 w-4" /> Mano de Obra
       </h2>
+
+      {/* Técnico principal (readonly) */}
+      <div>
+        <Label>Técnico Principal</Label>
+        <Input value={principalName} disabled className="mt-1 rounded-xl bg-muted/50" />
+      </div>
 
       {/* Time range */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 items-end">
@@ -157,9 +154,7 @@ export default function LaborSection({ materials, isAdmin, onLaborLines }) {
       <div>
         <Label className="flex items-center gap-2"><Users className="h-3.5 w-3.5" /> Tipo de Operarios</Label>
         <Select value={mode} onValueChange={setMode}>
-          <SelectTrigger className="mt-1 rounded-xl">
-            <SelectValue />
-          </SelectTrigger>
+          <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
           <SelectContent>
             {OPERATOR_MODES.map(m => (
               <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
@@ -168,60 +163,84 @@ export default function LaborSection({ materials, isAdmin, onLaborLines }) {
         </Select>
       </div>
 
-      {/* Custom count */}
-      {mode === "custom" && (
+      {/* Oficial + Ayudante: selector de ayudante */}
+      {mode === "oficial_ayudante" && (
         <div>
-          <Label>Nº de Operarios</Label>
-          <Input
-            type="number"
-            min="1"
-            value={customCount}
-            onChange={e => setCustomCount(parseInt(e.target.value) || 1)}
-            className="mt-1 rounded-xl w-32"
-          />
+          <Label>Ayudante / Segundo Técnico *</Label>
+          <Select value={helperEmail} onValueChange={setHelperEmail}>
+            <SelectTrigger className="mt-1 rounded-xl">
+              <SelectValue placeholder="Seleccionar ayudante..." />
+            </SelectTrigger>
+            <SelectContent>
+              {otherUsers.map(u => (
+                <SelectItem key={u.email} value={u.email}>{u.full_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
-      {/* Prices — only admin */}
+      {/* Custom: nº operarios + selectores adicionales */}
+      {mode === "custom" && (
+        <div className="space-y-3">
+          <div>
+            <Label>Nº Total de Operarios (incluido principal)</Label>
+            <Input
+              type="number" min="1" value={customCount}
+              onChange={e => setCustomCount(Math.max(1, parseInt(e.target.value) || 1))}
+              className="mt-1 rounded-xl w-32"
+            />
+          </div>
+          {extraOperators.map((email, i) => (
+            <div key={i}>
+              <Label>Operario {i + 2}</Label>
+              <Select value={email} onValueChange={(v) => {
+                const next = [...extraOperators];
+                next[i] = v;
+                setExtraOperators(next);
+              }}>
+                <SelectTrigger className="mt-1 rounded-xl">
+                  <SelectValue placeholder="Seleccionar operario..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {otherUsers.map(u => (
+                    <SelectItem key={u.email} value={u.email}>{u.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Prices — admin only */}
       {isAdmin && hours > 0 && (
         <div className="space-y-3 pt-2 border-t border-border">
           <p className="text-xs text-muted-foreground font-medium">Tarifas (€/h)</p>
           <div className="flex flex-wrap gap-3">
             <div>
               <Label className="text-xs">{mode === "oficial_ayudante" ? "Oficial" : "Operario"}</Label>
-              <Input
-                type="number"
-                step="0.5"
-                value={oficialPrice}
+              <Input type="number" step="0.5" value={oficialPrice}
                 onChange={e => setOficialPrice(parseFloat(e.target.value) || 0)}
-                className="mt-1 rounded-xl w-28"
-              />
+                className="mt-1 rounded-xl w-28" />
             </div>
             {mode === "oficial_ayudante" && (
               <div>
                 <Label className="text-xs">Ayudante</Label>
-                <Input
-                  type="number"
-                  step="0.5"
-                  value={ayudanteCustomPrice}
+                <Input type="number" step="0.5" value={ayudanteCustomPrice}
                   onChange={e => setAyudanteCustomPrice(parseFloat(e.target.value) || 0)}
-                  className="mt-1 rounded-xl w-28"
-                />
+                  className="mt-1 rounded-xl w-28" />
               </div>
             )}
           </div>
-          {hours > 0 && (
-            <div className="bg-primary/5 rounded-xl px-4 py-2.5 text-sm font-medium">
-              {mode === "oficial_ayudante"
-                ? `Total MO: ${(hours * oficialPrice + hours * ayudanteCustomPrice).toFixed(2)} €`
-                : mode === "2_oficiales"
-                  ? `Total MO (2 × ${hours}h): ${(hours * 2 * oficialPrice).toFixed(2)} €`
-                  : mode === "custom"
-                    ? `Total MO (${customCount} × ${hours}h): ${(hours * customCount * oficialPrice).toFixed(2)} €`
-                    : `Total MO: ${(hours * oficialPrice).toFixed(2)} €`
-              }
-            </div>
-          )}
+          <div className="bg-primary/5 rounded-xl px-4 py-2.5 text-sm font-medium">
+            {mode === "oficial_ayudante"
+              ? `Total MO: ${(hours * oficialPrice + hours * ayudanteCustomPrice).toFixed(2)} €`
+              : mode === "custom"
+                ? `Total MO (${customCount} × ${hours}h): ${(hours * customCount * oficialPrice).toFixed(2)} €`
+                : `Total MO: ${(hours * oficialPrice).toFixed(2)} €`
+            }
+          </div>
         </div>
       )}
     </div>

@@ -444,6 +444,8 @@ export default function NewIntervention() {
         materials={materials}
         isAdmin={isAdmin}
         onLaborLines={setLaborLines}
+        currentUser={user}
+        allUsers={users}
       />
 
       {/* Material Lines */}

@@ -316,7 +316,7 @@ export default function NewVisit() {
       </div>
 
       {/* Labor */}
-      <LaborSection materials={materials} isAdmin={isAdmin} onLaborLines={setLaborLines} />
+      <LaborSection materials={materials} isAdmin={isAdmin} onLaborLines={setLaborLines} currentUser={user} allUsers={users} />
 
       {/* Materiales */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
