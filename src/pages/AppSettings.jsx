@@ -21,7 +21,7 @@ export default function AppSettings() {
   const loadData = async () => {
     const me = await base44.auth.me();
     setUser(me);
-    if (me.role === "admin" || me.role === "superadmin") {
+    if (me.role === "superadmin") {
       const allUsers = await base44.entities.User.list("full_name", 100);
       setUsers(allUsers);
     }
@@ -51,7 +51,7 @@ export default function AppSettings() {
     );
   }
 
-  if (user?.role !== "admin" && user?.role !== "superadmin") {
+  if (user?.role !== "superadmin") {
     return (
       <div className="p-8 flex flex-col items-center justify-center h-full gap-4">
         <Shield className="h-12 w-12 text-muted-foreground" />
