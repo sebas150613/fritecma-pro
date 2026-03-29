@@ -4,20 +4,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Save, Clock, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, Save, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
 import moment from "moment";
 
 const LOCATION_OPTIONS = [
+  "Cliente",
   "Taller",
   "Comida",
   "Desplazamiento",
-  "Cliente",
   "Guardia",
   "Formación",
   "Otro",
 ];
 
-const emptySegment = () => ({ start: "", end: "", location: "Cliente", incident_number: "" });
+const CLIENTE_NO_REGISTRADO = "__nuevo__";
+
+const emptySegment = () => ({
+  start: "",
+  end: "",
+  location: "Cliente",
+  entity: "",
+  other_data: "",
+});
 
 function calcMinutes(start, end) {
   if (!start || !end) return 0;
@@ -32,8 +40,18 @@ function minutesToHHMM(minutes) {
   return `${h}h ${m.toString().padStart(2, "0")}m`;
 }
 
+function validateSegments(segments) {
+  for (const seg of segments) {
+    if (seg.location === "Cliente" && !seg.entity) {
+      return "Debes seleccionar la entidad para todos los tramos de tipo 'Cliente'.";
+    }
+  }
+  return null;
+}
+
 export default function WorkDayLog() {
   const [user, setUser] = useState(null);
+  const [clients, setClients] = useState([]);
   const [selectedDate, setSelectedDate] = useState(moment().format("YYYY-MM-DD"));
   const [segments, setSegments] = useState([emptySegment()]);
   const [liquidacion, setLiquidacion] = useState({ hours_extra: 0, hours_nocturnas: 0, hours_sabado: 0, hours_domingo: 0 });
@@ -41,9 +59,13 @@ export default function WorkDayLog() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [existingId, setExistingId] = useState(null);
+  const [validationError, setValidationError] = useState("");
 
   useEffect(() => {
-    base44.auth.me().then(setUser);
+    Promise.all([base44.auth.me(), base44.entities.Client.list("name", 500)]).then(([me, cl]) => {
+      setUser(me);
+      setClients(cl);
+    });
   }, []);
 
   useEffect(() => {
@@ -74,6 +96,7 @@ export default function WorkDayLog() {
       setNotes("");
       setSaved(false);
     }
+    setValidationError("");
   };
 
   const hasLunch = segments.some(s => s.location === "Comida");
@@ -84,11 +107,17 @@ export default function WorkDayLog() {
   const updateSegment = (i, field, val) => {
     const next = [...segments];
     next[i] = { ...next[i], [field]: val };
+    // Clear entity when location changes away from Cliente
+    if (field === "location" && val !== "Cliente") next[i].entity = "";
     setSegments(next);
+    setValidationError("");
   };
 
   const handleSave = async (status = "borrador") => {
     if (!user) return;
+    const error = validateSegments(segments);
+    if (error) { setValidationError(error); return; }
+
     setSaving(true);
     const data = {
       technician_email: user.email,
@@ -120,7 +149,7 @@ export default function WorkDayLog() {
 
   return (
     <div className="p-4 lg:p-8 max-w-2xl mx-auto space-y-6 pb-28">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Registro de Jornada</h1>
           <p className="text-sm text-muted-foreground">{user.full_name}</p>
@@ -129,74 +158,114 @@ export default function WorkDayLog() {
           type="date"
           value={selectedDate}
           onChange={e => setSelectedDate(e.target.value)}
-          className="w-44 rounded-xl bg-card"
+          className="w-44 rounded-xl bg-card text-base"
         />
       </div>
 
       {saved && (
-        <div className="flex items-center gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm">
-          <CheckCircle2 className="h-4 w-4" /> Jornada enviada. Contacta con administración para modificarla.
+        <div className="flex items-center gap-2 p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-base">
+          <CheckCircle2 className="h-5 w-5 shrink-0" /> Jornada enviada. Contacta con administración para modificarla.
         </div>
       )}
 
       {/* Tramos */}
-      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-5">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Tramos de Actividad</h2>
           {!saved && (
-            <Button variant="outline" size="sm" onClick={() => setSegments([...segments, emptySegment()])} className="rounded-xl">
+            <Button variant="outline" size="sm" onClick={() => setSegments([...segments, emptySegment()])} className="rounded-xl text-base h-10 px-4">
               <Plus className="h-4 w-4 mr-1" /> Añadir
             </Button>
           )}
         </div>
 
         {segments.map((seg, i) => (
-          <div key={i} className="grid grid-cols-12 gap-2 items-end">
-            <div className="col-span-2">
-              <Label className="text-xs">Inicio</Label>
-              <Input type="time" value={seg.start} onChange={e => updateSegment(i, "start", e.target.value)}
-                className="mt-1 rounded-xl" disabled={saved} />
+          <div key={i} className="border border-border rounded-xl p-4 space-y-4">
+            {/* Row 1: times + duration */}
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <Label className="text-base font-medium">Inicio</Label>
+                <Input type="time" value={seg.start}
+                  onChange={e => updateSegment(i, "start", e.target.value)}
+                  className="mt-1 rounded-xl text-[16px] h-12" disabled={saved} />
+              </div>
+              <div className="flex-1">
+                <Label className="text-base font-medium">Fin</Label>
+                <Input type="time" value={seg.end}
+                  onChange={e => updateSegment(i, "end", e.target.value)}
+                  className="mt-1 rounded-xl text-[16px] h-12" disabled={saved} />
+              </div>
+              <div className="text-right pb-1">
+                <p className="text-xs text-muted-foreground">Duración</p>
+                <p className="text-base font-semibold text-primary">{minutesToHHMM(calcMinutes(seg.start, seg.end))}</p>
+              </div>
+              {!saved && segments.length > 1 && (
+                <Button variant="ghost" size="icon" onClick={() => setSegments(segments.filter((_, j) => j !== i))}
+                  className="h-10 w-10 text-muted-foreground hover:text-destructive mb-1">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
-            <div className="col-span-2">
-              <Label className="text-xs">Fin</Label>
-              <Input type="time" value={seg.end} onChange={e => updateSegment(i, "end", e.target.value)}
-                className="mt-1 rounded-xl" disabled={saved} />
-            </div>
-            <div className="col-span-3">
-              <Label className="text-xs">Actividad</Label>
+
+            {/* Row 2: activity selector */}
+            <div>
+              <Label className="text-base font-medium">Actividad / Tipo</Label>
               <Select value={seg.location} onValueChange={v => updateSegment(i, "location", v)} disabled={saved}>
-                <SelectTrigger className="mt-1 rounded-xl text-xs"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="mt-1 rounded-xl text-[16px] h-12">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {LOCATION_OPTIONS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                  {LOCATION_OPTIONS.map(l => <SelectItem key={l} value={l} className="text-[16px] py-3">{l}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <div className="col-span-3">
-              <Label className="text-xs">Nº Incidencia</Label>
-              <Input value={seg.incident_number} onChange={e => updateSegment(i, "incident_number", e.target.value)}
-                placeholder="FRI-..." className="mt-1 rounded-xl text-xs" disabled={saved} />
-            </div>
-            <div className="col-span-1">
-              <p className="text-xs text-muted-foreground text-center">{minutesToHHMM(calcMinutes(seg.start, seg.end))}</p>
-            </div>
-            {!saved && segments.length > 1 && (
-              <div className="col-span-1 flex justify-center">
-                <Button variant="ghost" size="icon" onClick={() => setSegments(segments.filter((_, j) => j !== i))} className="h-8 w-8 text-muted-foreground hover:text-destructive">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+
+            {/* Row 3: entity selector (only if Cliente) */}
+            {seg.location === "Cliente" && (
+              <div>
+                <Label className="text-base font-medium">
+                  Seleccionar Entidad <span className="text-destructive">*</span>
+                </Label>
+                <Select value={seg.entity} onValueChange={v => updateSegment(i, "entity", v)} disabled={saved}>
+                  <SelectTrigger className={`mt-1 rounded-xl text-[16px] h-12 ${!seg.entity ? "border-amber-400" : ""}`}>
+                    <SelectValue placeholder="Selecciona el cliente..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={CLIENTE_NO_REGISTRADO} className="text-[16px] py-3 font-medium text-muted-foreground">
+                      — CLIENTE NO REGISTRADO —
+                    </SelectItem>
+                    {clients.map(c => (
+                      <SelectItem key={c.id} value={c.id} className="text-[16px] py-3">{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!seg.entity && (
+                  <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" /> Obligatorio cuando la actividad es "Cliente"
+                  </p>
+                )}
               </div>
             )}
+
+            {/* Row 4: Otros Datos */}
+            <div>
+              <Label className="text-base font-medium">Otros Datos</Label>
+              <Input value={seg.other_data}
+                onChange={e => updateSegment(i, "other_data", e.target.value)}
+                placeholder="Nº parte, notas..."
+                className="mt-1 rounded-xl text-[16px] h-12" disabled={saved} />
+            </div>
           </div>
         ))}
 
         {/* Totals */}
-        <div className="border-t border-border pt-3 space-y-1">
+        <div className="border-t border-border pt-3 space-y-2">
           {hasLunch && (
-            <p className="text-xs text-amber-600 flex items-center gap-1">
-              <Clock className="h-3 w-3" /> Se descuentan 60 min por tramo de Comida
+            <p className="text-sm text-amber-600 flex items-center gap-1">
+              <Clock className="h-4 w-4" /> Se descuentan 60 min por tramo de Comida
             </p>
           )}
-          <div className="flex justify-between text-sm font-semibold">
+          <div className="flex justify-between text-base font-semibold">
             <span>Total Jornada</span>
             <span className="text-primary">{minutesToHHMM(totalMinutes)} ({totalHours}h)</span>
           </div>
@@ -206,7 +275,7 @@ export default function WorkDayLog() {
       {/* Liquidación */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Horas de Liquidación</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           {[
             { key: "hours_extra", label: "Horas Extra" },
             { key: "hours_nocturnas", label: "Horas Nocturnas" },
@@ -214,12 +283,12 @@ export default function WorkDayLog() {
             { key: "hours_domingo", label: "Horas Domingo" },
           ].map(({ key, label }) => (
             <div key={key}>
-              <Label className="text-xs">{label}</Label>
+              <Label className="text-base font-medium">{label}</Label>
               <Input
                 type="number" min="0" step="0.5"
                 value={liquidacion[key] || ""}
                 onChange={e => setLiquidacion(l => ({ ...l, [key]: parseFloat(e.target.value) || 0 }))}
-                className="mt-1 rounded-xl"
+                className="mt-1 rounded-xl text-[16px] h-12"
                 disabled={saved}
               />
             </div>
@@ -229,18 +298,28 @@ export default function WorkDayLog() {
 
       {/* Observaciones */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-2">
-        <Label>Observaciones</Label>
-        <Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notas de la jornada..." className="rounded-xl" disabled={saved} />
+        <Label className="text-base font-medium">Observaciones</Label>
+        <Input value={notes} onChange={e => setNotes(e.target.value)}
+          placeholder="Notas de la jornada..."
+          className="rounded-xl text-[16px] h-12" disabled={saved} />
       </div>
+
+      {/* Validation error */}
+      {validationError && (
+        <div className="flex items-center gap-2 p-4 bg-destructive/10 border border-destructive/30 rounded-xl text-destructive text-sm">
+          <AlertTriangle className="h-4 w-4 shrink-0" /> {validationError}
+        </div>
+      )}
 
       {/* Footer */}
       {!saved && (
         <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-card/80 backdrop-blur-xl border-t border-border p-4">
           <div className="max-w-2xl mx-auto flex gap-3 justify-end">
-            <Button variant="outline" onClick={() => handleSave("borrador")} disabled={saving} className="rounded-xl">
+            <Button variant="outline" onClick={() => handleSave("borrador")} disabled={saving} className="rounded-xl text-base h-12 px-5">
               Guardar Borrador
             </Button>
-            <Button onClick={() => handleSave("enviado")} disabled={saving} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
+            <Button onClick={() => handleSave("enviado")} disabled={saving}
+              className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl text-base h-12 px-6 shadow-lg shadow-accent/25">
               <Save className="h-4 w-4 mr-2" /> Enviar Jornada
             </Button>
           </div>
