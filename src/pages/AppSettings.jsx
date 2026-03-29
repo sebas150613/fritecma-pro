@@ -38,8 +38,7 @@ export default function AppSettings() {
     loadData();
   };
 
-  const toggleUserRole = async (userId, currentRole) => {
-    const newRole = currentRole === "admin" ? "tecnico" : "admin";
+  const setUserRole = async (userId, newRole) => {
     await base44.entities.User.update(userId, { role: newRole });
     loadData();
   };
@@ -93,12 +92,15 @@ export default function AppSettings() {
                 <p className="text-xs text-muted-foreground">{u.email}</p>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`text-xs font-medium px-2 py-1 rounded-lg ${u.role === "admin" ? "bg-accent/10 text-accent" : "bg-primary/10 text-primary"}`}>
-                  {u.role === "admin" ? "Admin" : "Técnico"}
-                </span>
-                <Button variant="ghost" size="sm" onClick={() => toggleUserRole(u.id, u.role)} className="text-xs">
-                  <Shield className="h-3 w-3 mr-1" /> Cambiar Rol
-                </Button>
+                <select
+                  value={u.role || "user"}
+                  onChange={e => setUserRole(u.id, e.target.value)}
+                  className="text-xs rounded-lg border border-input bg-card px-2 py-1"
+                >
+                  <option value="admin">Admin</option>
+                  <option value="oficina">Oficina</option>
+                  <option value="user">Técnico</option>
+                </select>
               </div>
             </div>
           ))}

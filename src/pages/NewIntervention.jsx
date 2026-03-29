@@ -10,6 +10,7 @@ import { ArrowLeft, Plus, MapPin, Loader2, Save, LogIn } from "lucide-react";
 import MaterialLineForm from "../components/MaterialLineForm";
 import LaborSection from "../components/LaborSection";
 import SignaturePad from "../components/SignaturePad";
+import { validateStockAvailability, deductStockForIntervention } from "../lib/stockUtils";
 import moment from "moment";
 
 const GAS_TYPES = ["R449A", "R134a", "R404A", "R410A", "R407C", "R22", "R32", "R290", "R600a", "R744", "otro"];
@@ -21,6 +22,7 @@ export default function NewIntervention() {
   const [materials, setMaterials] = useState([]);
   const [saving, setSaving] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
+  const [stockWarnings, setStockWarnings] = useState([]);
   const [checkedIn, setCheckedIn] = useState(null); // null=loading, true/false
 
   const [form, setForm] = useState({
@@ -138,10 +140,19 @@ export default function NewIntervention() {
 
   const handleSave = async () => {
     if (!form.client_id) return;
+
+    // Validate stock availability before saving
+    const materialOnlyLines = lines.filter(l => l.material_id);
+    const warnings = await validateStockAvailability(materialOnlyLines);
+    if (warnings.length > 0) {
+      const proceed = window.confirm(
+        `⚠️ Stock insuficiente para:\n${warnings.map(w => `• ${w.material_name}: solicitado ${w.requested}, disponible ${w.available}`).join("\n")}\n\n¿Continuar igualmente?`
+      );
+      if (!proceed) return;
+    }
+
     setSaving(true);
-
     const interventionNumber = `FRI-${moment().format("YYMMDD")}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-
     const allLines = [...laborLines, ...lines];
     const data = {
       number: interventionNumber,
@@ -170,6 +181,16 @@ export default function NewIntervention() {
     };
 
     const created = await base44.entities.Intervention.create(data);
+
+    // Deduct stock after saving
+    await deductStockForIntervention({
+      lines: materialOnlyLines,
+      interventionId: created.id,
+      interventionNumber,
+      technicianEmail: user.email,
+      technicianName: user.full_name,
+    });
+
     setSaving(false);
     navigate(`/interventions/${created.id}`);
   };

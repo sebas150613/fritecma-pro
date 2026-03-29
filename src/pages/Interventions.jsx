@@ -85,6 +85,7 @@ export default function Interventions() {
             <SelectItem value="all">Todos los estados</SelectItem>
             <SelectItem value="en_curso">En Curso</SelectItem>
             <SelectItem value="pendiente_revision">Pendiente Revisión</SelectItem>
+            <SelectItem value="validado">Validado</SelectItem>
             <SelectItem value="completado">Completado</SelectItem>
             <SelectItem value="facturado">Facturado</SelectItem>
           </SelectContent>

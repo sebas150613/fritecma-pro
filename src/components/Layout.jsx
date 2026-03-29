@@ -13,7 +13,9 @@ import {
   Snowflake,
   ChevronRight,
   Clock,
-  FlaskConical
+  FlaskConical,
+  TrendingDown,
+  Building2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -25,7 +27,20 @@ const adminLinks = [
   { to: "/clients", label: "Clientes", icon: Users },
   { to: "/time-records", label: "Registro Jornada", icon: Clock },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
+  { to: "/stock-movements", label: "Movimientos Stock", icon: Package },
+  { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
   { to: "/settings", label: "Configuración", icon: Settings },
+];
+
+const oficinaLinks = [
+  { to: "/", label: "Panel", icon: LayoutDashboard },
+  { to: "/interventions", label: "Intervenciones", icon: ClipboardList },
+  { to: "/materials", label: "Stock / Materiales", icon: Package },
+  { to: "/clients", label: "Clientes", icon: Users },
+  { to: "/time-records", label: "Registro Jornada", icon: Clock },
+  { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
+  { to: "/stock-movements", label: "Movimientos Stock", icon: TrendingDown },
+  { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
 ];
 
 const techLinks = [
@@ -44,7 +59,8 @@ export default function Layout() {
   }, []);
 
   const isAdmin = user?.role === "admin";
-  const links = isAdmin ? adminLinks : techLinks;
+  const isOficina = user?.role === "oficina";
+  const links = isAdmin ? adminLinks : isOficina ? oficinaLinks : techLinks;
 
   const handleLogout = () => {
     base44.auth.logout("/");

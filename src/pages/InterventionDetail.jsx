@@ -4,23 +4,27 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, FileText, Mail, Clock, MapPin, Flame, User, Loader2, Package } from "lucide-react";
+import { ArrowLeft, FileText, Mail, Clock, MapPin, Flame, User, Loader2, Package, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import moment from "moment";
 
 const statusColors = {
   en_curso: "bg-blue-100 text-blue-700",
   pendiente_revision: "bg-amber-100 text-amber-700",
-  completado: "bg-emerald-100 text-emerald-700",
+  validado: "bg-emerald-100 text-emerald-700",
+  completado: "bg-teal-100 text-teal-700",
   facturado: "bg-purple-100 text-purple-700",
 };
 
 const statusLabels = {
   en_curso: "En Curso",
   pendiente_revision: "Pendiente Revisión",
+  validado: "Validado",
   completado: "Completado",
   facturado: "Facturado",
 };
+
+
 
 export default function InterventionDetail() {
   const { id } = useParams();
@@ -129,7 +133,33 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
   }
 
   const isAdmin = user?.role === "admin";
+  const isOficina = user?.role === "oficina";
+  const canEdit = isAdmin || isOficina;
   const materials = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
+
+  const validatePart = async () => {
+    const now = new Date().toISOString();
+    await base44.entities.Intervention.update(id, {
+      status: "validado",
+      validated_by: user.email,
+      validated_at: now,
+    });
+    setIntervention(prev => ({ ...prev, status: "validado", validated_by: user.email, validated_at: now }));
+    // Auto-send email on validation
+    const clientRes = await base44.entities.Client.filter({ id: intervention.client_id }, "-created_date", 1);
+    const clientEmail = clientRes[0]?.email;
+    if (clientEmail) {
+      setSendingEmail(true);
+      await base44.integrations.Core.SendEmail({
+        to: clientEmail,
+        subject: `Parte Validado ${intervention.number} - FRITECMA`,
+        body: `Estimado/a ${intervention.client_name},\n\nSu parte de trabajo ${intervention.number} ha sido validado.\n\nTotal: ${(intervention.total || 0).toFixed(2)} €\n\nGracias por confiar en FRITECMA.`,
+      });
+      await base44.entities.Intervention.update(id, { email_sent: true });
+      setIntervention(prev => ({ ...prev, email_sent: true }));
+      setSendingEmail(false);
+    }
+  };
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
@@ -149,22 +179,28 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
         </Badge>
       </div>
 
-      {/* Admin Actions */}
-      {isAdmin && (
+      {/* Admin/Oficina Actions */}
+      {canEdit && (
         <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
           <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Acciones</h2>
           <div className="flex flex-wrap gap-3">
             <Select value={intervention.status} onValueChange={updateStatus}>
-              <SelectTrigger className="w-48 rounded-xl">
-                <SelectValue />
-              </SelectTrigger>
+              <SelectTrigger className="w-48 rounded-xl"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="en_curso">En Curso</SelectItem>
                 <SelectItem value="pendiente_revision">Pendiente Revisión</SelectItem>
+                <SelectItem value="validado">Validado</SelectItem>
                 <SelectItem value="completado">Completado</SelectItem>
                 <SelectItem value="facturado">Facturado</SelectItem>
               </SelectContent>
             </Select>
+
+            {intervention.status === "pendiente_revision" && (
+              <Button onClick={validatePart} disabled={sendingEmail} className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+                <CheckCircle2 className="h-4 w-4" /> Validar Parte
+              </Button>
+            )}
+
             <Button variant="outline" onClick={generatePDF} disabled={generatingPdf} className="rounded-xl">
               {generatingPdf ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileText className="h-4 w-4 mr-2" />}
               Generar PDF
@@ -174,6 +210,9 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
               {intervention.email_sent ? "Email Enviado ✓" : "Enviar Email"}
             </Button>
           </div>
+          {intervention.validated_by && (
+            <p className="text-xs text-muted-foreground">✓ Validado por {intervention.validated_by} el {intervention.validated_at ? new Date(intervention.validated_at).toLocaleString("es") : ""}</p>
+          )}
         </div>
       )}
 

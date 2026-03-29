@@ -38,10 +38,20 @@
       "enum": [
         "en_curso",
         "pendiente_revision",
+        "validado",
         "completado",
         "facturado"
       ],
-      "default": "en_curso"
+      "default": "pendiente_revision"
+    },
+    "validated_by": {
+      "type": "string",
+      "title": "Validado por (email)"
+    },
+    "validated_at": {
+      "type": "string",
+      "title": "Fecha Validaci\u00f3n",
+      "format": "date-time"
     },
     "location_lat": {
       "type": "number",

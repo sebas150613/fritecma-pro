@@ -15,6 +15,8 @@ import Clients from './pages/Clients';
 import AppSettings from './pages/AppSettings';
 import TimeRecords from './pages/TimeRecords';
 import GasBottles from './pages/GasBottles';
+import StockMovements from './pages/StockMovements';
+import Projects from './pages/Projects';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -52,6 +54,8 @@ const AuthenticatedApp = () => {
         <Route path="/settings" element={<AppSettings />} />
         <Route path="/time-records" element={<TimeRecords />} />
         <Route path="/gas-bottles" element={<GasBottles />} />
+        <Route path="/stock-movements" element={<StockMovements />} />
+        <Route path="/projects" element={<Projects />} />
         <Route path="*" element={<PageNotFound />} />
       </Route>
     </Routes>
