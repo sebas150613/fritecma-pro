@@ -22,6 +22,14 @@
       "type": "string",
       "title": "Nombre T\u00e9cnico"
     },
+    "helper_email": {
+      "type": "string",
+      "title": "Email Ayudante"
+    },
+    "helper_name": {
+      "type": "string",
+      "title": "Nombre Ayudante"
+    },
     "date": {
       "type": "string",
       "title": "Fecha",

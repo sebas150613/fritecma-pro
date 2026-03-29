@@ -99,7 +99,8 @@ Details:
 - Document Number: ${intervention.number}
 - Date: ${moment(intervention.date).format("DD/MM/YYYY HH:mm")}
 - Client: ${intervention.client_name}
-- Technician: ${intervention.technician_name}
+- Operario 1 (Técnico Principal): ${intervention.technician_name}
+- Operario 2 (Ayudante): ${intervention.helper_name || "N/A"}
 - Location: ${intervention.location_address || "N/A"}
 - Gas Type: ${intervention.gas_type || "N/A"}
 - Gas Loaded: ${intervention.gas_loaded_kg || 0} kg
@@ -285,8 +286,14 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
         )}
         <div className="flex items-center gap-2 text-sm">
           <User className="h-4 w-4 text-muted-foreground" />
-          <span>{intervention.technician_name}</span>
+          <span>Operario 1: <strong>{intervention.technician_name}</strong></span>
         </div>
+        {intervention.helper_name && (
+          <div className="flex items-center gap-2 text-sm">
+            <User className="h-4 w-4 text-muted-foreground" />
+            <span>Operario 2: <strong>{intervention.helper_name}</strong></span>
+          </div>
+        )}
       </div>
 
       {/* Gas */}

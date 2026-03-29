@@ -22,6 +22,7 @@ export default function NewIntervention() {
   const [clients, setClients] = useState([]);
   const [materials, setMaterials] = useState([]);
   const [gasBottles, setGasBottles] = useState([]);
+  const [users, setUsers] = useState([]);
   const [saving, setSaving] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [stockWarnings, setStockWarnings] = useState([]);
@@ -47,6 +48,8 @@ export default function NewIntervention() {
     receptor_dni: "",
     client_conformidad: false,
     incident_status: "finalizado",
+    helper_email: "",
+    helper_name: "",
   });
 
   const [lines, setLines] = useState([]);
@@ -77,14 +80,16 @@ export default function NewIntervention() {
       setCheckedIn(true);
     }
 
-    const [clientList, materialList, bottleList] = await Promise.all([
+    const [clientList, materialList, bottleList, userList] = await Promise.all([
       base44.entities.Client.list("name", 500),
       base44.entities.Material.filter({ is_active: true }, "name", 500),
       base44.entities.GasBottle.list("-created_date", 200),
+      base44.entities.User.list("full_name", 100),
     ]);
     setClients(clientList);
     setMaterials(materialList);
     setGasBottles(bottleList);
+    setUsers(userList);
   };
 
   const getLocation = () => {
@@ -171,6 +176,8 @@ export default function NewIntervention() {
       client_name: form.client_name,
       technician_email: user.email,
       technician_name: user.full_name,
+      helper_email: form.helper_email || undefined,
+      helper_name: form.helper_name || undefined,
       date: new Date(form.date).toISOString(),
       location_lat: form.location_lat,
       location_lng: form.location_lng,
@@ -285,6 +292,29 @@ export default function NewIntervention() {
       {/* Client & Date */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Cabecera</h2>
+
+        {/* Operarios */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label>Operario 1 (Técnico Principal)</Label>
+            <Input value={user?.full_name || ""} disabled className="mt-1 rounded-xl bg-muted/50" />
+          </div>
+          <div>
+            <Label>Operario 2 (Ayudante / Opcional)</Label>
+            <Select value={form.helper_email} onValueChange={(v) => {
+              const u = users.find(x => x.email === v);
+              setForm(f => ({ ...f, helper_email: v === "__none__" ? "" : v, helper_name: v === "__none__" ? "" : (u?.full_name || "") }));
+            }}>
+              <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Sin ayudante" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Sin ayudante</SelectItem>
+                {users.filter(u => u.email !== user?.email).map(u => (
+                  <SelectItem key={u.email} value={u.email}>{u.full_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
         <div>
           <Label>Cliente *</Label>
