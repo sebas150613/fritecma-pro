@@ -211,15 +211,25 @@ export default function WorkDayReport() {
                   </td>
                   {isAdmin && (
                     <td className="px-4 py-3 text-center">
-                      {r.status === "enviado" && (
-                        <Button size="sm" variant="outline" className="rounded-lg text-xs h-7"
+                      <div className="flex items-center justify-center gap-2">
+                        {r.status === "enviado" && (
+                          <Button size="sm" variant="outline" className="rounded-lg text-xs h-7"
+                            onClick={async () => {
+                              await base44.entities.WorkDay.update(r.id, { status: "validado" });
+                              setRecords(prev => prev.map(x => x.id === r.id ? { ...x, status: "validado" } : x));
+                            }}>
+                            Validar
+                          </Button>
+                        )}
+                        <Button size="sm" variant="ghost" className="rounded-lg text-xs h-7 text-destructive hover:bg-destructive/10"
                           onClick={async () => {
-                            await base44.entities.WorkDay.update(r.id, { status: "validado" });
-                            setRecords(prev => prev.map(x => x.id === r.id ? { ...x, status: "validado" } : x));
+                            if (!window.confirm(`¿Eliminar el registro de jornada del ${r.work_date} de ${r.technician_name}?`)) return;
+                            await base44.entities.WorkDay.delete(r.id);
+                            setRecords(prev => prev.filter(x => x.id !== r.id));
                           }}>
-                          Validar
+                          Eliminar
                         </Button>
-                      )}
+                      </div>
                     </td>
                   )}
                 </tr>

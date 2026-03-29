@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -41,6 +41,8 @@ export default function Projects() {
   const [returnQty, setReturnQty] = useState("");
   const [saving, setSaving] = useState(false);
   const [comboOpen, setComboOpen] = useState(false);
+  const [deleteProjectTarget, setDeleteProjectTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     init();
@@ -181,6 +183,16 @@ export default function Projects() {
     await reload(); setSaving(false); setReturnModal(false);
   };
 
+  const deleteProject = async () => {
+    if (!deleteProjectTarget) return;
+    setDeleting(true);
+    await base44.entities.Project.delete(deleteProjectTarget.id);
+    await reload();
+    setDeleting(false);
+    setDeleteProjectTarget(null);
+  };
+
+  const isAdmin = user?.role === "admin";
   const selectedMat = materials.find(m => m.id === valeForm.material_id);
   const canSeePrices = user?.role === "admin" || user?.role === "oficina";
 
@@ -240,9 +252,17 @@ export default function Projects() {
               <div className="flex items-center justify-between pt-3 border-t border-border">
                 {canSeePrices && <p className="text-sm font-bold">Total consumido: {total.toFixed(2)} €</p>}
                 {!canSeePrices && <span />}
-                <Button size="sm" onClick={() => openVale(project)} className="rounded-xl gap-1 bg-accent hover:bg-accent/90 text-accent-foreground text-xs h-8">
-                  <ArrowDownToLine className="h-3.5 w-3.5" /> Vale de Salida
-                </Button>
+                <div className="flex gap-2">
+                  {isAdmin && (
+                    <Button size="sm" variant="outline" onClick={() => setDeleteProjectTarget(project)}
+                      className="rounded-xl gap-1 text-destructive border-destructive/30 hover:bg-destructive/10 text-xs h-8">
+                      <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={() => openVale(project)} className="rounded-xl gap-1 bg-accent hover:bg-accent/90 text-accent-foreground text-xs h-8">
+                    <ArrowDownToLine className="h-3.5 w-3.5" /> Vale de Salida
+                  </Button>
+                </div>
               </div>
             </div>
           );
@@ -355,6 +375,23 @@ export default function Projects() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Project Confirm */}
+      <Dialog open={!!deleteProjectTarget} onOpenChange={v => !v && setDeleteProjectTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="text-destructive flex items-center gap-2"><Trash2 className="h-5 w-5" /> Eliminar Obra</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            ¿Estás seguro de que quieres eliminar la obra <strong>{deleteProjectTarget?.name}</strong>?
+            Los movimientos de material asociados no se eliminarán.
+          </p>
+          <DialogFooter className="gap-2 mt-2">
+            <Button variant="outline" onClick={() => setDeleteProjectTarget(null)} className="rounded-xl">Cancelar</Button>
+            <Button variant="destructive" onClick={deleteProject} disabled={deleting} className="rounded-xl">
+              {deleting ? "Eliminando..." : "Eliminar Obra"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
