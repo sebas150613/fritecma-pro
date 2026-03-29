@@ -1,10 +1,18 @@
 {
-  "name": "Intervention",
+  "name": "Visit",
   "type": "object",
   "properties": {
-    "number": {
+    "intervention_id": {
+      "type": "string",
+      "title": "ID Incidencia"
+    },
+    "intervention_number": {
       "type": "string",
       "title": "N\u00ba Incidencia"
+    },
+    "visit_number": {
+      "type": "number",
+      "title": "N\u00ba Visita"
     },
     "client_id": {
       "type": "string",
@@ -27,45 +35,9 @@
       "title": "Fecha",
       "format": "date-time"
     },
-    "end_date": {
-      "type": "string",
-      "title": "Fecha Fin",
-      "format": "date-time"
-    },
     "saved_at": {
       "type": "string",
       "title": "Fecha/Hora Guardado",
-      "format": "date-time"
-    },
-    "incident_status": {
-      "type": "string",
-      "title": "Estado de la Incidencia",
-      "enum": [
-        "finalizado",
-        "pendiente_operativa",
-        "pendiente_parada"
-      ],
-      "default": "finalizado"
-    },
-    "status": {
-      "type": "string",
-      "title": "Estado Administrativo",
-      "enum": [
-        "en_curso",
-        "pendiente_revision",
-        "validado",
-        "completado",
-        "facturado"
-      ],
-      "default": "pendiente_revision"
-    },
-    "validated_by": {
-      "type": "string",
-      "title": "Validado por (email)"
-    },
-    "validated_at": {
-      "type": "string",
-      "title": "Fecha Validaci\u00f3n",
       "format": "date-time"
     },
     "location_lat": {
@@ -82,24 +54,11 @@
     },
     "gas_type": {
       "type": "string",
-      "title": "Tipo de Gas",
-      "enum": [
-        "R449A",
-        "R134a",
-        "R404A",
-        "R410A",
-        "R407C",
-        "R22",
-        "R32",
-        "R290",
-        "R600a",
-        "R744",
-        "otro"
-      ]
+      "title": "Tipo de Gas"
     },
     "gas_bottle_id": {
       "type": "string",
-      "title": "ID Botella Utilizada"
+      "title": "ID Botella"
     },
     "gas_bottle_serial": {
       "type": "string",
@@ -107,17 +66,17 @@
     },
     "gas_loaded_kg": {
       "type": "number",
-      "title": "Kilos Cargados",
+      "title": "Kg Cargados",
       "default": 0
     },
     "gas_recovered_kg": {
       "type": "number",
-      "title": "Kilos Recuperados",
+      "title": "Kg Recuperados",
       "default": 0
     },
     "gas_leak_kg": {
       "type": "number",
-      "title": "Fuga Estimada (kg)",
+      "title": "Fuga (kg)",
       "default": 0
     },
     "description": {
@@ -162,27 +121,12 @@
     },
     "client_conformidad": {
       "type": "boolean",
-      "title": "Conformidad del Cliente",
-      "default": false
-    },
-    "pdf_url": {
-      "type": "string",
-      "title": "PDF URL"
-    },
-    "email_sent": {
-      "type": "boolean",
-      "title": "Email Enviado",
-      "default": false
-    },
-    "auto_send_email": {
-      "type": "boolean",
-      "title": "Enviar Email Autom\u00e1tico",
+      "title": "Conformidad Cliente",
       "default": false
     }
   },
   "required": [
-    "client_id",
-    "client_name",
+    "intervention_id",
     "technician_email",
     "date"
   ]

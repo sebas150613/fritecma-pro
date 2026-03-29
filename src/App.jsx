@@ -18,6 +18,7 @@ import GasBottles from './pages/GasBottles';
 import StockMovements from './pages/StockMovements';
 import Projects from './pages/Projects';
 import EditIntervention from './pages/EditIntervention';
+import NewVisit from './pages/NewVisit';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -51,6 +52,7 @@ const AuthenticatedApp = () => {
         <Route path="/interventions/new" element={<NewIntervention />} />
         <Route path="/interventions/:id" element={<InterventionDetail />} />
         <Route path="/interventions/:id/edit" element={<EditIntervention />} />
+        <Route path="/interventions/:id/new-visit" element={<NewVisit />} />
         <Route path="/materials" element={<Materials />} />
         <Route path="/clients" element={<Clients />} />
         <Route path="/settings" element={<AppSettings />} />

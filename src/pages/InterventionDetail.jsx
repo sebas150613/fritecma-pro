@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, FileText, Mail, Clock, MapPin, Flame, User, Loader2, Package, CheckCircle2, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, FileText, Mail, Clock, MapPin, Flame, User, Loader2, Package, CheckCircle2, Pencil, Trash2, Plus, AlertTriangle, Wrench } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import moment from "moment";
@@ -37,18 +37,21 @@ export default function InterventionDetail() {
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [visits, setVisits] = useState([]);
 
   useEffect(() => {
     loadData();
   }, [id]);
 
   const loadData = async () => {
-    const [me, items] = await Promise.all([
+    const [me, items, visitList] = await Promise.all([
       base44.auth.me(),
       base44.entities.Intervention.filter({ id }, "-created_date", 1),
+      base44.entities.Visit.filter({ intervention_id: id }, "date", 50),
     ]);
     setUser(me);
     if (items.length > 0) setIntervention(items[0]);
+    setVisits(visitList);
     setLoading(false);
   };
 
@@ -373,6 +376,57 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
           </div>
         </div>
       )}
+
+      {/* Historial de Visitas */}
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+            <Wrench className="h-4 w-4" /> Historial de Visitas ({visits.length + 1})
+          </h2>
+          <Link to={`/interventions/${id}/new-visit`}>
+            <Button size="sm" variant="outline" className="rounded-xl gap-1">
+              <Plus className="h-3 w-3" /> Nueva Visita
+            </Button>
+          </Link>
+        </div>
+
+        {/* Initial visit */}
+        <div className="border border-border rounded-xl p-3 space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-muted-foreground">Visita 1 · {moment(intervention.date).format("DD/MM/YY HH:mm")}</span>
+            <span className="text-xs text-muted-foreground">{intervention.technician_name}</span>
+          </div>
+          {intervention.description && <p className="text-sm">{intervention.description}</p>}
+          {intervention.gas_loaded_kg > 0 && <p className="text-xs text-muted-foreground">Gas: {intervention.gas_type} · {intervention.gas_loaded_kg} kg cargados</p>}
+        </div>
+
+        {/* Additional visits */}
+        {visits.map((v) => (
+          <div key={v.id} className="border border-border rounded-xl p-3 space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground">Visita {v.visit_number + 1} · {moment(v.date).format("DD/MM/YY HH:mm")}</span>
+              <span className="text-xs text-muted-foreground">{v.technician_name}</span>
+            </div>
+            {v.description && <p className="text-sm">{v.description}</p>}
+            {v.gas_loaded_kg > 0 && <p className="text-xs text-muted-foreground">Gas: {v.gas_type} · {v.gas_loaded_kg} kg cargados</p>}
+            {isAdmin && v.total > 0 && <p className="text-xs font-semibold">Total: {v.total.toFixed(2)} €</p>}
+          </div>
+        ))}
+
+        {/* Incident status badge */}
+        {intervention.incident_status && (
+          <div className={`flex items-center gap-2 p-3 rounded-xl text-sm font-medium ${
+            intervention.incident_status === "finalizado" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+            intervention.incident_status === "pendiente_parada" ? "bg-red-50 text-red-700 border border-red-200" :
+            "bg-amber-50 text-amber-700 border border-amber-200"
+          }`}>
+            <AlertTriangle className="h-4 w-4" />
+            {intervention.incident_status === "finalizado" ? "Finalizado (Revisar y Facturar)" :
+             intervention.incident_status === "pendiente_parada" ? "Pendiente (Máquina Parada)" :
+             "Pendiente (Máquina Operativa)"}
+          </div>
+        )}
+      </div>
 
       {/* Conformidad / Receptor */}
       {(intervention.receptor_name || intervention.client_conformidad) && (

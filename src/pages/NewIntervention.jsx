@@ -46,6 +46,7 @@ export default function NewIntervention() {
     receptor_name: "",
     receptor_dni: "",
     client_conformidad: false,
+    incident_status: "finalizado",
   });
 
   const [lines, setLines] = useState([]);
@@ -191,7 +192,8 @@ export default function NewIntervention() {
       receptor_dni: form.receptor_dni || undefined,
       client_conformidad: form.client_conformidad,
       saved_at: new Date().toISOString(),
-      status: "pendiente_revision",
+      incident_status: form.incident_status,
+      status: form.incident_status === "finalizado" ? "pendiente_revision" : "en_curso",
       technician_notes: sinFichaje
         ? `[SIN FICHAJE PREVIO] ${form.technician_notes || ""}`
         : form.technician_notes,
@@ -501,6 +503,24 @@ export default function NewIntervention() {
             El cliente/receptor confirma su conformidad con el trabajo realizado
           </label>
         </div>
+      </div>
+
+      {/* Estado de la Incidencia */}
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Estado de la Incidencia</h2>
+        <Select value={form.incident_status} onValueChange={(v) => setForm(f => ({ ...f, incident_status: v }))}>
+          <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="finalizado">Finalizado (Revisar y Facturar)</SelectItem>
+            <SelectItem value="pendiente_operativa">Pendiente (Máquina Operativa)</SelectItem>
+            <SelectItem value="pendiente_parada">Pendiente (Máquina Parada)</SelectItem>
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          {form.incident_status === "finalizado"
+            ? "✅ La incidencia pasará a validación de oficina."
+            : "⏳ La incidencia permanecerá activa como tarea pendiente."}
+        </p>
       </div>
 
       {/* Save Button */}
