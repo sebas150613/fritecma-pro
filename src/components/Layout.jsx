@@ -48,6 +48,7 @@ const techLinks = [
   { to: "/interventions", label: "Intervenciones", icon: ClipboardList },
   { to: "/materials", label: "Catálogo", icon: Package },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
+  { to: "/settings", label: "Configuración", icon: Settings },
 ];
 
 export default function Layout() {
