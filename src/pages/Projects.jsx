@@ -182,6 +182,7 @@ export default function Projects() {
   };
 
   const selectedMat = materials.find(m => m.id === valeForm.material_id);
+  const canSeePrices = user?.role === "admin" || user?.role === "oficina";
 
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-muted border-t-accent rounded-full animate-spin" /></div>;
 
@@ -224,7 +225,8 @@ export default function Projects() {
                       <div key={line.material_id} className="flex items-center justify-between text-sm">
                         <span className="truncate flex-1">{line.material_name}</span>
                         <div className="flex items-center gap-2 ml-2 shrink-0">
-                          <span className="font-medium">{line.net} {line.unit}</span>
+                            <span className="font-medium">{line.net} {line.unit}</span>
+                           {canSeePrices && <span className="text-xs text-muted-foreground">{((line.net * (line.unit_price || 0)).toFixed(2))} €</span>}
                           <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-accent" onClick={() => openReturn(project, line)} title="Devolver">
                             <Undo2 className="h-3.5 w-3.5" />
                           </Button>
@@ -236,7 +238,8 @@ export default function Projects() {
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-border">
-                <p className="text-sm font-bold">Total consumido: {total.toFixed(2)} €</p>
+                {canSeePrices && <p className="text-sm font-bold">Total consumido: {total.toFixed(2)} €</p>}
+                {!canSeePrices && <span />}
                 <Button size="sm" onClick={() => openVale(project)} className="rounded-xl gap-1 bg-accent hover:bg-accent/90 text-accent-foreground text-xs h-8">
                   <ArrowDownToLine className="h-3.5 w-3.5" /> Vale de Salida
                 </Button>
