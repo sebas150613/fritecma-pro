@@ -141,7 +141,7 @@ export default function GasBottles() {
     await reload(); setSaving(false); setTransferModal(false);
   };
 
-  const canManage = user?.role === "admin" || user?.role === "oficina";
+  const isTecnico = user?.role === "user" || user?.role === "tecnico";
 
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-muted border-t-accent rounded-full animate-spin" /></div>;
 
@@ -153,12 +153,10 @@ export default function GasBottles() {
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><FlaskConical className="h-6 w-6 text-accent" /> Trazabilidad de Gases</h1>
           <p className="text-muted-foreground text-sm mt-1">Control de botellas, traspasos y saldos de gas refrigerante</p>
         </div>
-        {canManage && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={openTransfer} className="rounded-xl gap-2"><ArrowRightLeft className="h-4 w-4" /> Traspaso</Button>
-            <Button onClick={openNew} className="rounded-xl gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"><Plus className="h-4 w-4" /> Nueva Botella</Button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={openTransfer} className="rounded-xl gap-2"><ArrowRightLeft className="h-4 w-4" /> Traspaso</Button>
+          <Button onClick={openNew} className="rounded-xl gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"><Plus className="h-4 w-4" /> Nueva Botella</Button>
+        </div>
       </div>
 
       <Tabs defaultValue="botellas">
@@ -222,12 +220,12 @@ export default function GasBottles() {
                     <p>👤 {b.owner_type === "fritecma" ? "Fritecma" : `Cliente: ${b.owner_client_name || "-"}`}</p>
                   </div>
 
-                  {canManage && (
-                    <div className="flex gap-2 pt-1">
-                      <Button variant="outline" size="sm" onClick={() => openEdit(b)} className="rounded-xl flex-1 gap-1 text-xs"><Pencil className="h-3 w-3" /> Editar</Button>
+                  <div className="flex gap-2 pt-1">
+                    <Button variant="outline" size="sm" onClick={() => openEdit(b)} className="rounded-xl flex-1 gap-1 text-xs"><Pencil className="h-3 w-3" /> Editar</Button>
+                    {!isTecnico && (
                       <Button variant="ghost" size="sm" onClick={() => deleteBottle(b.id)} className="rounded-xl text-destructive hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               );
             })}

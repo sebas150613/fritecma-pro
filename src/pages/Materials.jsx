@@ -53,6 +53,7 @@ export default function Materials() {
   const isOficina = user?.role === "oficina";
   const isTecnico = user?.role === "user" || user?.role === "tecnico";
   const canSeePrices = !isTecnico;
+  const canEdit = true; // all roles can create/edit
 
   const openNew = () => {
     setEditingMaterial(null);
@@ -102,11 +103,9 @@ export default function Materials() {
         <h1 className="text-2xl font-bold tracking-tight">
           {isAdmin ? "Stock / Materiales" : "Catálogo de Materiales"}
         </h1>
-        {isAdmin && (
-          <Button onClick={openNew} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
-            <Plus className="h-4 w-4 mr-2" /> Nuevo Material
-          </Button>
-        )}
+        <Button onClick={openNew} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
+          <Plus className="h-4 w-4 mr-2" /> Nuevo Material
+        </Button>
       </div>
 
       {/* Filters */}
@@ -168,16 +167,16 @@ export default function Materials() {
                 </div>
               </div>
 
-              {isAdmin && (
-                <div className="flex gap-2 mt-4 pt-3 border-t border-border">
-                  <Button variant="outline" size="sm" onClick={() => openEdit(m)} className="flex-1 rounded-xl">
-                    <Edit className="h-3 w-3 mr-1" /> Editar
-                  </Button>
+              <div className="flex gap-2 mt-4 pt-3 border-t border-border">
+                <Button variant="outline" size="sm" onClick={() => openEdit(m)} className="flex-1 rounded-xl">
+                  <Edit className="h-3 w-3 mr-1" /> Editar
+                </Button>
+                {isAdmin && (
                   <Button variant="outline" size="sm" onClick={() => handleDelete(m.id)} className="text-destructive rounded-xl">
                     <Trash2 className="h-3 w-3" />
                   </Button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -228,16 +227,18 @@ export default function Materials() {
                 <Input type="number" value={form.iva_percent || ""} onChange={(e) => setForm(f => ({ ...f, iva_percent: parseFloat(e.target.value) || 0 }))} className="mt-1" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Precio Coste (€)</Label>
-                <Input type="number" step="0.01" value={form.cost_price || ""} onChange={(e) => setForm(f => ({ ...f, cost_price: parseFloat(e.target.value) || 0 }))} className="mt-1" />
+            {canSeePrices && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Precio Coste (€)</Label>
+                  <Input type="number" step="0.01" value={form.cost_price || ""} onChange={(e) => setForm(f => ({ ...f, cost_price: parseFloat(e.target.value) || 0 }))} className="mt-1" />
+                </div>
+                <div>
+                  <Label>Precio Venta (€)</Label>
+                  <Input type="number" step="0.01" value={form.sell_price || ""} onChange={(e) => setForm(f => ({ ...f, sell_price: parseFloat(e.target.value) || 0 }))} className="mt-1" />
+                </div>
               </div>
-              <div>
-                <Label>Precio Venta (€)</Label>
-                <Input type="number" step="0.01" value={form.sell_price || ""} onChange={(e) => setForm(f => ({ ...f, sell_price: parseFloat(e.target.value) || 0 }))} className="mt-1" />
-              </div>
-            </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Stock Actual</Label>
