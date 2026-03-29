@@ -53,7 +53,7 @@ export default function Materials() {
   const isOficina = user?.role === "oficina";
   const isTecnico = user?.role === "user" || user?.role === "tecnico";
   const canSeePrices = !isTecnico;
-  const canEdit = true; // all roles can create/edit
+  const canCreate = !isTecnico;
 
   const openNew = () => {
     setEditingMaterial(null);
@@ -103,9 +103,11 @@ export default function Materials() {
         <h1 className="text-2xl font-bold tracking-tight">
           {isAdmin ? "Stock / Materiales" : "Catálogo de Materiales"}
         </h1>
-        <Button onClick={openNew} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
-          <Plus className="h-4 w-4 mr-2" /> Nuevo Material
-        </Button>
+        {canCreate && (
+          <Button onClick={openNew} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
+            <Plus className="h-4 w-4 mr-2" /> Nuevo Material
+          </Button>
+        )}
       </div>
 
       {/* Filters */}
@@ -169,7 +171,7 @@ export default function Materials() {
 
               <div className="flex gap-2 mt-4 pt-3 border-t border-border">
                 <Button variant="outline" size="sm" onClick={() => openEdit(m)} className="flex-1 rounded-xl">
-                  <Edit className="h-3 w-3 mr-1" /> Editar
+                  <Edit className="h-3 w-3 mr-1" /> {isTecnico ? "Actualizar Stock" : "Editar"}
                 </Button>
                 {isAdmin && (
                   <Button variant="outline" size="sm" onClick={() => handleDelete(m.id)} className="text-destructive rounded-xl">
@@ -189,42 +191,55 @@ export default function Materials() {
             <DialogTitle>{editingMaterial ? "Editar Material" : "Nuevo Material"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {isTecnico && (
+              <div className="p-3 bg-muted/50 rounded-xl text-sm text-muted-foreground">
+                Solo puedes modificar el campo <strong>Stock Actual</strong>.
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Código</Label>
-                <Input value={form.code || ""} onChange={(e) => setForm(f => ({ ...f, code: e.target.value }))} className="mt-1" />
+                <Input value={form.code || ""} disabled={isTecnico} className="mt-1" />
               </div>
               <div>
                 <Label>Categoría</Label>
-                <Select value={form.category} onValueChange={(v) => setForm(f => ({ ...f, category: v }))}>
-                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(CATEGORIES).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>{v}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {isTecnico ? (
+                  <Input value={CATEGORIES[form.category] || form.category} disabled className="mt-1" />
+                ) : (
+                  <Select value={form.category} onValueChange={(v) => setForm(f => ({ ...f, category: v }))}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(CATEGORIES).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
             <div>
               <Label>Nombre *</Label>
-              <Input value={form.name} onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))} className="mt-1" />
+              <Input value={form.name} disabled={isTecnico} onChange={isTecnico ? undefined : (e) => setForm(f => ({ ...f, name: e.target.value }))} className="mt-1" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Unidad</Label>
-                <Select value={form.unit} onValueChange={(v) => setForm(f => ({ ...f, unit: v }))}>
-                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(UNITS).map(([k, v]) => (
-                      <SelectItem key={k} value={k}>{v}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {isTecnico ? (
+                  <Input value={UNITS[form.unit] || form.unit} disabled className="mt-1" />
+                ) : (
+                  <Select value={form.unit} onValueChange={(v) => setForm(f => ({ ...f, unit: v }))}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(UNITS).map(([k, v]) => (
+                        <SelectItem key={k} value={k}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
               <div>
                 <Label>IVA (%)</Label>
-                <Input type="number" value={form.iva_percent || ""} onChange={(e) => setForm(f => ({ ...f, iva_percent: parseFloat(e.target.value) || 0 }))} className="mt-1" />
+                <Input type="number" value={form.iva_percent || ""} disabled={isTecnico} onChange={isTecnico ? undefined : (e) => setForm(f => ({ ...f, iva_percent: parseFloat(e.target.value) || 0 }))} className="mt-1" />
               </div>
             </div>
             {canSeePrices && (
@@ -241,18 +256,20 @@ export default function Materials() {
             )}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Stock Actual</Label>
-                <Input type="number" value={form.stock_quantity || ""} onChange={(e) => setForm(f => ({ ...f, stock_quantity: parseFloat(e.target.value) || 0 }))} className="mt-1" />
+                <Label>Stock Actual {isTecnico && <span className="text-accent font-medium">(editable)</span>}</Label>
+                <Input type="number" value={form.stock_quantity ?? ""} onChange={(e) => setForm(f => ({ ...f, stock_quantity: parseFloat(e.target.value) || 0 }))} className="mt-1" />
               </div>
               <div>
                 <Label>Stock Mínimo</Label>
-                <Input type="number" value={form.min_stock || ""} onChange={(e) => setForm(f => ({ ...f, min_stock: parseFloat(e.target.value) || 0 }))} className="mt-1" />
+                <Input type="number" value={form.min_stock || ""} disabled={isTecnico} onChange={isTecnico ? undefined : (e) => setForm(f => ({ ...f, min_stock: parseFloat(e.target.value) || 0 }))} className="mt-1" />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={form.is_active} onCheckedChange={(v) => setForm(f => ({ ...f, is_active: v }))} />
-              <Label>Material Activo</Label>
-            </div>
+            {!isTecnico && (
+              <div className="flex items-center gap-2">
+                <Switch checked={form.is_active} onCheckedChange={(v) => setForm(f => ({ ...f, is_active: v }))} />
+                <Label>Material Activo</Label>
+              </div>
+            )}
             <Button onClick={handleSave} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl">
               {editingMaterial ? "Actualizar" : "Crear Material"}
             </Button>
