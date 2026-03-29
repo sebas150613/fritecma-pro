@@ -51,6 +51,16 @@ export default function AppSettings() {
     );
   }
 
+  if (user?.role !== "admin") {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center h-full gap-4">
+        <Shield className="h-12 w-12 text-muted-foreground" />
+        <h2 className="text-lg font-semibold">Acceso restringido</h2>
+        <p className="text-muted-foreground text-sm">Solo los administradores pueden acceder a esta sección.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
