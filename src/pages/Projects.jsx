@@ -193,6 +193,8 @@ export default function Projects() {
   };
 
   const isAdmin = user?.role === "admin";
+  const isTecnico = user?.role === "user" || user?.role === "tecnico";
+  const canCreate = !isTecnico;
   const selectedMat = materials.find(m => m.id === valeForm.material_id);
   const canSeePrices = user?.role === "admin" || user?.role === "oficina";
 
@@ -205,7 +207,9 @@ export default function Projects() {
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Building2 className="h-6 w-6 text-accent" /> Obras y Proyectos</h1>
           <p className="text-muted-foreground text-sm mt-1">Gestión de materiales por obra con trazabilidad de stock</p>
         </div>
-        <Button onClick={openNew} className="rounded-xl gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"><Plus className="h-4 w-4" /> Nueva Obra</Button>
+        {canCreate && (
+          <Button onClick={openNew} className="rounded-xl gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"><Plus className="h-4 w-4" /> Nueva Obra</Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
