@@ -293,29 +293,6 @@ export default function NewIntervention() {
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Cabecera</h2>
 
-        {/* Operarios */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <Label>Operario 1 (Técnico Principal)</Label>
-            <Input value={user?.full_name || ""} disabled className="mt-1 rounded-xl bg-muted/50" />
-          </div>
-          <div>
-            <Label>Operario 2 (Ayudante / Opcional)</Label>
-            <Select value={form.helper_email} onValueChange={(v) => {
-              const u = users.find(x => x.email === v);
-              setForm(f => ({ ...f, helper_email: v === "__none__" ? "" : v, helper_name: v === "__none__" ? "" : (u?.full_name || "") }));
-            }}>
-              <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Sin ayudante" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Sin ayudante</SelectItem>
-                {users.filter(u => u.email !== user?.email).map(u => (
-                  <SelectItem key={u.email} value={u.email}>{u.full_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
         <div>
           <Label>Cliente *</Label>
           <Select value={form.client_id} onValueChange={handleClientChange}>
