@@ -57,16 +57,22 @@ export default function InterventionDetail() {
   const sendEmail = async () => {
     if (!intervention) return;
     setSendingEmail(true);
-    const client = await base44.entities.Client.filter({ id: intervention.client_id }, "-created_date", 1);
-    const clientEmail = client[0]?.email;
-    if (clientEmail) {
-      await base44.integrations.Core.SendEmail({
-        to: clientEmail,
-        subject: `Parte de Trabajo ${intervention.number} - FRITECMA`,
-        body: `Estimado/a ${intervention.client_name},\n\nAdjunto le enviamos el parte de trabajo ${intervention.number}.\n\nTotal: ${(intervention.total || 0).toFixed(2)} €\n\nGracias por confiar en FRITECMA.\n\nUn saludo.`,
-      });
-      await base44.entities.Intervention.update(id, { email_sent: true });
-      setIntervention(prev => ({ ...prev, email_sent: true }));
+    try {
+      const client = await base44.entities.Client.filter({ id: intervention.client_id }, "-created_date", 1);
+      const clientEmail = client[0]?.email;
+      if (clientEmail) {
+        await base44.integrations.Core.SendEmail({
+          to: clientEmail,
+          subject: `Parte de Trabajo ${intervention.number} - FRITECMA`,
+          body: `Estimado/a ${intervention.client_name},\n\nAdjunto le enviamos el parte de trabajo ${intervention.number}.\n\nTotal: ${(intervention.total || 0).toFixed(2)} €\n\nGracias por confiar en FRITECMA.\n\nUn saludo.`,
+        });
+        await base44.entities.Intervention.update(id, { email_sent: true });
+        setIntervention(prev => ({ ...prev, email_sent: true }));
+      } else {
+        alert("El cliente no tiene email registrado.");
+      }
+    } catch (e) {
+      alert(`No se pudo enviar el email: ${e.message || "El destinatario debe ser un usuario registrado en la app."}`);
     }
     setSendingEmail(false);
   };
@@ -150,13 +156,17 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
     const clientEmail = clientRes[0]?.email;
     if (clientEmail) {
       setSendingEmail(true);
-      await base44.integrations.Core.SendEmail({
-        to: clientEmail,
-        subject: `Parte Validado ${intervention.number} - FRITECMA`,
-        body: `Estimado/a ${intervention.client_name},\n\nSu parte de trabajo ${intervention.number} ha sido validado.\n\nTotal: ${(intervention.total || 0).toFixed(2)} €\n\nGracias por confiar en FRITECMA.`,
-      });
-      await base44.entities.Intervention.update(id, { email_sent: true });
-      setIntervention(prev => ({ ...prev, email_sent: true }));
+      try {
+        await base44.integrations.Core.SendEmail({
+          to: clientEmail,
+          subject: `Parte Validado ${intervention.number} - FRITECMA`,
+          body: `Estimado/a ${intervention.client_name},\n\nSu parte de trabajo ${intervention.number} ha sido validado.\n\nTotal: ${(intervention.total || 0).toFixed(2)} €\n\nGracias por confiar en FRITECMA.`,
+        });
+        await base44.entities.Intervention.update(id, { email_sent: true });
+        setIntervention(prev => ({ ...prev, email_sent: true }));
+      } catch (e) {
+        console.warn("Email no enviado:", e.message);
+      }
       setSendingEmail(false);
     }
   };
