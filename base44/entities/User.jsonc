@@ -4,10 +4,14 @@
   "properties": {
     "role": {
       "type": "string",
+      "title": "Rol",
       "enum": [
+        "superadmin",
         "admin",
-        "tecnico"
-      ]
+        "oficina",
+        "user"
+      ],
+      "default": "user"
     }
   }
 }
