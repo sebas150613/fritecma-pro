@@ -19,6 +19,8 @@ import StockMovements from './pages/StockMovements';
 import Projects from './pages/Projects';
 import EditIntervention from './pages/EditIntervention';
 import NewVisit from './pages/NewVisit';
+import WorkDayLog from './pages/WorkDayLog';
+import WorkDayReport from './pages/WorkDayReport';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -53,6 +55,8 @@ const AuthenticatedApp = () => {
         <Route path="/interventions/:id" element={<InterventionDetail />} />
         <Route path="/interventions/:id/edit" element={<EditIntervention />} />
         <Route path="/interventions/:id/new-visit" element={<NewVisit />} />
+        <Route path="/workday" element={<WorkDayLog />} />
+        <Route path="/workday-report" element={<WorkDayReport />} />
         <Route path="/materials" element={<Materials />} />
         <Route path="/clients" element={<Clients />} />
         <Route path="/settings" element={<AppSettings />} />

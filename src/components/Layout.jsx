@@ -15,7 +15,8 @@ import {
   Clock,
   FlaskConical,
   TrendingDown,
-  Building2
+  Building2,
+  CalendarDays
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ const adminLinks = [
   { to: "/materials", label: "Stock / Materiales", icon: Package },
   { to: "/clients", label: "Clientes", icon: Users },
   { to: "/time-records", label: "Registro Jornada", icon: Clock },
+  { to: "/workday-report", label: "Jornadas", icon: CalendarDays },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/stock-movements", label: "Movimientos Stock", icon: Package },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
@@ -38,6 +40,7 @@ const oficinaLinks = [
   { to: "/materials", label: "Stock / Materiales", icon: Package },
   { to: "/clients", label: "Clientes", icon: Users },
   { to: "/time-records", label: "Registro Jornada", icon: Clock },
+  { to: "/workday-report", label: "Jornadas", icon: CalendarDays },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/stock-movements", label: "Movimientos Stock", icon: TrendingDown },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
@@ -46,6 +49,7 @@ const oficinaLinks = [
 const techLinks = [
   { to: "/", label: "Mis Partes", icon: LayoutDashboard },
   { to: "/interventions", label: "Intervenciones", icon: ClipboardList },
+  { to: "/workday", label: "Mi Jornada", icon: CalendarDays },
   { to: "/materials", label: "Stock / Materiales", icon: Package },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
