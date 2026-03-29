@@ -3,7 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Download, Calendar } from "lucide-react";
+import { Download, Calendar, Trash2 } from "lucide-react";
 import moment from "moment";
 
 const STATUS_COLORS = {
@@ -191,7 +191,7 @@ export default function WorkDayReport() {
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">Sábado</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">Domingo</th>
                 <th className="text-center px-4 py-3 font-medium text-muted-foreground">Estado</th>
-                {isAdmin && <th className="text-center px-4 py-3 font-medium text-muted-foreground">Acción</th>}
+                {isAdmin && <th className="text-center px-4 py-3 font-medium text-muted-foreground">Acciones</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -221,13 +221,15 @@ export default function WorkDayReport() {
                             Validar
                           </Button>
                         )}
-                        <Button size="sm" variant="ghost" className="rounded-lg text-xs h-7 text-destructive hover:bg-destructive/10"
+                        <Button size="sm" variant="ghost"
+                          className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 rounded-lg"
+                          title={`Eliminar jornada de ${r.technician_name}`}
                           onClick={async () => {
-                            if (!window.confirm(`¿Eliminar el registro de jornada del ${r.work_date} de ${r.technician_name}?`)) return;
+                            if (!window.confirm(`¿Eliminar el registro del ${r.work_date} de ${r.technician_name}? Esta acción no se puede deshacer.`)) return;
                             await base44.entities.WorkDay.delete(r.id);
                             setRecords(prev => prev.filter(x => x.id !== r.id));
                           }}>
-                          Eliminar
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                     </td>
