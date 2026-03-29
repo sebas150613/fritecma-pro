@@ -14,6 +14,7 @@ import Materials from './pages/Materials';
 import Clients from './pages/Clients';
 import AppSettings from './pages/AppSettings';
 import TimeRecords from './pages/TimeRecords';
+import GasBottles from './pages/GasBottles';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -50,6 +51,7 @@ const AuthenticatedApp = () => {
         <Route path="/clients" element={<Clients />} />
         <Route path="/settings" element={<AppSettings />} />
         <Route path="/time-records" element={<TimeRecords />} />
+        <Route path="/gas-bottles" element={<GasBottles />} />
         <Route path="*" element={<PageNotFound />} />
       </Route>
     </Routes>

@@ -1,0 +1,445 @@
+import { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, ArrowRightLeft, FlaskConical, History, AlertTriangle, Pencil, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import moment from "moment";
+
+const GAS_TYPES = ["R449A","R134a","R404A","R410A","R407C","R22","R32","R290","R600a","R744","otro"];
+const LOCATION_LABELS = { taller: "Taller", furgoneta: "Furgoneta", cliente: "Cliente", baja: "Baja" };
+const STATUS_COLORS = { activa: "bg-emerald-100 text-emerald-700 border-emerald-200", vacia: "bg-amber-100 text-amber-700 border-amber-200", baja: "bg-slate-100 text-slate-500 border-slate-200" };
+
+const EMPTY_BOTTLE = { serial_number: "", gas_type: "R449A", capacity_kg: "", current_kg: "", owner_type: "fritecma", owner_client_id: "", owner_client_name: "", location_type: "taller", location_detail: "", status: "activa", notes: "" };
+const EMPTY_TRANSFER = { from_bottle_id: "", to_bottle_id: "", kg_transferred: "", new_location_type: "", new_location_detail: "", notes: "" };
+
+export default function GasBottles() {
+  const [bottles, setBottles] = useState([]);
+  const [transfers, setTransfers] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filterGas, setFilterGas] = useState("all");
+  const [filterOwner, setFilterOwner] = useState("all");
+
+  const [bottleModal, setBottleModal] = useState(false);
+  const [transferModal, setTransferModal] = useState(false);
+  const [editingBottle, setEditingBottle] = useState(null);
+  const [bottleForm, setBottleForm] = useState(EMPTY_BOTTLE);
+  const [transferForm, setTransferForm] = useState(EMPTY_TRANSFER);
+  const [saving, setSaving] = useState(false);
+  const [transferError, setTransferError] = useState("");
+
+  useEffect(() => {
+    Promise.all([
+      base44.auth.me(),
+      base44.entities.GasBottle.list("-created_date", 200),
+      base44.entities.GasTransfer.list("-timestamp", 200),
+      base44.entities.Client.list("name", 200),
+    ]).then(([u, b, t, c]) => {
+      setUser(u); setBottles(b); setTransfers(t); setClients(c);
+      setLoading(false);
+    });
+  }, []);
+
+  const reload = async () => {
+    const [b, t] = await Promise.all([
+      base44.entities.GasBottle.list("-created_date", 200),
+      base44.entities.GasTransfer.list("-timestamp", 200),
+    ]);
+    setBottles(b); setTransfers(t);
+  };
+
+  // Filtered bottles
+  const filtered = bottles.filter(b => {
+    const matchSearch = b.serial_number?.toLowerCase().includes(search.toLowerCase()) || b.gas_type?.toLowerCase().includes(search.toLowerCase()) || b.owner_client_name?.toLowerCase().includes(search.toLowerCase());
+    const matchGas = filterGas === "all" || b.gas_type === filterGas;
+    const matchOwner = filterOwner === "all" || b.owner_type === filterOwner;
+    return matchSearch && matchGas && matchOwner;
+  });
+
+  // Gas balance summary
+  const gasSummary = bottles.reduce((acc, b) => {
+    if (b.status === "baja") return acc;
+    const key = `${b.gas_type}__${b.owner_type}`;
+    acc[key] = (acc[key] || 0) + (b.current_kg || 0);
+    return acc;
+  }, {});
+
+  // Bottle CRUD
+  const openNew = () => { setEditingBottle(null); setBottleForm(EMPTY_BOTTLE); setBottleModal(true); };
+  const openEdit = (b) => { setEditingBottle(b); setBottleForm({ ...b }); setBottleModal(true); };
+
+  const saveBottle = async () => {
+    setSaving(true);
+    const data = { ...bottleForm, capacity_kg: parseFloat(bottleForm.capacity_kg) || 0, current_kg: parseFloat(bottleForm.current_kg) || 0 };
+    if (editingBottle) await base44.entities.GasBottle.update(editingBottle.id, data);
+    else await base44.entities.GasBottle.create(data);
+    await reload(); setSaving(false); setBottleModal(false);
+  };
+
+  const deleteBottle = async (id) => {
+    if (!confirm("¿Eliminar esta botella?")) return;
+    await base44.entities.GasBottle.delete(id);
+    await reload();
+  };
+
+  // Transfer
+  const openTransfer = () => { setTransferForm(EMPTY_TRANSFER); setTransferError(""); setTransferModal(true); };
+
+  const fromBottle = bottles.find(b => b.id === transferForm.from_bottle_id);
+  const toBottle = bottles.find(b => b.id === transferForm.to_bottle_id);
+
+  const confirmTransfer = async () => {
+    setTransferError("");
+    const kg = parseFloat(transferForm.kg_transferred);
+    if (!transferForm.from_bottle_id || !transferForm.to_bottle_id) return setTransferError("Selecciona ambas botellas.");
+    if (transferForm.from_bottle_id === transferForm.to_bottle_id) return setTransferError("Las botellas deben ser distintas.");
+    if (!kg || kg <= 0) return setTransferError("Indica los Kg a traspasar.");
+    if (fromBottle && kg > (fromBottle.current_kg || 0)) return setTransferError(`La botella origen solo tiene ${fromBottle.current_kg} kg.`);
+    if (fromBottle && toBottle && fromBottle.gas_type !== toBottle.gas_type) return setTransferError("Las botellas deben contener el mismo tipo de gas.");
+
+    setSaving(true);
+    const now = new Date().toISOString();
+
+    // Update origin (subtract)
+    await base44.entities.GasBottle.update(transferForm.from_bottle_id, {
+      current_kg: (fromBottle.current_kg || 0) - kg,
+      status: ((fromBottle.current_kg || 0) - kg) <= 0 ? "vacia" : "activa",
+    });
+
+    // Update destination (add) + optional location change
+    const destUpdate = { current_kg: (toBottle.current_kg || 0) + kg };
+    if (transferForm.new_location_type) {
+      destUpdate.location_type = transferForm.new_location_type;
+      destUpdate.location_detail = transferForm.new_location_detail || "";
+    }
+    await base44.entities.GasBottle.update(transferForm.to_bottle_id, destUpdate);
+
+    // Log
+    await base44.entities.GasTransfer.create({
+      from_bottle_id: transferForm.from_bottle_id,
+      from_bottle_serial: fromBottle?.serial_number,
+      to_bottle_id: transferForm.to_bottle_id,
+      to_bottle_serial: toBottle?.serial_number,
+      gas_type: fromBottle?.gas_type,
+      kg_transferred: kg,
+      technician_email: user?.email,
+      technician_name: user?.full_name,
+      timestamp: now,
+      new_location_type: transferForm.new_location_type || "",
+      new_location_detail: transferForm.new_location_detail || "",
+      notes: transferForm.notes || "",
+    });
+
+    await reload(); setSaving(false); setTransferModal(false);
+  };
+
+  if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-muted border-t-accent rounded-full animate-spin" /></div>;
+
+  return (
+    <div className="p-4 lg:p-8 space-y-6 max-w-6xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><FlaskConical className="h-6 w-6 text-accent" /> Trazabilidad de Gases</h1>
+          <p className="text-muted-foreground text-sm mt-1">Control de botellas, traspasos y saldos de gas refrigerante</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={openTransfer} className="rounded-xl gap-2"><ArrowRightLeft className="h-4 w-4" /> Traspaso</Button>
+          <Button onClick={openNew} className="rounded-xl gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"><Plus className="h-4 w-4" /> Nueva Botella</Button>
+        </div>
+      </div>
+
+      <Tabs defaultValue="botellas">
+        <TabsList className="rounded-xl">
+          <TabsTrigger value="botellas">Botellas</TabsTrigger>
+          <TabsTrigger value="saldos">Saldos</TabsTrigger>
+          <TabsTrigger value="historial">Historial</TabsTrigger>
+        </TabsList>
+
+        {/* ── BOTELLAS TAB ── */}
+        <TabsContent value="botellas" className="space-y-4 mt-4">
+          <div className="flex flex-wrap gap-3">
+            <Input placeholder="Buscar por Nº serie, gas, cliente..." value={search} onChange={e => setSearch(e.target.value)} className="rounded-xl max-w-xs" />
+            <Select value={filterGas} onValueChange={setFilterGas}>
+              <SelectTrigger className="w-40 rounded-xl"><SelectValue placeholder="Gas" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los gases</SelectItem>
+                {GAS_TYPES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterOwner} onValueChange={setFilterOwner}>
+              <SelectTrigger className="w-40 rounded-xl"><SelectValue placeholder="Propietario" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="fritecma">Fritecma</SelectItem>
+                <SelectItem value="cliente">Cliente</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map(b => {
+              const pct = b.capacity_kg ? Math.min(100, ((b.current_kg || 0) / b.capacity_kg) * 100) : null;
+              const low = pct !== null && pct < 20;
+              return (
+                <div key={b.id} className="bg-card rounded-2xl border border-border p-5 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-mono text-xs text-muted-foreground">S/N: {b.serial_number}</p>
+                      <h3 className="font-bold text-lg">{b.gas_type}</h3>
+                    </div>
+                    <Badge variant="outline" className={cn("border text-xs", STATUS_COLORS[b.status])}>{b.status}</Badge>
+                  </div>
+
+                  {/* Fill bar */}
+                  {b.capacity_kg > 0 && (
+                    <div>
+                      <div className="flex justify-between text-xs mb-1 text-muted-foreground">
+                        <span>{(b.current_kg || 0).toFixed(2)} kg</span>
+                        <span>{b.capacity_kg} kg cap.</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div className={cn("h-full rounded-full transition-all", low ? "bg-amber-400" : "bg-emerald-400")} style={{ width: `${pct}%` }} />
+                      </div>
+                      {low && <p className="text-xs text-amber-600 flex items-center gap-1 mt-1"><AlertTriangle className="h-3 w-3" /> Nivel bajo</p>}
+                    </div>
+                  )}
+
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>📍 {LOCATION_LABELS[b.location_type]}{b.location_detail ? ` · ${b.location_detail}` : ""}</p>
+                    <p>👤 {b.owner_type === "fritecma" ? "Fritecma" : `Cliente: ${b.owner_client_name || "-"}`}</p>
+                  </div>
+
+                  <div className="flex gap-2 pt-1">
+                    <Button variant="outline" size="sm" onClick={() => openEdit(b)} className="rounded-xl flex-1 gap-1 text-xs"><Pencil className="h-3 w-3" /> Editar</Button>
+                    <Button variant="ghost" size="sm" onClick={() => deleteBottle(b.id)} className="rounded-xl text-destructive hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
+                  </div>
+                </div>
+              );
+            })}
+            {filtered.length === 0 && <p className="col-span-3 text-center text-muted-foreground py-12">No hay botellas registradas.</p>}
+          </div>
+        </TabsContent>
+
+        {/* ── SALDOS TAB ── */}
+        <TabsContent value="saldos" className="mt-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Object.entries(gasSummary).map(([key, kg]) => {
+              const [gas, owner] = key.split("__");
+              return (
+                <div key={key} className="bg-card rounded-2xl border border-border p-5">
+                  <div className="flex items-center justify-between mb-1">
+                    <h3 className="font-bold text-xl">{gas}</h3>
+                    <Badge variant="outline" className={owner === "fritecma" ? "border-primary/30 text-primary" : "border-amber-300 text-amber-700"}>
+                      {owner === "fritecma" ? "Fritecma" : "Cliente"}
+                    </Badge>
+                  </div>
+                  <p className="text-3xl font-black text-accent">{kg.toFixed(2)} <span className="text-base font-medium text-muted-foreground">kg</span></p>
+                </div>
+              );
+            })}
+            {Object.keys(gasSummary).length === 0 && <p className="col-span-3 text-center text-muted-foreground py-12">Sin datos de stock.</p>}
+          </div>
+        </TabsContent>
+
+        {/* ── HISTORIAL TAB ── */}
+        <TabsContent value="historial" className="mt-4">
+          <div className="space-y-3">
+            {transfers.map(t => (
+              <div key={t.id} className="bg-card rounded-2xl border border-border p-4 flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2 text-sm font-mono">
+                  <span className="px-2 py-1 bg-muted rounded-lg">{t.from_bottle_serial}</span>
+                  <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+                  <span className="px-2 py-1 bg-muted rounded-lg">{t.to_bottle_serial}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">{t.gas_type} · <span className="text-accent">{t.kg_transferred} kg</span></p>
+                  <p className="text-xs text-muted-foreground">{t.technician_name} · {moment(t.timestamp).format("DD/MM/YYYY HH:mm")}{t.intervention_number ? ` · Parte: ${t.intervention_number}` : ""}</p>
+                </div>
+                {t.new_location_type && (
+                  <span className="text-xs px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
+                    📍 → {LOCATION_LABELS[t.new_location_type]}{t.new_location_detail ? ` ${t.new_location_detail}` : ""}
+                  </span>
+                )}
+                {t.notes && <p className="text-xs text-muted-foreground w-full">{t.notes}</p>}
+              </div>
+            ))}
+            {transfers.length === 0 && <p className="text-center text-muted-foreground py-12">Sin movimientos registrados.</p>}
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* ── BOTTLE MODAL ── */}
+      <Dialog open={bottleModal} onOpenChange={setBottleModal}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editingBottle ? "Editar Botella" : "Nueva Botella"}</DialogTitle></DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <Label>Nº de Serie *</Label>
+                <Input value={bottleForm.serial_number} onChange={e => setBottleForm(f => ({ ...f, serial_number: e.target.value }))} className="mt-1 rounded-xl" />
+              </div>
+              <div>
+                <Label>Tipo de Gas *</Label>
+                <Select value={bottleForm.gas_type} onValueChange={v => setBottleForm(f => ({ ...f, gas_type: v }))}>
+                  <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>{GAS_TYPES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Estado</Label>
+                <Select value={bottleForm.status} onValueChange={v => setBottleForm(f => ({ ...f, status: v }))}>
+                  <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="activa">Activa</SelectItem>
+                    <SelectItem value="vacia">Vacía</SelectItem>
+                    <SelectItem value="baja">Baja</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Capacidad (kg)</Label>
+                <Input type="number" min="0" step="0.1" value={bottleForm.capacity_kg} onChange={e => setBottleForm(f => ({ ...f, capacity_kg: e.target.value }))} className="mt-1 rounded-xl" />
+              </div>
+              <div>
+                <Label>Kg Actuales</Label>
+                <Input type="number" min="0" step="0.1" value={bottleForm.current_kg} onChange={e => setBottleForm(f => ({ ...f, current_kg: e.target.value }))} className="mt-1 rounded-xl" />
+              </div>
+              <div>
+                <Label>Propietario</Label>
+                <Select value={bottleForm.owner_type} onValueChange={v => setBottleForm(f => ({ ...f, owner_type: v }))}>
+                  <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fritecma">Fritecma</SelectItem>
+                    <SelectItem value="cliente">Cliente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {bottleForm.owner_type === "cliente" && (
+                <div className="col-span-2">
+                  <Label>Cliente Propietario</Label>
+                  <Select value={bottleForm.owner_client_id} onValueChange={v => {
+                    const c = clients.find(x => x.id === v);
+                    setBottleForm(f => ({ ...f, owner_client_id: v, owner_client_name: c?.name || "" }));
+                  }}>
+                    <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Seleccionar cliente..." /></SelectTrigger>
+                    <SelectContent>{clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div>
+                <Label>Ubicación</Label>
+                <Select value={bottleForm.location_type} onValueChange={v => setBottleForm(f => ({ ...f, location_type: v }))}>
+                  <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="taller">Taller</SelectItem>
+                    <SelectItem value="furgoneta">Furgoneta</SelectItem>
+                    <SelectItem value="cliente">Cliente</SelectItem>
+                    <SelectItem value="baja">Baja</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Detalle Ubicación</Label>
+                <Input value={bottleForm.location_detail} onChange={e => setBottleForm(f => ({ ...f, location_detail: e.target.value }))} placeholder="Nº furgoneta, cliente..." className="mt-1 rounded-xl" />
+              </div>
+              <div className="col-span-2">
+                <Label>Observaciones</Label>
+                <Input value={bottleForm.notes} onChange={e => setBottleForm(f => ({ ...f, notes: e.target.value }))} className="mt-1 rounded-xl" />
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" onClick={() => setBottleModal(false)} className="flex-1 rounded-xl">Cancelar</Button>
+              <Button onClick={saveBottle} disabled={saving || !bottleForm.serial_number} className="flex-1 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground">
+                {saving ? "Guardando..." : "Guardar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── TRANSFER MODAL ── */}
+      <Dialog open={transferModal} onOpenChange={setTransferModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><ArrowRightLeft className="h-5 w-5" /> Traspaso de Gas</DialogTitle></DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div>
+              <Label>Botella Origen *</Label>
+              <Select value={transferForm.from_bottle_id} onValueChange={v => setTransferForm(f => ({ ...f, from_bottle_id: v }))}>
+                <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Seleccionar botella origen..." /></SelectTrigger>
+                <SelectContent>
+                  {bottles.filter(b => b.status === "activa" && (b.current_kg || 0) > 0).map(b => (
+                    <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.gas_type} · {b.current_kg} kg</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fromBottle && <p className="text-xs text-muted-foreground mt-1">Disponible: <strong>{fromBottle.current_kg} kg</strong> · {LOCATION_LABELS[fromBottle.location_type]}</p>}
+            </div>
+
+            <div>
+              <Label>Botella Destino *</Label>
+              <Select value={transferForm.to_bottle_id} onValueChange={v => setTransferForm(f => ({ ...f, to_bottle_id: v }))}>
+                <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Seleccionar botella destino..." /></SelectTrigger>
+                <SelectContent>
+                  {bottles.filter(b => b.status !== "baja" && b.id !== transferForm.from_bottle_id).map(b => (
+                    <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.gas_type} · {b.current_kg || 0} kg</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {toBottle && <p className="text-xs text-muted-foreground mt-1">Tiene: <strong>{toBottle.current_kg || 0} kg</strong> · {LOCATION_LABELS[toBottle.location_type]}</p>}
+            </div>
+
+            <div>
+              <Label>Kg a Traspasar *</Label>
+              <Input type="number" min="0.1" step="0.1" value={transferForm.kg_transferred} onChange={e => setTransferForm(f => ({ ...f, kg_transferred: e.target.value }))} className="mt-1 rounded-xl" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Nueva Ubicación Destino</Label>
+                <Select value={transferForm.new_location_type} onValueChange={v => setTransferForm(f => ({ ...f, new_location_type: v }))}>
+                  <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Sin cambio" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="taller">Taller</SelectItem>
+                    <SelectItem value="furgoneta">Furgoneta</SelectItem>
+                    <SelectItem value="cliente">Cliente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Detalle</Label>
+                <Input value={transferForm.new_location_detail} onChange={e => setTransferForm(f => ({ ...f, new_location_detail: e.target.value }))} placeholder="Nº furgoneta..." className="mt-1 rounded-xl" />
+              </div>
+            </div>
+
+            <div>
+              <Label>Notas</Label>
+              <Input value={transferForm.notes} onChange={e => setTransferForm(f => ({ ...f, notes: e.target.value }))} placeholder="Motivo del traspaso..." className="mt-1 rounded-xl" />
+            </div>
+
+            {transferError && (
+              <div className="flex items-center gap-2 p-3 bg-destructive/10 rounded-xl text-destructive text-sm">
+                <AlertTriangle className="h-4 w-4 shrink-0" /> {transferError}
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-2">
+              <Button variant="outline" onClick={() => setTransferModal(false)} className="flex-1 rounded-xl">Cancelar</Button>
+              <Button onClick={confirmTransfer} disabled={saving} className="flex-1 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground">
+                {saving ? "Procesando..." : "Confirmar Traspaso"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
