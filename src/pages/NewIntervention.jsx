@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Plus, MapPin, Loader2, Save, LogIn } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowLeft, Plus, MapPin, Loader2, Save, LogIn, AlertTriangle } from "lucide-react";
 import MaterialLineForm from "../components/MaterialLineForm";
 import LaborSection from "../components/LaborSection";
 import SignaturePad from "../components/SignaturePad";
@@ -24,6 +25,8 @@ export default function NewIntervention() {
   const [gettingLocation, setGettingLocation] = useState(false);
   const [stockWarnings, setStockWarnings] = useState([]);
   const [checkedIn, setCheckedIn] = useState(null); // null=loading, true/false
+  const [showCheckinWarning, setShowCheckinWarning] = useState(false);
+  const [sinFichaje, setSinFichaje] = useState(false);
 
   const [form, setForm] = useState({
     client_id: "",
@@ -63,7 +66,9 @@ export default function NewIntervention() {
         1
       );
       const lastType = records[0]?.type;
-      setCheckedIn(lastType === "entrada" || lastType === "reanudacion");
+      const isCheckedIn = lastType === "entrada" || lastType === "reanudacion";
+      setCheckedIn(isCheckedIn);
+      if (!isCheckedIn) setShowCheckinWarning(true);
     } else {
       setCheckedIn(true);
     }
@@ -178,6 +183,9 @@ export default function NewIntervention() {
       technician_signature: form.technician_signature,
       client_signature: form.client_signature,
       status: "pendiente_revision",
+      technician_notes: sinFichaje
+        ? `[SIN FICHAJE PREVIO] ${form.technician_notes || ""}`
+        : form.technician_notes,
     };
 
     const created = await base44.entities.Intervention.create(data);
@@ -195,21 +203,6 @@ export default function NewIntervention() {
     navigate(`/interventions/${created.id}`);
   };
 
-  if (checkedIn === false) {
-    return (
-      <div className="p-8 max-w-xl mx-auto text-center space-y-4 mt-12">
-        <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center mx-auto">
-          <LogIn className="h-8 w-8 text-amber-600" />
-        </div>
-        <h2 className="text-xl font-bold">Fichaje de entrada requerido</h2>
-        <p className="text-muted-foreground">Debes registrar tu entrada antes de crear un nuevo parte de trabajo.</p>
-        <Button onClick={() => navigate("/")} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6">
-          Ir a Fichar Entrada
-        </Button>
-      </div>
-    );
-  }
-
   if (checkedIn === null) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -222,6 +215,29 @@ export default function NewIntervention() {
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6 pb-32">
+      {/* Checkin Warning Modal */}
+      <Dialog open={showCheckinWarning} onOpenChange={setShowCheckinWarning}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5" /> Sin Fichaje de Entrada
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">No has registrado tu entrada hoy. Se recomienda fichar antes de crear un parte de trabajo.</p>
+            <p className="text-sm text-muted-foreground">Si continúas, el parte quedará marcado como <strong className="text-amber-600">"Sin fichaje previo"</strong> para revisión de administración.</p>
+            <div className="flex flex-col gap-2 pt-1">
+              <Button onClick={() => { navigate("/"); }} className="w-full rounded-xl">
+                <LogIn className="h-4 w-4 mr-2" /> Ir a Fichar Entrada
+              </Button>
+              <Button variant="outline" onClick={() => { setSinFichaje(true); setShowCheckinWarning(false); }} className="w-full rounded-xl text-amber-600 border-amber-300 hover:bg-amber-50">
+                Continuar sin fichar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-xl">
