@@ -51,7 +51,8 @@ export default function Materials() {
 
   const isAdmin = user?.role === "admin";
   const isOficina = user?.role === "oficina";
-  const canSeePrices = isAdmin || isOficina;
+  const isTecnico = user?.role === "user" || user?.role === "tecnico";
+  const canSeePrices = !isTecnico;
 
   const openNew = () => {
     setEditingMaterial(null);
