@@ -21,6 +21,7 @@ export default function NewIntervention() {
   const [user, setUser] = useState(null);
   const [clients, setClients] = useState([]);
   const [materials, setMaterials] = useState([]);
+  const [gasBottles, setGasBottles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [stockWarnings, setStockWarnings] = useState([]);
@@ -36,6 +37,7 @@ export default function NewIntervention() {
     location_lng: null,
     location_address: "",
     gas_type: "",
+    gas_bottle_id: "",
     gas_loaded_kg: 0,
     gas_recovered_kg: 0,
     description: "",
@@ -73,12 +75,14 @@ export default function NewIntervention() {
       setCheckedIn(true);
     }
 
-    const [clientList, materialList] = await Promise.all([
+    const [clientList, materialList, bottleList] = await Promise.all([
       base44.entities.Client.list("name", 500),
       base44.entities.Material.filter({ is_active: true }, "name", 500),
+      base44.entities.GasBottle.list("-created_date", 200),
     ]);
     setClients(clientList);
     setMaterials(materialList);
+    setGasBottles(bottleList);
   };
 
   const getLocation = () => {
@@ -141,7 +145,7 @@ export default function NewIntervention() {
   };
 
   const totals = calcTotals();
-  const gasLeak = Math.max(0, (form.gas_loaded_kg || 0) - (form.gas_recovered_kg || 0));
+  const availableBottles = gasBottles.filter(b => b.status === "activa" && (!form.gas_type || b.gas_type === form.gas_type) && (b.current_kg || 0) > 0);
 
   const handleSave = async () => {
     if (!form.client_id) return;
@@ -170,9 +174,11 @@ export default function NewIntervention() {
       location_lng: form.location_lng,
       location_address: form.location_address,
       gas_type: form.gas_type || undefined,
+      gas_bottle_id: form.gas_bottle_id || undefined,
+      gas_bottle_serial: gasBottles.find(b => b.id === form.gas_bottle_id)?.serial_number || undefined,
       gas_loaded_kg: form.gas_loaded_kg,
       gas_recovered_kg: form.gas_recovered_kg,
-      gas_leak_kg: gasLeak,
+      gas_leak_kg: Math.max(0, (form.gas_loaded_kg || 0) - (form.gas_recovered_kg || 0)),
       description: form.description,
       technician_notes: form.technician_notes,
       materials_json: JSON.stringify(allLines),
@@ -189,6 +195,31 @@ export default function NewIntervention() {
     };
 
     const created = await base44.entities.Intervention.create(data);
+
+    // Deduct gas from selected bottle
+    if (form.gas_bottle_id && form.gas_loaded_kg > 0) {
+      const bottle = gasBottles.find(b => b.id === form.gas_bottle_id);
+      if (bottle) {
+        const newKg = Math.max(0, (bottle.current_kg || 0) - form.gas_loaded_kg);
+        await base44.entities.GasBottle.update(form.gas_bottle_id, {
+          current_kg: newKg,
+          status: newKg <= 0 ? "vacia" : "activa",
+        });
+        await base44.entities.GasTransfer.create({
+          from_bottle_id: bottle.id,
+          from_bottle_serial: bottle.serial_number,
+          to_bottle_id: bottle.id,
+          to_bottle_serial: bottle.serial_number,
+          gas_type: bottle.gas_type,
+          kg_transferred: form.gas_loaded_kg,
+          technician_email: user.email,
+          technician_name: user.full_name,
+          timestamp: new Date().toISOString(),
+          intervention_number: interventionNumber,
+          notes: `Consumo en parte ${interventionNumber}`,
+        });
+      }
+    }
 
     // Deduct stock after saving
     await deductStockForIntervention({
@@ -295,21 +326,40 @@ export default function NewIntervention() {
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Control de Gas Refrigerante</h2>
 
-        <div>
-          <Label>Tipo de Gas</Label>
-          <Select value={form.gas_type} onValueChange={(v) => setForm(f => ({ ...f, gas_type: v }))}>
-            <SelectTrigger className="mt-1 rounded-xl">
-              <SelectValue placeholder="Seleccionar tipo de gas..." />
-            </SelectTrigger>
-            <SelectContent>
-              {GAS_TYPES.map(g => (
-                <SelectItem key={g} value={g}>{g}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label>Tipo de Gas</Label>
+            <Select value={form.gas_type} onValueChange={(v) => setForm(f => ({ ...f, gas_type: v, gas_bottle_id: "" }))}>
+              <SelectTrigger className="mt-1 rounded-xl">
+                <SelectValue placeholder="Seleccionar tipo de gas..." />
+              </SelectTrigger>
+              <SelectContent>
+                {GAS_TYPES.map(g => (
+                  <SelectItem key={g} value={g}>{g}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Botella (S/N)</Label>
+            <Select value={form.gas_bottle_id} onValueChange={(v) => setForm(f => ({ ...f, gas_bottle_id: v }))} disabled={!form.gas_type}>
+              <SelectTrigger className="mt-1 rounded-xl">
+                <SelectValue placeholder={form.gas_type ? "Seleccionar botella..." : "Selecciona gas primero"} />
+              </SelectTrigger>
+              <SelectContent>
+                {availableBottles.map(b => (
+                  <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.current_kg} kg disponibles</SelectItem>
+                ))}
+                {availableBottles.length === 0 && form.gas_type && <SelectItem value="__none__" disabled>Sin botellas con stock</SelectItem>}
+              </SelectContent>
+            </Select>
+            {form.gas_bottle_id && gasBottles.find(b => b.id === form.gas_bottle_id) && (
+              <p className="text-xs text-muted-foreground mt-1">Stock actual: <strong>{gasBottles.find(b => b.id === form.gas_bottle_id)?.current_kg} kg</strong></p>
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Kg Cargados</Label>
             <Input
@@ -331,10 +381,6 @@ export default function NewIntervention() {
               onChange={(e) => setForm(f => ({ ...f, gas_recovered_kg: parseFloat(e.target.value) || 0 }))}
               className="mt-1 rounded-xl"
             />
-          </div>
-          <div>
-            <Label>Fuga Estimada</Label>
-            <Input value={`${gasLeak.toFixed(1)} kg`} readOnly className="mt-1 rounded-xl bg-muted font-semibold" />
           </div>
         </div>
       </div>

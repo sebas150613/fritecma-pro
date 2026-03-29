@@ -13,9 +13,9 @@ import moment from "moment";
 
 const GAS_TYPES = ["R449A","R134a","R404A","R410A","R407C","R22","R32","R290","R600a","R744","otro"];
 const LOCATION_LABELS = { taller: "Taller", furgoneta: "Furgoneta", cliente: "Cliente", baja: "Baja" };
-const STATUS_COLORS = { activa: "bg-emerald-100 text-emerald-700 border-emerald-200", vacia: "bg-amber-100 text-amber-700 border-amber-200", baja: "bg-slate-100 text-slate-500 border-slate-200" };
+const STATUS_COLORS = { activa: "bg-emerald-100 text-emerald-700 border-emerald-200", vacia: "bg-amber-100 text-amber-700 border-amber-200", baja: "bg-slate-100 text-slate-500 border-slate-200", devuelta: "bg-blue-100 text-blue-700 border-blue-200" };
 
-const EMPTY_BOTTLE = { serial_number: "", gas_type: "R449A", capacity_kg: "", current_kg: "", owner_type: "fritecma", owner_client_id: "", owner_client_name: "", location_type: "taller", location_detail: "", status: "activa", notes: "" };
+const EMPTY_BOTTLE = { serial_number: "", gas_type: "R449A", capacity_kg: "", current_kg: "", owner_type: "fritecma", casco_owner: "fritecma", owner_client_id: "", owner_client_name: "", location_type: "taller", location_detail: "", status: "activa", notes: "" };
 const EMPTY_TRANSFER = { from_bottle_id: "", to_bottle_id: "", kg_transferred: "", new_location_type: "", new_location_detail: "", notes: "" };
 
 export default function GasBottles() {
@@ -30,6 +30,7 @@ export default function GasBottles() {
 
   const [bottleModal, setBottleModal] = useState(false);
   const [transferModal, setTransferModal] = useState(false);
+  const [historyBottle, setHistoryBottle] = useState(null);
   const [editingBottle, setEditingBottle] = useState(null);
   const [bottleForm, setBottleForm] = useState(EMPTY_BOTTLE);
   const [transferForm, setTransferForm] = useState(EMPTY_TRANSFER);
@@ -64,9 +65,9 @@ export default function GasBottles() {
     return matchSearch && matchGas && matchOwner;
   });
 
-  // Gas balance summary
+  // Gas balance summary (exclude retired/returned)
   const gasSummary = bottles.reduce((acc, b) => {
-    if (b.status === "baja") return acc;
+    if (b.status === "baja" || b.status === "devuelta") return acc;
     const key = `${b.gas_type}__${b.owner_type}`;
     acc[key] = (acc[key] || 0) + (b.current_kg || 0);
     return acc;
@@ -222,6 +223,7 @@ export default function GasBottles() {
 
                   <div className="flex gap-2 pt-1">
                     <Button variant="outline" size="sm" onClick={() => openEdit(b)} className="rounded-xl flex-1 gap-1 text-xs"><Pencil className="h-3 w-3" /> Editar</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setHistoryBottle(b)} className="rounded-xl gap-1 text-xs"><History className="h-3 w-3" /></Button>
                     {!isTecnico && (
                       <Button variant="ghost" size="sm" onClick={() => deleteBottle(b.id)} className="rounded-xl text-destructive hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
                     )}
@@ -306,6 +308,7 @@ export default function GasBottles() {
                     <SelectItem value="activa">Activa</SelectItem>
                     <SelectItem value="vacia">Vacía</SelectItem>
                     <SelectItem value="baja">Baja</SelectItem>
+                    <SelectItem value="devuelta">Devuelta</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -318,8 +321,18 @@ export default function GasBottles() {
                 <Input type="number" min="0" step="0.1" value={bottleForm.current_kg} onChange={e => setBottleForm(f => ({ ...f, current_kg: e.target.value }))} className="mt-1 rounded-xl" />
               </div>
               <div>
-                <Label>Propietario</Label>
+                <Label>Propietario Gas</Label>
                 <Select value={bottleForm.owner_type} onValueChange={v => setBottleForm(f => ({ ...f, owner_type: v }))}>
+                  <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fritecma">Fritecma</SelectItem>
+                    <SelectItem value="cliente">Cliente</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Propiedad del Casco</Label>
+                <Select value={bottleForm.casco_owner || "fritecma"} onValueChange={v => setBottleForm(f => ({ ...f, casco_owner: v }))}>
                   <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="fritecma">Fritecma</SelectItem>
@@ -366,6 +379,33 @@ export default function GasBottles() {
                 {saving ? "Guardando..." : "Guardar"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── HISTORY MODAL ── */}
+      <Dialog open={!!historyBottle} onOpenChange={v => !v && setHistoryBottle(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><History className="h-5 w-5" /> Historial: {historyBottle?.serial_number} · {historyBottle?.gas_type}</DialogTitle></DialogHeader>
+          <div className="space-y-3 mt-2">
+            {transfers.filter(t => t.from_bottle_id === historyBottle?.id || t.to_bottle_id === historyBottle?.id).length === 0
+              ? <p className="text-center text-muted-foreground py-8">Sin movimientos registrados.</p>
+              : transfers.filter(t => t.from_bottle_id === historyBottle?.id || t.to_bottle_id === historyBottle?.id).map(t => {
+                  const isSalida = t.from_bottle_id === historyBottle?.id;
+                  return (
+                    <div key={t.id} className="bg-muted/50 rounded-xl p-3 flex flex-wrap items-center gap-3">
+                      <span className={cn("text-xs font-semibold px-2 py-0.5 rounded-full", isSalida ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700")}>
+                        {isSalida ? "─ Salida" : "+ Entrada"}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold">{t.kg_transferred} kg · {t.gas_type}</p>
+                        <p className="text-xs text-muted-foreground">{isSalida ? `→ ${t.to_bottle_serial}` : `← ${t.from_bottle_serial}`} · {t.technician_name} · {moment(t.timestamp).format("DD/MM/YY HH:mm")}</p>
+                        {t.intervention_number && <p className="text-xs text-blue-600">Parte: {t.intervention_number}</p>}
+                        {t.notes && <p className="text-xs text-muted-foreground">{t.notes}</p>}
+                      </div>
+                    </div>
+                  );
+                })}
           </div>
         </DialogContent>
       </Dialog>

@@ -82,6 +82,14 @@
         "otro"
       ]
     },
+    "gas_bottle_id": {
+      "type": "string",
+      "title": "ID Botella Utilizada"
+    },
+    "gas_bottle_serial": {
+      "type": "string",
+      "title": "N\u00ba Serie Botella"
+    },
     "gas_loaded_kg": {
       "type": "number",
       "title": "Kilos Cargados",

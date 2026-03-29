@@ -34,7 +34,16 @@
     },
     "owner_type": {
       "type": "string",
-      "title": "Propietario",
+      "title": "Propietario Gas",
+      "enum": [
+        "fritecma",
+        "cliente"
+      ],
+      "default": "fritecma"
+    },
+    "casco_owner": {
+      "type": "string",
+      "title": "Propiedad del Casco",
       "enum": [
         "fritecma",
         "cliente"
@@ -70,7 +79,8 @@
       "enum": [
         "activa",
         "vacia",
-        "baja"
+        "baja",
+        "devuelta"
       ],
       "default": "activa"
     },
