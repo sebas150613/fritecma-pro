@@ -21,6 +21,7 @@ import EditIntervention from './pages/EditIntervention';
 import NewVisit from './pages/NewVisit';
 import WorkDayLog from './pages/WorkDayLog';
 import WorkDayReport from './pages/WorkDayReport';
+import Fichaje from './pages/Fichaje';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -56,6 +57,7 @@ const AuthenticatedApp = () => {
         <Route path="/interventions/:id/edit" element={<EditIntervention />} />
         <Route path="/interventions/:id/new-visit" element={<NewVisit />} />
         <Route path="/workday" element={<WorkDayLog />} />
+        <Route path="/fichaje" element={<Fichaje />} />
         <Route path="/workday-report" element={<WorkDayReport />} />
         <Route path="/materials" element={<Materials />} />
         <Route path="/clients" element={<Clients />} />

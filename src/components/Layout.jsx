@@ -16,7 +16,8 @@ import {
   FlaskConical,
   TrendingDown,
   Building2,
-  CalendarDays
+  CalendarDays,
+  Fingerprint
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,7 @@ import AIChat from "./AIChat";
 
 const adminLinks = [
   { to: "/", label: "Panel", icon: LayoutDashboard },
+  { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
   { to: "/interventions", label: "Intervenciones", icon: ClipboardList },
   { to: "/materials", label: "Stock / Materiales", icon: Package },
   { to: "/clients", label: "Clientes", icon: Users },
@@ -36,6 +38,7 @@ const adminLinks = [
 
 const oficinaLinks = [
   { to: "/", label: "Panel", icon: LayoutDashboard },
+  { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
   { to: "/interventions", label: "Intervenciones", icon: ClipboardList },
   { to: "/materials", label: "Stock / Materiales", icon: Package },
   { to: "/clients", label: "Clientes", icon: Users },
@@ -47,6 +50,7 @@ const oficinaLinks = [
 
 const techLinks = [
   { to: "/", label: "Mis Partes", icon: LayoutDashboard },
+  { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
   { to: "/interventions", label: "Intervenciones", icon: ClipboardList },
   { to: "/workday", label: "Mi Jornada", icon: CalendarDays },
   { to: "/materials", label: "Stock / Materiales", icon: Package },
