@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Package, Edit, Trash2, AlertTriangle, History } from "lucide-react";
+import { Plus, Search, Package, Edit, Trash2, AlertTriangle, History, ScanLine } from "lucide-react";
+import AlbaranScanner from "../components/AlbaranScanner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +41,7 @@ export default function Materials() {
   const [historyMaterial, setHistoryMaterial] = useState(null);
   const [movements, setMovements] = useState([]);
   const [loadingMovements, setLoadingMovements] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   const openHistory = async (mat) => {
     setHistoryMaterial(mat);
@@ -116,9 +118,16 @@ export default function Materials() {
           {isAdmin ? "Stock / Materiales" : "Catálogo de Materiales"}
         </h1>
         {canCreate && (
-          <Button onClick={openNew} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
-            <Plus className="h-4 w-4 mr-2" /> Nuevo Material
-          </Button>
+          <div className="flex gap-2">
+            {isAdmin && (
+              <Button onClick={() => setScannerOpen(true)} variant="outline" className="rounded-xl px-4 gap-2 border-accent text-accent hover:bg-accent/10">
+                <ScanLine className="h-4 w-4" /> Escanear Albarán
+              </Button>
+            )}
+            <Button onClick={openNew} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
+              <Plus className="h-4 w-4 mr-2" /> Nuevo Material
+            </Button>
+          </div>
         )}
       </div>
 
@@ -340,6 +349,13 @@ export default function Materials() {
           </div>
         </DialogContent>
       </Dialog>
+      <AlbaranScanner
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        materials={materials}
+        user={user}
+        onStockUpdated={loadData}
+      />
     </div>
   );
 }
