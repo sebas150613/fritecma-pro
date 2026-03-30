@@ -58,6 +58,14 @@
       "title": "IVA (%)",
       "default": 21
     },
+    "supplier_id": {
+      "type": "string",
+      "title": "ID Proveedor Principal"
+    },
+    "supplier_name": {
+      "type": "string",
+      "title": "Proveedor Principal"
+    },
     "is_active": {
       "type": "boolean",
       "title": "Activo",

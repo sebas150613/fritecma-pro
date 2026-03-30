@@ -58,6 +58,14 @@
       "type": "string",
       "title": "Nombre Cliente Propietario"
     },
+    "supplier_id": {
+      "type": "string",
+      "title": "ID Proveedor"
+    },
+    "supplier_name": {
+      "type": "string",
+      "title": "Proveedor"
+    },
     "location_type": {
       "type": "string",
       "title": "Ubicaci\u00f3n",

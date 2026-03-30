@@ -20,12 +20,12 @@ const UNITS = { ud: "Unidad", kg: "Kg", m: "Metro", l: "Litro", h: "Hora" };
 
 const STEPS = { UPLOAD: "upload", PROCESSING: "processing", REVIEW: "review", DONE: "done" };
 
-export default function AlbaranScanner({ open, onClose, materials, user, onStockUpdated }) {
+export default function AlbaranScanner({ open, onClose, materials, suppliers = [], user, onStockUpdated }) {
   const [step, setStep] = useState(STEPS.UPLOAD);
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [extractedLines, setExtractedLines] = useState([]);
-  const [albaranMeta, setAlbaranMeta] = useState({ supplier: "", date: "", reference: "" });
+  const [albaranMeta, setAlbaranMeta] = useState({ supplier: "", supplier_id: "", date: "", reference: "" });
   const [processingMsg, setProcessingMsg] = useState("");
   const [applying, setApplying] = useState(false);
   const [doneCount, setDoneCount] = useState(0);
@@ -37,7 +37,7 @@ export default function AlbaranScanner({ open, onClose, materials, user, onStock
     setImagePreview(null);
     setImageFile(null);
     setExtractedLines([]);
-    setAlbaranMeta({ supplier: "", date: "", reference: "" });
+    setAlbaranMeta({ supplier: "", supplier_id: "", date: "", reference: "" });
     setProcessingMsg("");
   };
 
@@ -105,7 +105,18 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
       }
     });
 
-    setAlbaranMeta({ supplier: result.supplier || "", date: result.date || "", reference: result.reference || "" });
+    // Try to auto-match supplier by name
+    const supplierText = result.supplier || "";
+    const matchedSupplier = suppliers.find(s =>
+      s.name?.toLowerCase().includes(supplierText.toLowerCase().slice(0, 6)) ||
+      supplierText.toLowerCase().includes(s.name?.toLowerCase() || "")
+    );
+    setAlbaranMeta({
+      supplier: supplierText,
+      supplier_id: matchedSupplier?.id || "",
+      date: result.date || "",
+      reference: result.reference || "",
+    });
 
     // Match lines against existing materials
     const enriched = (result.lines || []).map(line => {
@@ -165,6 +176,7 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
           min_stock: 0,
           iva_percent: 21,
           is_active: true,
+          ...(albaranMeta.supplier_id ? { supplier_id: albaranMeta.supplier_id, supplier_name: albaranMeta.supplier } : {}),
         });
         await base44.entities.StockMovement.create({
           material_id: newMat.id,
@@ -183,7 +195,13 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
         const mat = materials.find(m => m.id === line.matched_id);
         if (!mat) continue;
         const newStock = (mat.stock_quantity || 0) + (line.quantity || 0);
-        await base44.entities.Material.update(mat.id, { stock_quantity: newStock });
+        const updateData = { stock_quantity: newStock };
+        // Auto-link supplier if not already set
+        if (albaranMeta.supplier_id && !mat.supplier_id) {
+          updateData.supplier_id = albaranMeta.supplier_id;
+          updateData.supplier_name = albaranMeta.supplier;
+        }
+        await base44.entities.Material.update(mat.id, updateData);
         await base44.entities.StockMovement.create({
           material_id: mat.id,
           material_name: mat.name,
@@ -279,8 +297,21 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
             <div className="bg-muted/50 rounded-xl p-4 grid grid-cols-3 gap-3 text-sm">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Proveedor</p>
-                <Input value={albaranMeta.supplier} onChange={e => setAlbaranMeta(a => ({ ...a, supplier: e.target.value }))}
-                  className="h-8 text-sm" placeholder="Proveedor..." />
+                {suppliers.length > 0 ? (
+                  <Select value={albaranMeta.supplier_id || "__free__"} onValueChange={v => {
+                    const sup = suppliers.find(s => s.id === v);
+                    setAlbaranMeta(a => ({ ...a, supplier_id: v === "__free__" ? "" : v, supplier: sup?.name || a.supplier }));
+                  }}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Proveedor..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__free__">— Sin vincular —</SelectItem>
+                      {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input value={albaranMeta.supplier} onChange={e => setAlbaranMeta(a => ({ ...a, supplier: e.target.value }))}
+                    className="h-8 text-sm" placeholder="Proveedor..." />
+                )}
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Fecha</p>

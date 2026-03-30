@@ -17,7 +17,8 @@ import {
   TrendingDown,
   Building2,
   CalendarDays,
-  Fingerprint
+  Fingerprint,
+  Truck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ const adminLinks = [
   { to: "/workday-report", label: "Jornadas", icon: CalendarDays },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
+  { to: "/suppliers", label: "Proveedores", icon: Truck },
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
 
@@ -46,6 +48,7 @@ const encargadoLinks = [
   { to: "/workday-report", label: "Jornadas", icon: CalendarDays },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
+  { to: "/suppliers", label: "Proveedores", icon: Truck },
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
 
@@ -59,6 +62,7 @@ const oficinaLinks = [
   { to: "/workday-report", label: "Jornadas", icon: CalendarDays },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
+  { to: "/suppliers", label: "Proveedores", icon: Truck },
 ];
 
 const techLinks = [

@@ -32,6 +32,7 @@ const emptyMaterial = {
 export default function Materials() {
   const [user, setUser] = useState(null);
   const [materials, setMaterials] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -58,8 +59,12 @@ export default function Materials() {
   const loadData = async () => {
     const me = await base44.auth.me();
     setUser(me);
-    const items = await base44.entities.Material.list("name", 500);
+    const [items, sups] = await Promise.all([
+      base44.entities.Material.list("name", 500),
+      base44.entities.Supplier.list("name", 200),
+    ]);
     setMaterials(items);
+    setSuppliers(sups);
     setLoading(false);
   };
 
@@ -337,6 +342,21 @@ export default function Materials() {
                 <Input type="number" value={form.min_stock || ""} disabled={isTecnico} onChange={isTecnico ? undefined : (e) => setForm(f => ({ ...f, min_stock: parseFloat(e.target.value) || 0 }))} className="mt-1" />
               </div>
             </div>
+            {!isTecnico && suppliers.length > 0 && (
+              <div>
+                <Label>Proveedor Principal</Label>
+                <Select value={form.supplier_id || "__none__"} onValueChange={v => {
+                  const sup = suppliers.find(s => s.id === v);
+                  setForm(f => ({ ...f, supplier_id: v === "__none__" ? "" : v, supplier_name: sup?.name || "" }));
+                }}>
+                  <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Sin proveedor asignado" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Sin proveedor</SelectItem>
+                    {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {!isTecnico && (
               <div className="flex items-center gap-2">
                 <Switch checked={form.is_active} onCheckedChange={(v) => setForm(f => ({ ...f, is_active: v }))} />
@@ -353,6 +373,7 @@ export default function Materials() {
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}
         materials={materials}
+        suppliers={suppliers}
         user={user}
         onStockUpdated={loadData}
       />
