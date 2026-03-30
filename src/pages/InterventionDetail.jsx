@@ -142,7 +142,7 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
     );
   }
 
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
   const isOficina = user?.role === "oficina";
   const canEdit = isAdmin || isOficina;
   const materials = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];

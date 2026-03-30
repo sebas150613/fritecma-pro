@@ -36,6 +36,19 @@ const adminLinks = [
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
 
+const encargadoLinks = [
+  { to: "/", label: "Panel", icon: LayoutDashboard },
+  { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
+  { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
+  { to: "/materials", label: "Stock / Materiales", icon: Package },
+  { to: "/clients", label: "Clientes", icon: Users },
+  { to: "/time-records", label: "Registro Fichajes", icon: Clock },
+  { to: "/workday-report", label: "Jornadas", icon: CalendarDays },
+  { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
+  { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
+  { to: "/settings", label: "Configuración", icon: Settings },
+];
+
 const oficinaLinks = [
   { to: "/", label: "Panel", icon: LayoutDashboard },
   { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
@@ -69,8 +82,9 @@ export default function Layout() {
   }, []);
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isEncargado = user?.role === "encargado";
   const isOficina = user?.role === "oficina";
-  const links = isAdmin ? adminLinks : isOficina ? oficinaLinks : techLinks;
+  const links = isAdmin ? adminLinks : isEncargado ? encargadoLinks : isOficina ? oficinaLinks : techLinks;
 
   const handleLogout = () => {
     base44.auth.logout("/");
@@ -146,7 +160,7 @@ export default function Layout() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">{user?.full_name || "Usuario"}</p>
               <p className="text-xs text-sidebar-foreground/50 capitalize">
-                {isAdmin ? "Administrador" : "Técnico"}
+                {isAdmin ? "Administrador" : isEncargado ? "Encargado" : isOficina ? "Oficina" : "Técnico"}
               </p>
             </div>
             <Button

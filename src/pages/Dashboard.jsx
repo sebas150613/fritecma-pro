@@ -22,7 +22,7 @@ export default function Dashboard() {
   const loadData = async () => {
     const me = await base44.auth.me();
     setUser(me);
-    const isAdmin = me.role === "admin" || me.role === "superadmin";
+    const isAdmin = me.role === "admin" || me.role === "superadmin" || me.role === "encargado";
 
     let allInterventions;
     if (isAdmin) {
@@ -74,7 +74,7 @@ export default function Dashboard() {
     );
   }
 
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
   const hasCheckedIn = isAdmin || fichajeStatus === "entrada" || fichajeStatus === "reanudacion";
   const recentInterventions = interventions.slice(0, 6);
 

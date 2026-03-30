@@ -51,7 +51,7 @@ export default function AppSettings() {
     );
   }
 
-  if (user?.role !== "admin" && user?.role !== "superadmin") {
+  if (user?.role !== "admin" && user?.role !== "superadmin" && user?.role !== "encargado") {
     return (
       <div className="p-8 flex flex-col items-center justify-center h-full gap-4">
         <Shield className="h-12 w-12 text-muted-foreground" />
@@ -90,6 +90,8 @@ export default function AppSettings() {
             className="rounded-xl border border-input bg-card px-3 text-sm"
           >
             <option value="tecnico">Técnico</option>
+            <option value="oficina">Oficina</option>
+            <option value="encargado">Encargado</option>
             <option value="admin">Admin</option>
             <option value="superadmin">Super Admin</option>
           </select>
@@ -113,6 +115,7 @@ export default function AppSettings() {
                 >
                   <option value="superadmin">Super Admin</option>
                   <option value="admin">Admin</option>
+                  <option value="encargado">Encargado</option>
                   <option value="oficina">Oficina</option>
                   <option value="user">Técnico</option>
                 </select>

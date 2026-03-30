@@ -21,7 +21,7 @@ export default function Interventions() {
   const loadData = async () => {
     const me = await base44.auth.me();
     setUser(me);
-    const isAdmin = me.role === "admin" || me.role === "superadmin";
+    const isAdmin = me.role === "admin" || me.role === "superadmin" || me.role === "encargado";
 
     let items;
     if (isAdmin) {
@@ -42,7 +42,7 @@ export default function Interventions() {
     i.number?.toLowerCase().includes(search.toLowerCase()) ||
     i.technician_name?.toLowerCase().includes(search.toLowerCase());
 
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
   const isOficina = user?.role === "oficina";
   const isTecnico = !isAdmin && !isOficina;
 

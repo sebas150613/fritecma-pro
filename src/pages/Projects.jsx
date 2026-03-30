@@ -195,7 +195,7 @@ export default function Projects() {
     setDeleteProjectTarget(null);
   };
 
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
   const isTecnico = user?.role === "user" || user?.role === "tecnico";
   const canCreate = !isTecnico;
   const selectedMat = materials.find(m => m.id === valeForm.material_id);

@@ -75,7 +75,7 @@ export default function WorkDayReport() {
     setDetailRecord(prev => prev && prev.id === id ? { ...prev, status: "validado" } : prev);
   };
 
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "oficina";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado" || user?.role === "oficina";
 
   const filtered = records.filter(r => {
     const matchMonth = !dateFrom && !dateTo ? r.work_date?.startsWith(selectedMonth) : true;
