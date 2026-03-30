@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import AIChat from "./AIChat";
 
 const adminLinks = [
   { to: "/", label: "Panel", icon: LayoutDashboard },
@@ -175,6 +176,9 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* AI Chat Widget */}
+      {user && <AIChat user={user} />}
     </div>
   );
 }
