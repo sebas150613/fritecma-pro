@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Plus, Building2, Package, ArrowDownToLine, Undo2, ChevronsUpDown, AlertTriangle, Trash2 } from "lucide-react";
+import { Plus, Building2, Package, ArrowDownToLine, Undo2, ChevronsUpDown, AlertTriangle, Trash2, BarChart2 } from "lucide-react";
+import ProjectDetailModal from "../components/ProjectDetailModal";
 import { cn } from "@/lib/utils";
 import moment from "moment";
 
@@ -43,6 +44,7 @@ export default function Projects() {
   const [comboOpen, setComboOpen] = useState(false);
   const [deleteProjectTarget, setDeleteProjectTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [detailProject, setDetailProject] = useState(null);
 
   useEffect(() => {
     init();
@@ -258,6 +260,12 @@ export default function Projects() {
                 {!canSeePrices && <span />}
                 <div className="flex gap-2">
                   {isAdmin && (
+                    <Button size="sm" variant="outline" onClick={() => setDetailProject(project)}
+                      className="rounded-xl gap-1 text-xs h-8">
+                      <BarChart2 className="h-3.5 w-3.5" /> Detalle
+                    </Button>
+                  )}
+                  {isAdmin && (
                     <Button size="sm" variant="outline" onClick={() => setDeleteProjectTarget(project)}
                       className="rounded-xl gap-1 text-destructive border-destructive/30 hover:bg-destructive/10 text-xs h-8">
                       <Trash2 className="h-3.5 w-3.5" /> Eliminar
@@ -421,6 +429,13 @@ export default function Projects() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Project Detail Modal */}
+      <ProjectDetailModal
+        project={detailProject}
+        projectMaterials={projectMaterials}
+        onClose={() => setDetailProject(null)}
+      />
     </div>
   );
 }

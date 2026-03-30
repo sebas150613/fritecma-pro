@@ -9,6 +9,7 @@ import moment from "moment";
 
 const LOCATION_OPTIONS = [
   "Cliente",
+  "Obra",
   "Taller",
   "Comida",
   "Desplazamiento",
@@ -45,6 +46,9 @@ function validateSegments(segments) {
     if (seg.location === "Cliente" && !seg.entity) {
       return "Debes seleccionar la entidad para todos los tramos de tipo 'Cliente'.";
     }
+    if (seg.location === "Obra" && !seg.entity) {
+      return "Debes seleccionar la obra para todos los tramos de tipo 'Obra'.";
+    }
   }
   return null;
 }
@@ -52,6 +56,7 @@ function validateSegments(segments) {
 export default function WorkDayLog() {
   const [user, setUser] = useState(null);
   const [clients, setClients] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [selectedDate, setSelectedDate] = useState(moment().format("YYYY-MM-DD"));
   const [segments, setSegments] = useState([emptySegment()]);
   const [liquidacion, setLiquidacion] = useState({ hours_extra: 0, hours_nocturnas: 0, hours_sabado: 0, hours_domingo: 0 });
@@ -62,9 +67,14 @@ export default function WorkDayLog() {
   const [validationError, setValidationError] = useState("");
 
   useEffect(() => {
-    Promise.all([base44.auth.me(), base44.entities.Client.list("name", 500)]).then(([me, cl]) => {
+    Promise.all([
+      base44.auth.me(),
+      base44.entities.Client.list("name", 500),
+      base44.entities.Project.filter({ status: "en_curso" }, "name", 200),
+    ]).then(([me, cl, pr]) => {
       setUser(me);
       setClients(cl);
+      setProjects(pr);
     });
   }, []);
 
@@ -220,7 +230,7 @@ export default function WorkDayLog() {
               </Select>
             </div>
 
-            {/* Row 3: entity selector (only if Cliente) */}
+            {/* Row 3a: entity selector (only if Cliente) */}
             {seg.location === "Cliente" && (
               <div>
                 <Label className="text-base font-medium">
@@ -244,6 +254,30 @@ export default function WorkDayLog() {
                     <AlertTriangle className="h-3 w-3" /> Obligatorio cuando la actividad es "Cliente"
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* Row 3b: obra selector (only if Obra) */}
+            {seg.location === "Obra" && (
+              <div>
+                <Label className="text-base font-medium">
+                  Seleccionar Obra <span className="text-destructive">*</span>
+                </Label>
+                <Select value={seg.entity} onValueChange={v => updateSegment(i, "entity", v)} disabled={saved}>
+                  <SelectTrigger className={`mt-1 rounded-xl text-[16px] h-12 ${!seg.entity ? "border-amber-400" : ""}`}>
+                    <SelectValue placeholder="Selecciona la obra..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {projects.map(p => (
+                      <SelectItem key={p.id} value={p.id} className="text-[16px] py-3">
+                        {p.reference ? `[${p.reference}] ` : ""}{p.name}
+                      </SelectItem>
+                    ))}
+                    {projects.length === 0 && (
+                      <SelectItem value="__sin_obra__" className="text-[16px] py-3 text-muted-foreground">Sin obras abiertas</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
             )}
 
