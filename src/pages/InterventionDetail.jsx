@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, FileText, Mail, Clock, MapPin, Flame, User, Loader2, Package, CheckCircle2, Pencil, Trash2, Plus, AlertTriangle, Wrench } from "lucide-react";
+import MapLink from "../components/MapLink";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import moment from "moment";
@@ -280,8 +281,11 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
         </div>
         {intervention.location_address && (
           <div className="flex items-center gap-2 text-sm">
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-            <span>{intervention.location_address}</span>
+            <MapLink
+              address={intervention.location_address}
+              lat={intervention.location_lat}
+              lng={intervention.location_lng}
+            />
           </div>
         )}
         <div className="flex items-center gap-2 text-sm">

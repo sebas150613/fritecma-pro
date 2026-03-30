@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Plus, Building2, Package, ArrowDownToLine, Undo2, ChevronsUpDown, AlertTriangle, Trash2, BarChart2 } from "lucide-react";
+import MapLink from "../components/MapLink";
 import ProjectDetailModal from "../components/ProjectDetailModal";
 import { cn } from "@/lib/utils";
 import moment from "moment";
@@ -230,7 +231,7 @@ export default function Projects() {
                 <Badge variant="outline" className={cn("border text-xs", STATUS_COLORS[project.status])}>{STATUS_LABELS[project.status]}</Badge>
               </div>
 
-              {project.address && <p className="text-xs text-muted-foreground">📍 {project.address}</p>}
+              {project.address && <MapLink address={project.address} className="text-xs" />}
 
               {/* Inventory */}
               <div>

@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Users, Edit, Trash2, Phone, Mail as MailIcon, MapPin } from "lucide-react";
+import { Plus, Search, Users, Edit, Trash2, Phone, Mail as MailIcon } from "lucide-react";
+import MapLink from "../components/MapLink";
 import WorkCentersInline from "../components/WorkCentersInline";
 import { Badge } from "@/components/ui/badge";
 
@@ -123,9 +124,7 @@ export default function Clients() {
                   </div>
                 )}
                 {c.address && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-3 w-3" /><span className="truncate">{c.address}</span>
-                  </div>
+                  <MapLink address={`${c.address}${c.postal_code ? ", " + c.postal_code : ""}${c.city ? ", " + c.city : ""}`} className="text-sm" />
                 )}
               </div>
 

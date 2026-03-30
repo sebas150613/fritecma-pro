@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, MapPin, Phone, Mail, Pencil, Trash2, Building } from "lucide-react";
+import { Plus, Phone, Mail, Pencil, Trash2, Building } from "lucide-react";
+import MapLink from "./MapLink";
 
 const emptyCenter = {
   name: "", address: "", city: "", postal_code: "",
@@ -85,10 +86,7 @@ export default function WorkCentersInline({ client }) {
               <div className="flex-1 min-w-0 space-y-0.5">
                 <p className="text-sm font-medium truncate">{c.name}</p>
                 {c.address && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
-                    <MapPin className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{c.address}{c.city ? `, ${c.city}` : ""}</span>
-                  </p>
+                  <MapLink address={`${c.address}${c.postal_code ? ", " + c.postal_code : ""}${c.city ? ", " + c.city : ""}`} className="text-xs" />
                 )}
                 {c.contact_person && (
                   <p className="text-xs text-muted-foreground">{c.contact_person}</p>
