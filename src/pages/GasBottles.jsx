@@ -23,6 +23,7 @@ export default function GasBottles() {
   const [bottles, setBottles] = useState([]);
   const [transfers, setTransfers] = useState([]);
   const [clients, setClients] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -47,8 +48,9 @@ export default function GasBottles() {
       base44.entities.GasTransfer.list("-timestamp", 200),
       base44.entities.Client.list("name", 200),
       base44.entities.Intervention.list("-created_date", 500),
-    ]).then(([u, b, t, c, invs]) => {
-      setUser(u); setBottles(b); setTransfers(t); setClients(c);
+      base44.entities.Supplier.list("name", 200),
+    ]).then(([u, b, t, c, invs, sups]) => {
+      setUser(u); setBottles(b); setTransfers(t); setClients(c); setSuppliers(sups);
       // Build number → id map
       const map = {};
       invs.forEach(i => { if (i.number) map[i.number] = i.id; });
@@ -339,14 +341,27 @@ export default function GasBottles() {
                 </Select>
               </div>
               <div>
-                <Label>Propiedad del Casco</Label>
-                <Select value={bottleForm.casco_owner || "fritecma"} onValueChange={v => setBottleForm(f => ({ ...f, casco_owner: v }))}>
+                <Label>Propiedad del Casco (Proveedor)</Label>
+                <Select
+                  value={bottleForm.supplier_id || "__fritecma__"}
+                  onValueChange={v => {
+                    if (v === "__fritecma__") {
+                      setBottleForm(f => ({ ...f, supplier_id: "", supplier_name: "", casco_owner: "fritecma" }));
+                    } else {
+                      const sup = suppliers.find(s => s.id === v);
+                      setBottleForm(f => ({ ...f, supplier_id: v, supplier_name: sup?.name || "", casco_owner: "cliente" }));
+                    }
+                  }}
+                >
                   <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="fritecma">Fritecma</SelectItem>
-                    <SelectItem value="cliente">Cliente</SelectItem>
+                    <SelectItem value="__fritecma__">Fritecma (propio)</SelectItem>
+                    {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {bottleForm.supplier_id && (
+                  <p className="text-xs text-muted-foreground mt-1">Casco propiedad de: <strong>{bottleForm.supplier_name}</strong></p>
+                )}
               </div>
               {bottleForm.owner_type === "cliente" && (
                 <div className="col-span-2">
