@@ -1,7 +1,8 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Clock } from "lucide-react";
+import { CheckCircle2, Clock, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
 import moment from "moment";
 
 const STATUS_COLORS = {
@@ -33,9 +34,17 @@ export default function WorkDayDetailModal({ record, clients, onClose, onValidat
   const totalMinutes = Math.max(0, rawMinutes - lunchMinutes);
 
   const getClientName = (entity) => {
-    if (!entity || entity === "__nuevo__") return "Cliente no registrado";
+    if (!entity || entity === "__nuevo__") return null;
     const found = clients.find(c => c.id === entity);
-    return found ? found.name : entity;
+    return found ? { name: found.name, id: found.id } : { name: entity, id: null };
+  };
+
+  // Try to extract intervention number from other_data
+  const extractInterventionRef = (other_data) => {
+    if (!other_data) return null;
+    // Match patterns like FRI-XXXXXX-XXXX
+    const match = other_data.match(/FRI-[\w-]+/i);
+    return match ? match[0] : null;
   };
 
   return (
@@ -70,6 +79,8 @@ export default function WorkDayDetailModal({ record, clients, onClose, onValidat
               ) : segments.map((seg, i) => {
                 const mins = calcMinutes(seg.start, seg.end);
                 const isLunch = seg.location === "Comida";
+                const clientInfo = seg.location === "Cliente" ? getClientName(seg.entity) : null;
+                const interventionRef = extractInterventionRef(seg.other_data);
                 return (
                   <tr key={i} className={isLunch ? "bg-amber-50/50" : "hover:bg-muted/20"}>
                     <td className="px-3 py-2 font-mono font-medium">{seg.start || "—"}</td>
@@ -80,10 +91,29 @@ export default function WorkDayDetailModal({ record, clients, onClose, onValidat
                         {seg.location}
                       </span>
                     </td>
-                    <td className="px-3 py-2 text-muted-foreground">
-                      {seg.location === "Cliente" ? getClientName(seg.entity) : "—"}
+                    <td className="px-3 py-2">
+                      {clientInfo ? (
+                        <div className="space-y-0.5">
+                          <span className="font-medium text-foreground">{clientInfo.name}</span>
+                          {interventionRef && (
+                            <div>
+                              <Link
+                                to={`/interventions?search=${interventionRef}`}
+                                onClick={() => {}}
+                                className="text-xs text-primary hover:underline flex items-center gap-1"
+                              >
+                                <ExternalLink className="h-3 w-3" />{interventionRef}
+                              </Link>
+                            </div>
+                          )}
+                        </div>
+                      ) : isLunch ? (
+                        <span className="text-muted-foreground text-xs">Pausa comida</span>
+                      ) : (
+                        <span className="text-muted-foreground">{ seg.location !== "Cliente" ? seg.location : "Sin especificar" }</span>
+                      )}
                     </td>
-                    <td className="px-3 py-2 text-muted-foreground">{seg.other_data || "—"}</td>
+                    <td className="px-3 py-2 text-muted-foreground text-xs">{seg.other_data || "—"}</td>
                   </tr>
                 );
               })}
