@@ -14,6 +14,14 @@
       "type": "string",
       "title": "Nombre Cliente"
     },
+    "work_center_id": {
+      "type": "string",
+      "title": "ID Centro de Trabajo"
+    },
+    "work_center_name": {
+      "type": "string",
+      "title": "Centro de Trabajo"
+    },
     "technician_email": {
       "type": "string",
       "title": "Email T\u00e9cnico"

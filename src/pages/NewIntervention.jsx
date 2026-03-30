@@ -23,6 +23,7 @@ export default function NewIntervention() {
   const [materials, setMaterials] = useState([]);
   const [gasBottles, setGasBottles] = useState([]);
   const [users, setUsers] = useState([]);
+  const [workCenters, setWorkCenters] = useState([]);
   const [saving, setSaving] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [stockWarnings, setStockWarnings] = useState([]);
@@ -33,6 +34,8 @@ export default function NewIntervention() {
   const [form, setForm] = useState({
     client_id: "",
     client_name: "",
+    work_center_id: "",
+    work_center_name: "",
     date: moment().format("YYYY-MM-DDTHH:mm"),
     location_lat: null,
     location_lng: null,
@@ -110,15 +113,19 @@ export default function NewIntervention() {
     );
   };
 
-  const handleClientChange = (clientId) => {
+  const handleClientChange = async (clientId) => {
     const client = clients.find(c => c.id === clientId);
     if (client) {
       setForm(f => ({
         ...f,
         client_id: client.id,
         client_name: client.name,
+        work_center_id: "",
+        work_center_name: "",
         discount_percent: client.discount_percent || 0,
       }));
+      const centers = await base44.entities.WorkCenter.filter({ client_id: clientId }, "name", 100);
+      setWorkCenters(centers);
     }
   };
 
@@ -176,6 +183,8 @@ export default function NewIntervention() {
       client_name: form.client_name,
       technician_email: user.email,
       technician_name: user.full_name,
+      work_center_id: form.work_center_id || undefined,
+      work_center_name: form.work_center_name || undefined,
       helper_email: form.helper_email || undefined,
       helper_name: form.helper_name || undefined,
       date: new Date(form.date).toISOString(),
@@ -306,6 +315,42 @@ export default function NewIntervention() {
             </SelectContent>
           </Select>
         </div>
+
+        {form.client_id && (
+          <div>
+            <Label>Centro de Trabajo</Label>
+            <Select value={form.work_center_id} onValueChange={v => {
+              const wc = workCenters.find(x => x.id === v);
+              setForm(f => ({
+                ...f,
+                work_center_id: v,
+                work_center_name: wc?.name || "",
+                location_address: wc?.address ? `${wc.address}${wc.city ? ", " + wc.city : ""}` : f.location_address,
+              }));
+            }}>
+              <SelectTrigger className="mt-1 rounded-xl">
+                <SelectValue placeholder={workCenters.length === 0 ? "Sin centros registrados" : "Seleccionar sede..."} />
+              </SelectTrigger>
+              <SelectContent>
+                {workCenters.map(wc => (
+                  <SelectItem key={wc.id} value={wc.id}>
+                    {wc.name}{wc.city ? ` · ${wc.city}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.work_center_id && (() => {
+              const wc = workCenters.find(x => x.id === form.work_center_id);
+              return wc ? (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {wc.address && <span>📍 {wc.address}{wc.city ? `, ${wc.city}` : ""}</span>}
+                  {wc.contact_person && <span className="ml-2">· {wc.contact_person}</span>}
+                  {wc.phone && <span className="ml-2">· {wc.phone}</span>}
+                </p>
+              ) : null;
+            })()}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>

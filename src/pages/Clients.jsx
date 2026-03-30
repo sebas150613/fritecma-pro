@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Search, Users, Edit, Trash2, Phone, Mail as MailIcon, MapPin } from "lucide-react";
+import WorkCentersInline from "../components/WorkCentersInline";
 import { Badge } from "@/components/ui/badge";
 
 const TIERS = { standard: "Estándar", preferente: "Preferente", especial: "Especial" };
@@ -24,6 +25,7 @@ export default function Clients() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [form, setForm] = useState({ ...emptyClient });
+  const [expandedClient, setExpandedClient] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -132,13 +134,17 @@ export default function Clients() {
               )}
 
               <div className="flex gap-2 mt-4 pt-3 border-t border-border">
-                <Button variant="outline" size="sm" onClick={() => openEdit(c)} className="flex-1 rounded-xl">
-                  <Edit className="h-3 w-3 mr-1" /> Editar
+                <Button variant="outline" size="sm" onClick={() => setExpandedClient(expandedClient === c.id ? null : c.id)} className="flex-1 rounded-xl text-xs">
+                  {expandedClient === c.id ? "▲ Ocultar Sedes" : "🏢 Ver Sedes"}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => openEdit(c)} className="rounded-xl">
+                  <Edit className="h-3 w-3" />
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => handleDelete(c.id)} className="text-destructive rounded-xl">
                   <Trash2 className="h-3 w-3" />
                 </Button>
               </div>
+              {expandedClient === c.id && <WorkCentersInline client={c} />}
             </div>
           ))}
         </div>

@@ -29,10 +29,13 @@ export default function EditIntervention() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [original, setOriginal] = useState(null);
+  const [workCenters, setWorkCenters] = useState([]);
 
   const [form, setForm] = useState({
     client_id: "",
     client_name: "",
+    work_center_id: "",
+    work_center_name: "",
     date: "",
     location_address: "",
     gas_type: "",
@@ -64,9 +67,15 @@ export default function EditIntervention() {
     if (interventions.length > 0) {
       const inv = interventions[0];
       setOriginal(inv);
+      if (inv.client_id) {
+        const centers = await base44.entities.WorkCenter.filter({ client_id: inv.client_id }, "name", 100);
+        setWorkCenters(centers);
+      }
       setForm({
         client_id: inv.client_id || "",
         client_name: inv.client_name || "",
+        work_center_id: inv.work_center_id || "",
+        work_center_name: inv.work_center_name || "",
         date: inv.date ? moment(inv.date).format("YYYY-MM-DDTHH:mm") : "",
         location_address: inv.location_address || "",
         gas_type: inv.gas_type || "",
@@ -114,6 +123,8 @@ export default function EditIntervention() {
     await base44.entities.Intervention.update(id, {
       client_id: form.client_id,
       client_name: form.client_name,
+      work_center_id: form.work_center_id || undefined,
+      work_center_name: form.work_center_name || undefined,
       date: new Date(form.date).toISOString(),
       location_address: form.location_address,
       gas_type: form.gas_type || undefined,
@@ -173,9 +184,13 @@ export default function EditIntervention() {
         <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Cabecera</h2>
         <div>
           <Label>Cliente</Label>
-          <Select value={form.client_id} onValueChange={(v) => {
+          <Select value={form.client_id} onValueChange={async (v) => {
             const c = clients.find(x => x.id === v);
-            if (c) setForm(f => ({ ...f, client_id: c.id, client_name: c.name }));
+            if (c) {
+              setForm(f => ({ ...f, client_id: c.id, client_name: c.name, work_center_id: "", work_center_name: "" }));
+              const centers = await base44.entities.WorkCenter.filter({ client_id: v }, "name", 100);
+              setWorkCenters(centers);
+            }
           }}>
             <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -183,6 +198,24 @@ export default function EditIntervention() {
             </SelectContent>
           </Select>
         </div>
+        {form.client_id && (
+          <div>
+            <Label>Centro de Trabajo</Label>
+            <Select value={form.work_center_id} onValueChange={v => {
+              const wc = workCenters.find(x => x.id === v);
+              setForm(f => ({ ...f, work_center_id: v, work_center_name: wc?.name || "" }));
+            }}>
+              <SelectTrigger className="mt-1 rounded-xl">
+                <SelectValue placeholder={workCenters.length === 0 ? "Sin centros registrados" : "Seleccionar sede..."} />
+              </SelectTrigger>
+              <SelectContent>
+                {workCenters.map(wc => (
+                  <SelectItem key={wc.id} value={wc.id}>{wc.name}{wc.city ? ` · ${wc.city}` : ""}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label>Fecha y Hora</Label>
