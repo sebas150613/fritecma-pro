@@ -1,102 +1,200 @@
 import { useState, useRef, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, X, Send, Loader2, Bot, User, ChevronDown } from "lucide-react";
+import { MessageSquare, X, Send, Loader2, Bot, User, ChevronDown, RefreshCw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
-function buildSystemPrompt(user, contextData) {
+// ── Build rich context snapshot from DB ──────────────────────────────────────
+async function loadContext(user) {
+  const canSeePrices = user?.role === "admin" || user?.role === "superadmin" || user?.role === "oficina";
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
-  const canSeePrices = isAdmin || user?.role === "oficina";
 
-  const clientList = contextData.clients?.map(c => c.name).join(", ") || "—";
-  const materialList = contextData.materials?.map(m =>
-    canSeePrices
-      ? `${m.name} (stock: ${m.stock_quantity || 0} ${m.unit}, precio: ${m.sell_price || 0}€)`
-      : `${m.name} (stock: ${m.stock_quantity || 0} ${m.unit})`
-  ).join("; ") || "—";
+  const [clients, materials, projects, gasBottles, interventions] = await Promise.all([
+    base44.entities.Client.list("name", 200),
+    base44.entities.Material.filter({ is_active: true }, "name", 500),
+    base44.entities.Project.list("name", 100),
+    base44.entities.GasBottle.list("-created_date", 200),
+    isAdmin
+      ? base44.entities.Intervention.list("-date", 50)
+      : base44.entities.Intervention.filter({ technician_email: user.email }, "-date", 20),
+  ]);
 
-  const projectList = contextData.projects?.map(p => `${p.name} [${p.status}]`).join(", ") || "—";
+  // Summarize gas bottles by type
+  const gasByType = {};
+  gasBottles.filter(b => b.status === "activa").forEach(b => {
+    if (!gasByType[b.gas_type]) gasByType[b.gas_type] = 0;
+    gasByType[b.gas_type] += b.current_kg || 0;
+  });
 
-  return `Eres el asistente de IA de FRITECMA, empresa de mantenimiento de refrigeración industrial.
-Rol del usuario actual: ${user?.role || "desconocido"} — Nombre: ${user?.full_name || "Desconocido"}.
+  // Summarize materials with low stock
+  const lowStock = materials.filter(m => (m.stock_quantity || 0) <= (m.min_stock || 0) && m.min_stock > 0);
 
-REGLAS DE SEGURIDAD:
-- Si el rol es "user" o "tecnico", NO puedes revelar precios, totales económicos ni datos de facturación.
-- Siempre responde en español.
-- Sé conciso y práctico para técnicos de campo.
+  // Active projects
+  const activeProjects = projects.filter(p => p.status === "en_curso");
 
-DATOS DISPONIBLES (solo lectura):
-- Clientes registrados: ${clientList}
-- Materiales en stock: ${materialList}
-- Obras activas: ${projectList}
+  // Build context text
+  let ctx = "";
 
-NORMATIVA INTERNA BÁSICA:
-- Los técnicos deben fichar entrada antes de crear partes de trabajo.
-- Los partes finalizados pasan a revisión administrativa.
-- El gas refrigerante cargado se descuenta automáticamente de la botella seleccionada.
-- Las horas nocturnas son entre 22:00 y 06:00.
-- Los técnicos deben registrar su jornada diaria como máximo al final del día.
+  // Clients
+  ctx += `\n## CLIENTES REGISTRADOS (${clients.length} total)\n`;
+  ctx += clients.map(c => `- ${c.name}${c.city ? ` (${c.city})` : ""}${c.phone ? ` Tel: ${c.phone}` : ""}`).join("\n");
 
-CAPACIDADES:
-- Responde preguntas sobre clientes, materiales, normativa y procedimientos.
-- Puedes sugerir borradores de partes de trabajo basándote en descripciones del técnico (responde con JSON si el usuario lo pide explícitamente con "pre-rellenar" o "borrador").
-- ${isAdmin ? "Como admin, puedes responder consultas analíticas sobre datos de la empresa." : "No tienes acceso a datos económicos ni analítica avanzada."}
+  // Gas stock
+  ctx += `\n\n## STOCK DE GAS REFRIGERANTE (botellas activas)\n`;
+  if (Object.keys(gasByType).length === 0) {
+    ctx += "- Sin botellas activas registradas\n";
+  } else {
+    Object.entries(gasByType).forEach(([type, kg]) => {
+      ctx += `- ${type}: ${kg.toFixed(2)} kg disponibles\n`;
+    });
+  }
+  ctx += `\nDetalle de botellas: ${gasBottles.filter(b => b.status === "activa").map(b => `${b.serial_number} (${b.gas_type}, ${b.current_kg}kg, ubicación: ${b.location_type})`).join("; ")}`;
 
-Cuando el usuario pida un borrador de parte o jornada, responde con el JSON correspondiente en un bloque de código.`;
+  // Materials stock
+  ctx += `\n\n## STOCK DE MATERIALES (${materials.length} activos)\n`;
+  materials.forEach(m => {
+    let line = `- ${m.name}${m.code ? ` [${m.code}]` : ""}: stock ${m.stock_quantity || 0} ${m.unit || "ud"}`;
+    if (canSeePrices) line += `, precio venta ${m.sell_price || 0}€`;
+    ctx += line + "\n";
+  });
+
+  if (lowStock.length > 0) {
+    ctx += `\n⚠️ MATERIALES CON STOCK BAJO: ${lowStock.map(m => `${m.name} (${m.stock_quantity || 0}/${m.min_stock})`).join(", ")}`;
+  }
+
+  // Projects
+  ctx += `\n\n## OBRAS Y PROYECTOS\n`;
+  projects.forEach(p => {
+    ctx += `- ${p.name}${p.reference ? ` [${p.reference}]` : ""}: estado "${p.status}", cliente: ${p.client_name}${p.address ? `, dir: ${p.address}` : ""}\n`;
+  });
+
+  // Recent interventions
+  ctx += `\n\n## ÚLTIMAS INTERVENCIONES (${interventions.length})\n`;
+  interventions.slice(0, 15).forEach(i => {
+    ctx += `- Nº ${i.number || i.id?.slice(0, 8)}: cliente ${i.client_name}, técnico ${i.technician_name}, estado "${i.status}", fecha ${i.date?.slice(0, 10)}\n`;
+  });
+
+  return ctx;
 }
 
+// ── System Prompt ─────────────────────────────────────────────────────────────
+function buildSystemPrompt(user, contextText) {
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const canSeePrices = isAdmin || user?.role === "oficina";
+  const roleName = isAdmin ? "Administrador" : user?.role === "oficina" ? "Oficina" : "Técnico";
+
+  return `Eres el asistente oficial de FRITECMA, empresa de mantenimiento de refrigeración industrial.
+Tu nombre es "Asistente FRITECMA". Siempre respondes en español, de forma clara y concisa.
+
+USUARIO ACTIVO: ${user?.full_name || "Desconocido"} | Rol: ${roleName} | Email: ${user?.email || "—"}
+
+═══════════════════════════════════════════
+REGLAS DE SEGURIDAD (OBLIGATORIAS):
+═══════════════════════════════════════════
+${!canSeePrices ? "⚠️ ESTE USUARIO NO PUEDE VER PRECIOS. Si preguntan sobre precios, costes o totales económicos, responde: 'Lo siento, no tienes permisos para consultar datos económicos.'" : "El usuario tiene acceso a precios y datos económicos."}
+${!isAdmin ? "⚠️ No compartas datos de otros técnicos ni información de nóminas o costes de personal." : "El usuario tiene acceso completo como administrador."}
+
+═══════════════════════════════════════════
+ESTRUCTURA DE LA APLICACIÓN (para guiar al usuario):
+═══════════════════════════════════════════
+MENÚ PRINCIPAL:
+- 📊 Panel / Dashboard → Resumen del día, estadísticas, widget de fichaje
+- 📋 Intervenciones → Lista de todos los partes de trabajo. Botón "Nuevo Parte" arriba a la derecha
+- 🧰 Stock / Materiales → Inventario de materiales, precios y movimientos
+- 👥 Clientes → Ficha completa de cada cliente
+- ⏱ Registro Jornada (TimeRecords) → Historial de fichajes por día
+- 📅 Jornadas (WorkDayReport) → Registro diario de actividad por tramos
+- 🧪 Trazabilidad Gases → Botellas de gas, traspasos y consumos
+- 🏗 Obras y Proyectos → Gestión de obras con materiales y horas de personal
+- ⚙️ Configuración → Gestión de usuarios e invitaciones (solo admin)
+
+FLUJOS CLAVE:
+1. CREAR PARTE DE TRABAJO: Menú → Intervenciones → botón "Nuevo Parte" (arriba derecha) → Rellenar cliente, fecha, gas, materiales → "Guardar Parte"
+2. AÑADIR AYUDANTE: Al crear/editar un parte → sección "Mano de Obra" → campo "Ayudante" → seleccionar técnico del equipo
+3. FICHAR ENTRADA: Panel principal → Widget "Fichaje" → botón "Entrada"
+4. REGISTRAR JORNADA: Menú → "Mi Jornada" → Añadir tramos con inicio/fin y tipo de actividad
+5. AÑADIR MATERIAL A OBRA: Menú → Obras → botón "Vale de Salida" en la obra → seleccionar material y cantidad
+6. VER HORAS DE OBRA: Menú → Obras → botón "Detalle" → pestaña "Horas de Personal"
+7. VALIDAR PARTE (admin): Intervenciones → abrir parte → botón "Validar"
+8. INVITAR USUARIO: Configuración → sección "Usuarios" → botón "Invitar Usuario"
+
+TIPOS DE ACTIVIDAD EN JORNADA: Cliente, Obra, Taller, Comida, Desplazamiento, Guardia, Formación, Otro
+
+ESTADOS DE PARTE: en_curso → pendiente_revision → validado → completado → facturado
+ESTADOS DE OBRA: en_curso, pausada, finalizada, facturada
+
+═══════════════════════════════════════════
+DATOS ACTUALES DE LA APP (actualizado ahora):
+═══════════════════════════════════════════
+${contextText}
+
+═══════════════════════════════════════════
+TU MISIÓN:
+═══════════════════════════════════════════
+1. Responde preguntas sobre datos reales de la app (stock, clientes, obras, intervenciones)
+2. Guía al usuario paso a paso por los menús cuando pregunten cómo hacer algo
+3. ${isAdmin ? "Genera informes y análisis cuando el admin lo solicite (consumo de gas, horas por técnico, etc.)" : "Ayuda al técnico a completar sus partes de trabajo"}
+4. Si piden un borrador de parte o jornada, genera un JSON estructurado en un bloque de código
+5. Si no tienes el dato exacto, dilo claramente y sugiere dónde encontrarlo en la app`;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 export default function AIChat({ user }) {
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState([
-    { role: "assistant", content: "¡Hola! Soy el asistente de FRITECMA. Puedo ayudarte con consultas sobre clientes, materiales, normativa y borradores de partes. ¿En qué puedo ayudarte?" }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [contextData, setContextData] = useState({ clients: [], materials: [], projects: [] });
+  const [contextText, setContextText] = useState("");
   const [contextLoaded, setContextLoaded] = useState(false);
+  const [loadingCtx, setLoadingCtx] = useState(false);
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
 
+  const initChat = async () => {
+    if (contextLoaded) return;
+    setLoadingCtx(true);
+    const ctx = await loadContext(user);
+    setContextText(ctx);
+    setContextLoaded(true);
+    setLoadingCtx(false);
+    setMessages([{
+      role: "assistant",
+      content: `¡Hola, ${user?.full_name?.split(" ")[0] || ""}! Soy el asistente de FRITECMA. Acabo de cargar los datos actuales de la app.\n\nPuedo ayudarte con:\n- **Consultas de stock**: "¿Cuánto R449A queda?"\n- **Guía de la app**: "¿Cómo añado un ayudante?"\n- **Datos de clientes y obras**: "¿Qué obras están activas?"\n\n¿En qué puedo ayudarte?`
+    }]);
+  };
+
   useEffect(() => {
-    if (open && !contextLoaded) {
-      Promise.all([
-        base44.entities.Client.list("name", 200),
-        base44.entities.Material.filter({ is_active: true }, "name", 300),
-        base44.entities.Project.filter({ status: "en_curso" }, "name", 100),
-      ]).then(([clients, materials, projects]) => {
-        setContextData({ clients, materials, projects });
-        setContextLoaded(true);
-      });
+    if (open) {
+      initChat();
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, open]);
-
-  useEffect(() => {
-    if (open) setTimeout(() => inputRef.current?.focus(), 100);
-  }, [open]);
+  }, [messages, loading]);
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
     const userMsg = input.trim();
     setInput("");
-    setMessages(prev => [...prev, { role: "user", content: userMsg }]);
+    const newMessages = [...messages, { role: "user", content: userMsg }];
+    setMessages(newMessages);
     setLoading(true);
 
-    // Build conversation history for context
-    const history = messages.map(m => `${m.role === "user" ? "Usuario" : "Asistente"}: ${m.content}`).join("\n");
-    const systemPrompt = buildSystemPrompt(user, contextData);
+    const systemPrompt = buildSystemPrompt(user, contextText);
+    const history = newMessages.map(m =>
+      `${m.role === "user" ? "Usuario" : "Asistente"}: ${m.content}`
+    ).join("\n\n");
 
     const fullPrompt = `${systemPrompt}
 
-HISTORIAL DE CONVERSACIÓN:
+═══════════════════════════════════
+CONVERSACIÓN:
+═══════════════════════════════════
 ${history}
 
-Usuario: ${userMsg}
-
-Responde de forma útil y concisa:`;
+Asistente:`;
 
     const response = await base44.integrations.Core.InvokeLLM({ prompt: fullPrompt });
     setMessages(prev => [...prev, { role: "assistant", content: response }]);
@@ -110,29 +208,43 @@ Responde de forma útil y concisa:`;
     }
   };
 
+  const refreshContext = async () => {
+    setContextLoaded(false);
+    setLoadingCtx(true);
+    const ctx = await loadContext(user);
+    setContextText(ctx);
+    setContextLoaded(true);
+    setLoadingCtx(false);
+  };
+
   return (
     <>
       {/* Floating button */}
       <button
         onClick={() => setOpen(v => !v)}
         className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-primary shadow-xl flex items-center justify-center text-white hover:bg-primary/90 transition-all duration-200 hover:scale-105"
-        title="Asistente IA"
+        title="Asistente IA FRITECMA"
       >
         {open ? <X className="h-6 w-6" /> : <MessageSquare className="h-6 w-6" />}
       </button>
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-[360px] max-w-[calc(100vw-2rem)] h-[520px] max-h-[calc(100vh-8rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="fixed bottom-24 right-6 z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-8rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="bg-primary text-white px-4 py-3 flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center">
+          <div className="bg-primary text-white px-4 py-3 flex items-center gap-3 shrink-0">
+            <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center">
               <Bot className="h-5 w-5" />
             </div>
             <div className="flex-1">
               <p className="font-semibold text-sm">Asistente FRITECMA</p>
-              <p className="text-xs text-white/70">IA · Solo lectura</p>
+              <p className="text-xs text-white/70">
+                {loadingCtx ? "Cargando datos..." : contextLoaded ? "✓ Datos cargados" : "IA · Solo lectura"}
+              </p>
             </div>
+            <button onClick={refreshContext} disabled={loadingCtx} className="text-white/70 hover:text-white mr-1" title="Actualizar datos">
+              <RefreshCw className={`h-4 w-4 ${loadingCtx ? "animate-spin" : ""}`} />
+            </button>
             <button onClick={() => setOpen(false)} className="text-white/70 hover:text-white">
               <ChevronDown className="h-5 w-5" />
             </button>
@@ -140,6 +252,12 @@ Responde de forma útil y concisa:`;
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {loadingCtx && messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm">Cargando datos de la app...</p>
+              </div>
+            )}
             {messages.map((msg, i) => (
               <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                 {msg.role === "assistant" && (
@@ -147,22 +265,21 @@ Responde de forma útil y concisa:`;
                     <Bot className="h-4 w-4 text-primary" />
                   </div>
                 )}
-                <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+                <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
                   msg.role === "user"
                     ? "bg-primary text-white rounded-tr-sm"
                     : "bg-muted text-foreground rounded-tl-sm"
                 }`}>
                   {msg.role === "assistant" ? (
                     <ReactMarkdown
-                      className="prose prose-sm max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0"
+                      className="prose prose-sm max-w-none [&>p]:my-0.5 [&>ul]:my-1 [&>ol]:my-1 [&>h1]:text-sm [&>h2]:text-sm [&>h3]:text-xs"
                       components={{
                         code: ({ children, className }) => {
                           const isBlock = className?.includes("language-");
                           return isBlock
-                            ? <pre className="bg-background border rounded-lg p-2 text-xs overflow-x-auto my-2"><code>{children}</code></pre>
-                            : <code className="bg-background px-1 rounded text-xs">{children}</code>;
+                            ? <pre className="bg-background border rounded-lg p-2 text-xs overflow-x-auto my-2 whitespace-pre-wrap"><code>{children}</code></pre>
+                            : <code className="bg-background px-1 rounded text-xs font-mono">{children}</code>;
                         },
-                        p: ({ children }) => <p className="my-0.5">{children}</p>,
                       }}
                     >{msg.content}</ReactMarkdown>
                   ) : msg.content}
@@ -179,18 +296,35 @@ Responde de forma útil y concisa:`;
                 <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                   <Bot className="h-4 w-4 text-primary" />
                 </div>
-                <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3 flex gap-1">
-                  <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                  <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                  <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                <div className="bg-muted rounded-2xl rounded-tl-sm px-4 py-3 flex gap-1 items-center">
+                  <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="w-2 h-2 bg-muted-foreground/50 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
               </div>
             )}
             <div ref={bottomRef} />
           </div>
 
+          {/* Quick suggestions */}
+          {messages.length <= 1 && !loading && contextLoaded && (
+            <div className="px-3 pb-2 flex flex-wrap gap-1.5 shrink-0">
+              {[
+                "¿Cuánto stock de R449A queda?",
+                "¿Cómo creo un parte nuevo?",
+                "¿Qué obras están activas?",
+                "¿Cómo añado un ayudante?"
+              ].map(s => (
+                <button key={s} onClick={() => setInput(s)}
+                  className="text-xs bg-primary/10 text-primary rounded-full px-3 py-1 hover:bg-primary/20 transition-colors">
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Input */}
-          <div className="border-t border-border p-3 flex gap-2">
+          <div className="border-t border-border p-3 flex gap-2 shrink-0">
             <textarea
               ref={inputRef}
               value={input}
@@ -198,12 +332,12 @@ Responde de forma útil y concisa:`;
               onKeyDown={handleKey}
               placeholder="Escribe tu consulta..."
               rows={1}
-              className="flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring max-h-24 overflow-auto"
-              style={{ fieldSizing: "content" }}
+              disabled={loadingCtx}
+              className="flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring max-h-24 overflow-auto disabled:opacity-50"
             />
             <Button
               onClick={sendMessage}
-              disabled={loading || !input.trim()}
+              disabled={loading || !input.trim() || loadingCtx}
               size="icon"
               className="h-10 w-10 rounded-xl bg-primary hover:bg-primary/90 shrink-0"
             >
