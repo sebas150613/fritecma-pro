@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Download, Calendar, Trash2 } from "lucide-react";
+import { Download, Calendar, Trash2, Eye } from "lucide-react";
+import WorkDayDetailModal from "../components/WorkDayDetailModal";
 import moment from "moment";
 
 const STATUS_COLORS = {
@@ -40,9 +42,13 @@ export default function WorkDayReport() {
   const [user, setUser] = useState(null);
   const [records, setRecords] = useState([]);
   const [users, setUsers] = useState([]);
+  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(moment().format("YYYY-MM"));
   const [selectedUser, setSelectedUser] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [detailRecord, setDetailRecord] = useState(null);
 
   useEffect(() => {
     base44.auth.me().then(me => {
@@ -57,22 +63,32 @@ export default function WorkDayReport() {
 
   const loadData = async (me) => {
     setLoading(true);
-    const [allRecords, userList] = await Promise.all([
+    const [allRecords, userList, clientList] = await Promise.all([
       base44.entities.WorkDay.list("-work_date", 500),
       base44.entities.User.list("full_name", 100),
+      base44.entities.Client.list("name", 500),
     ]);
     setUsers(userList);
     setRecords(allRecords);
+    setClients(clientList);
     setLoading(false);
+  };
+
+  const handleValidate = async (id) => {
+    await base44.entities.WorkDay.update(id, { status: "validado" });
+    setRecords(prev => prev.map(x => x.id === id ? { ...x, status: "validado" } : x));
+    setDetailRecord(prev => prev && prev.id === id ? { ...prev, status: "validado" } : prev);
   };
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "oficina";
 
   const filtered = records.filter(r => {
-    const matchMonth = r.work_date?.startsWith(selectedMonth);
+    const matchMonth = !dateFrom && !dateTo ? r.work_date?.startsWith(selectedMonth) : true;
+    const matchFrom = !dateFrom || r.work_date >= dateFrom;
+    const matchTo = !dateTo || r.work_date <= dateTo;
     const matchUser = selectedUser === "all" || r.technician_email === selectedUser;
     const matchOwn = isAdmin || r.technician_email === user?.email;
-    return matchMonth && matchUser && matchOwn;
+    return matchMonth && matchFrom && matchTo && matchUser && matchOwn;
   });
 
   // Summary per technician
@@ -122,8 +138,8 @@ export default function WorkDayReport() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+      <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+        <Select value={selectedMonth} onValueChange={v => { setSelectedMonth(v); setDateFrom(""); setDateTo(""); }}>
           <SelectTrigger className="w-full sm:w-48 rounded-xl bg-card">
             <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
             <SelectValue />
@@ -143,6 +159,14 @@ export default function WorkDayReport() {
             </SelectContent>
           </Select>
         )}
+        <div className="flex items-center gap-2">
+          <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="rounded-xl bg-card w-40" placeholder="Desde" />
+          <span className="text-muted-foreground text-sm">—</span>
+          <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="rounded-xl bg-card w-40" placeholder="Hasta" />
+          {(dateFrom || dateTo) && (
+            <Button variant="ghost" size="sm" onClick={() => { setDateFrom(""); setDateTo(""); }} className="rounded-xl text-xs">Limpiar</Button>
+          )}
+        </div>
       </div>
 
       {/* Summary Cards */}
@@ -192,6 +216,7 @@ export default function WorkDayReport() {
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">Domingo</th>
                 <th className="text-center px-4 py-3 font-medium text-muted-foreground">Estado</th>
                 {isAdmin && <th className="text-center px-4 py-3 font-medium text-muted-foreground">Acciones</th>}
+                <th className="text-center px-4 py-3 font-medium text-muted-foreground">Detalle</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -212,15 +237,6 @@ export default function WorkDayReport() {
                   {isAdmin && (
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        {r.status === "enviado" && (
-                          <Button size="sm" variant="outline" className="rounded-lg text-xs h-7"
-                            onClick={async () => {
-                              await base44.entities.WorkDay.update(r.id, { status: "validado" });
-                              setRecords(prev => prev.map(x => x.id === r.id ? { ...x, status: "validado" } : x));
-                            }}>
-                            Validar
-                          </Button>
-                        )}
                         <Button size="sm" variant="ghost"
                           className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 rounded-lg"
                           title={`Eliminar jornada de ${r.technician_name}`}
@@ -234,12 +250,25 @@ export default function WorkDayReport() {
                       </div>
                     </td>
                   )}
-                </tr>
+                  <td className="px-4 py-3 text-center">
+                    <Button size="sm" variant="outline" className="h-7 rounded-lg gap-1 text-xs"
+                      onClick={() => setDetailRecord(r)}>
+                      <Eye className="h-3.5 w-3.5" /> Ver
+                    </Button>
+                  </td>
+                  </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      <WorkDayDetailModal
+        record={detailRecord}
+        clients={clients}
+        onClose={() => setDetailRecord(null)}
+        onValidate={isAdmin ? handleValidate : null}
+      />
     </div>
   );
 }
