@@ -135,7 +135,7 @@ export default function Clients() {
 
               <div className="flex gap-2 mt-4 pt-3 border-t border-border">
                 <Button variant="outline" size="sm" onClick={() => setExpandedClient(expandedClient === c.id ? null : c.id)} className="flex-1 rounded-xl text-xs">
-                  {expandedClient === c.id ? "▲ Ocultar Sedes" : "🏢 Ver Sedes"}
+                  {expandedClient === c.id ? "▲ Ocultar centros" : "🏢 Ver centros"}
                 </Button>
                 <Button variant="outline" size="sm" onClick={() => openEdit(c)} className="rounded-xl">
                   <Edit className="h-3 w-3" />
