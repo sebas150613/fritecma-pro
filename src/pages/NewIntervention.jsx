@@ -251,6 +251,25 @@ export default function NewIntervention() {
       technicianName: user.full_name,
     });
 
+    // Check for low stock alerts and notify admins
+    if (materialOnlyLines.length > 0) {
+      const materialIds = [...new Set(materialOnlyLines.map(l => l.material_id))];
+      const updatedMats = await Promise.all(materialIds.map(id => base44.entities.Material.filter({ id }, "name", 1).then(r => r[0]).catch(() => null)));
+      const lowMats = updatedMats.filter(m => m && m.min_stock > 0 && (m.stock_quantity || 0) <= m.min_stock);
+      if (lowMats.length > 0) {
+        const allUsers = await base44.entities.User.list("full_name", 100);
+        const recipients = allUsers.filter(u => ["admin", "superadmin", "encargado", "oficina"].includes(u.role));
+        const alertBody = `⚠️ ALERTA DE STOCK BAJO\n\nEl parte ${interventionNumber} ha generado las siguientes alertas:\n\n${lowMats.map(m => `• ${m.name}: ${m.stock_quantity || 0} ${m.unit || "ud"} (mínimo: ${m.min_stock})`).join("\n")}\n\nAccede a la app para gestionar los pedidos.`;
+        await Promise.allSettled(recipients.map(u =>
+          base44.integrations.Core.SendEmail({
+            to: u.email,
+            subject: `⚠️ Stock Bajo — ${lowMats.length} referencia(s) bajo mínimos`,
+            body: alertBody,
+          })
+        ));
+      }
+    }
+
     setSaving(false);
     navigate(`/interventions/${created.id}`);
   };

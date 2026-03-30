@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { ClipboardList, Package, Users, AlertTriangle, Plus, TrendingUp } from "lucide-react";
+import LowStockPanel from "../components/LowStockPanel";
 import { Button } from "@/components/ui/button";
 import StatsCard from "../components/StatsCard";
 import InterventionCard from "../components/InterventionCard";
@@ -13,6 +14,7 @@ export default function Dashboard() {
   const [interventions, setInterventions] = useState([]);
   const [stats, setStats] = useState({ total: 0, pending: 0, today: 0, revenue: 0 });
   const [fichajeStatus, setFichajeStatus] = useState(null);
+  const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,9 +25,10 @@ export default function Dashboard() {
     const me = await base44.auth.me();
     setUser(me);
     const isAdmin = me.role === "admin" || me.role === "superadmin" || me.role === "encargado";
+    const isOficina = me.role === "oficina";
 
     let allInterventions;
-    if (isAdmin) {
+    if (isAdmin || isOficina) {
       allInterventions = await base44.entities.Intervention.list("-created_date", 50);
     } else {
       allInterventions = await base44.entities.Intervention.filter(
@@ -33,6 +36,11 @@ export default function Dashboard() {
         "-created_date",
         50
       );
+    }
+
+    if (isAdmin || isOficina) {
+      const mats = await base44.entities.Material.list("name", 500);
+      setMaterials(mats);
     }
 
     setInterventions(allInterventions);
@@ -75,6 +83,8 @@ export default function Dashboard() {
   }
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
+  const isOficina = user?.role === "oficina";
+  const showAlerts = isAdmin || isOficina;
   const hasCheckedIn = isAdmin || fichajeStatus === "entrada" || fichajeStatus === "reanudacion";
   const recentInterventions = interventions.slice(0, 6);
 
@@ -105,8 +115,11 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* Low Stock Alerts */}
+      {showAlerts && <LowStockPanel materials={materials} />}
+
       {/* Fichaje */}
-      {!isAdmin && (
+      {!isAdmin && !isOficina && (
         <FichajeWidget user={user} onStatusChange={loadFichajeStatus} />
       )}
 
