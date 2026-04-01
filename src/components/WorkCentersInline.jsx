@@ -12,7 +12,7 @@ const emptyCenter = {
   contact_person: "", phone: "", email: "", notes: "", is_active: true,
 };
 
-export default function WorkCentersInline({ client }) {
+export default function WorkCentersInline({ client, readOnly = false }) {
   const [centers, setCenters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -68,9 +68,11 @@ export default function WorkCentersInline({ client }) {
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
           <Building className="h-3.5 w-3.5" /> Centros de Trabajo ({centers.length})
         </p>
-        <Button variant="ghost" size="sm" onClick={openNew} className="h-7 text-xs rounded-lg gap-1 text-accent hover:bg-accent/10">
-          <Plus className="h-3 w-3" /> Añadir
-        </Button>
+        {!readOnly && (
+          <Button variant="ghost" size="sm" onClick={openNew} className="h-7 text-xs rounded-lg gap-1 text-accent hover:bg-accent/10">
+            <Plus className="h-3 w-3" /> Añadir
+          </Button>
+        )}
       </div>
 
       {loading ? (
@@ -92,19 +94,21 @@ export default function WorkCentersInline({ client }) {
                   <p className="text-xs text-muted-foreground">{c.contact_person}</p>
                 )}
                 {c.phone && (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <a href={`tel:${c.phone}`} className="text-xs text-blue-600 hover:underline flex items-center gap-1">
                     <Phone className="h-3 w-3 shrink-0" />{c.phone}
-                  </p>
+                  </a>
                 )}
               </div>
-              <div className="flex gap-1 shrink-0">
-                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => openEdit(c)}>
-                  <Pencil className="h-3 w-3" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:text-destructive" onClick={() => handleDelete(c.id)}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
+              {!readOnly && (
+                <div className="flex gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => openEdit(c)}>
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:text-destructive" onClick={() => handleDelete(c.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
             </div>
           ))}
         </div>

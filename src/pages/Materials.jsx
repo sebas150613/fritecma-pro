@@ -276,8 +276,8 @@ export default function Materials() {
             )}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Código</Label>
-                <Input value={form.code || ""} disabled={isTecnico} className="mt-1" />
+                <Label>Código *</Label>
+                <Input value={form.code || ""} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} className="mt-1" placeholder="REF-001" />
               </div>
               <div>
                 <Label>Categoría</Label>

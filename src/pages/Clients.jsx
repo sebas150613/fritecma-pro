@@ -20,6 +20,7 @@ const emptyClient = {
 };
 
 export default function Clients() {
+  const [user, setUser] = useState(null);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -33,10 +34,16 @@ export default function Clients() {
   }, []);
 
   const loadData = async () => {
-    const items = await base44.entities.Client.list("name", 500);
+    const [me, items] = await Promise.all([
+      base44.auth.me(),
+      base44.entities.Client.list("name", 500),
+    ]);
+    setUser(me);
     setClients(items);
     setLoading(false);
   };
+
+  const isTecnico = user?.role === "user" || user?.role === "tecnico";
 
   const openNew = () => {
     setEditingClient(null);
@@ -82,9 +89,11 @@ export default function Clients() {
     <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold tracking-tight">Clientes</h1>
-        <Button onClick={openNew} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
-          <Plus className="h-4 w-4 mr-2" /> Nuevo Cliente
-        </Button>
+        {!isTecnico && (
+          <Button onClick={openNew} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
+            <Plus className="h-4 w-4 mr-2" /> Nuevo Cliente
+          </Button>
+        )}
       </div>
 
       <div className="relative">
@@ -114,9 +123,9 @@ export default function Clients() {
                   <p>{c.contact_person}</p>
                 )}
                 {c.phone && (
-                  <div className="flex items-center gap-2">
+                  <a href={`tel:${c.phone}`} className="flex items-center gap-2 text-blue-600 hover:underline">
                     <Phone className="h-3 w-3" /><span>{c.phone}</span>
-                  </div>
+                  </a>
                 )}
                 {c.email && (
                   <div className="flex items-center gap-2">
@@ -136,14 +145,18 @@ export default function Clients() {
                 <Button variant="outline" size="sm" onClick={() => setExpandedClient(expandedClient === c.id ? null : c.id)} className="flex-1 rounded-xl text-xs">
                   {expandedClient === c.id ? "▲ Ocultar centros" : "🏢 Ver centros"}
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => openEdit(c)} className="rounded-xl">
-                  <Edit className="h-3 w-3" />
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => handleDelete(c.id)} className="text-destructive rounded-xl">
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                {!isTecnico && (
+                  <>
+                    <Button variant="outline" size="sm" onClick={() => openEdit(c)} className="rounded-xl">
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDelete(c.id)} className="text-destructive rounded-xl">
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </>
+                )}
               </div>
-              {expandedClient === c.id && <WorkCentersInline client={c} />}
+              {expandedClient === c.id && <WorkCentersInline client={c} readOnly={isTecnico} />}
             </div>
           ))}
         </div>
