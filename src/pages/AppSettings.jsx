@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Settings, Users, Shield, Trash2 } from "lucide-react";
 
@@ -98,18 +99,19 @@ export default function AppSettings() {
             onChange={(e) => setInviteEmail(e.target.value)}
             className="rounded-xl"
           />
-          <select
-            value={inviteRole}
-            onChange={(e) => setInviteRole(e.target.value)}
-            className="rounded-xl border border-input bg-card px-3 text-sm"
-          >
-            <option value="tecnico">Técnico</option>
-            <option value="ayudante">Ayudante</option>
-            <option value="oficina">Oficina</option>
-            <option value="encargado">Encargado</option>
-            <option value="admin">Admin</option>
-            <option value="superadmin">Super Admin</option>
-          </select>
+          <Select value={inviteRole} onValueChange={setInviteRole}>
+            <SelectTrigger className="w-40 rounded-xl">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tecnico">Técnico</SelectItem>
+              <SelectItem value="ayudante">Ayudante</SelectItem>
+              <SelectItem value="oficina">Oficina</SelectItem>
+              <SelectItem value="encargado">Encargado</SelectItem>
+              <SelectItem value="admin">Admin</SelectItem>
+              <SelectItem value="superadmin">Super Admin</SelectItem>
+            </SelectContent>
+          </Select>
           <Button onClick={handleInvite} disabled={inviting} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl">
             Invitar
           </Button>
@@ -132,18 +134,19 @@ export default function AppSettings() {
                     {u.is_active !== false ? 'Activo' : 'Bloqueado'}
                   </span>
                 </div>
-                <select
-                  value={u.role || "user"}
-                  onChange={e => setUserRole(u.id, e.target.value)}
-                  className="text-xs rounded-lg border border-input bg-card px-2 py-1"
-                >
-                  <option value="superadmin">Super Admin</option>
-                  <option value="admin">Admin</option>
-                  <option value="encargado">Encargado</option>
-                  <option value="oficina">Oficina</option>
-                  <option value="ayudante">Ayudante</option>
-                  <option value="user">Técnico</option>
-                </select>
+                <Select value={u.role || "user"} onValueChange={v => setUserRole(u.id, v)}>
+                  <SelectTrigger className="h-8 text-xs rounded-lg w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="superadmin">Super Admin</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="encargado">Encargado</SelectItem>
+                    <SelectItem value="oficina">Oficina</SelectItem>
+                    <SelectItem value="ayudante">Ayudante</SelectItem>
+                    <SelectItem value="user">Técnico</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           ))}

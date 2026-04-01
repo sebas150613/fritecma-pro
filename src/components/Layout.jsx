@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { useSessionGuard } from "../hooks/useSessionGuard";
 import { useState, useEffect } from "react";
@@ -97,6 +97,7 @@ const ayudanteLinks = [
 
 export default function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   useSessionGuard();
@@ -234,17 +235,23 @@ export default function Layout() {
           const isActive = location.pathname === item.to ||
             (item.to !== "/" && location.pathname.startsWith(item.to));
           return (
-            <Link
+            <button
               key={item.to}
-              to={item.to}
+              onClick={() => {
+                if (location.pathname === item.to) {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                } else {
+                  navigate(item.to);
+                }
+              }}
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl transition-colors flex-1",
+                "flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl transition-colors flex-1 min-h-[44px]",
                 isActive ? "text-accent" : "text-muted-foreground"
               )}
             >
               <item.icon className="h-5 w-5" />
               <span className="text-[10px] font-medium">{item.label}</span>
-            </Link>
+            </button>
           );
         })}
       </nav>

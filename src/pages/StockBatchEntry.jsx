@@ -3,6 +3,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, CheckCircle, Package, Search, Clock } from "lucide-react";
 import { toast } from "sonner";
 
@@ -257,18 +258,22 @@ export default function StockBatchEntry() {
                 {/* Supplier */}
                 <div className="md:col-span-3 flex items-center gap-2">
                   <span className="md:hidden text-xs text-muted-foreground w-24">Proveedor:</span>
-                  <select
-                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    value={line.supplierId}
-                    onChange={e => {
-                      const s = suppliers.find(s => s.id === e.target.value);
+                  <Select
+                    value={line.supplierId || "__none__"}
+                    onValueChange={v => {
+                      const s = suppliers.find(s => s.id === v);
                       if (s) selectSupplier(line.id, s);
                       else updateLine(line.id, "supplierId", "");
                     }}
                   >
-                    <option value="">Sin proveedor</option>
-                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
+                    <SelectTrigger className="w-full text-sm">
+                      <SelectValue placeholder="Sin proveedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Sin proveedor</SelectItem>
+                      {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Remove */}

@@ -147,7 +147,24 @@ export default function ProjectDetailModal({ project, projectMaterials, onClose 
             <p className="text-sm text-muted-foreground italic">Sin materiales asignados</p>
           ) : (
             <div className="rounded-xl border border-border overflow-hidden">
-              <table className="w-full text-sm">
+              {/* Mobile cards */}
+              <div className="md:hidden divide-y divide-border">
+                {matRows.map(m => (
+                  <div key={m.material_id} className="p-3 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{m.material_name}</p>
+                      <p className="text-xs text-muted-foreground">{m.net} {m.unit} × {(m.unit_price || 0).toFixed(2)} €</p>
+                    </div>
+                    <p className="font-bold text-sm shrink-0">{(m.net * (m.unit_price || 0)).toFixed(2)} €</p>
+                  </div>
+                ))}
+                <div className="p-3 bg-muted/30 flex justify-between font-bold text-sm">
+                  <span>Total Materiales</span>
+                  <span>{matTotal.toFixed(2)} €</span>
+                </div>
+              </div>
+              {/* Desktop table */}
+              <table className="hidden md:table w-full text-sm">
                 <thead className="bg-muted/50 border-b border-border">
                   <tr>
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground">Material</th>
@@ -200,7 +217,28 @@ export default function ProjectDetailModal({ project, projectMaterials, onClose 
             <p className="text-sm text-muted-foreground italic">Sin horas registradas en esta obra</p>
           ) : (
             <div className="rounded-xl border border-border overflow-hidden">
-              <table className="w-full text-sm">
+              {/* Mobile cards */}
+              <div className="md:hidden divide-y divide-border">
+                {hoursRows.map((r, i) => (
+                  <div key={i} className="p-3 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm">{r.techName}</span>
+                      <span className="font-bold text-sm">{(r.minutes / 60).toFixed(2)} h</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>{moment(r.date).format("DD/MM/YY")}</span>
+                      <span className="font-mono">{r.start || "—"} → {r.end || "—"}</span>
+                    </div>
+                    {r.other_data && <p className="text-xs text-muted-foreground">{r.other_data}</p>}
+                  </div>
+                ))}
+                <div className="p-3 bg-muted/30 flex justify-between font-bold text-sm">
+                  <span>Total Horas</span>
+                  <span>{totalHours} h</span>
+                </div>
+              </div>
+              {/* Desktop table */}
+              <table className="hidden md:table w-full text-sm">
                 <thead className="bg-muted/50 border-b border-border">
                   <tr>
                     <th className="text-left px-3 py-2 font-medium text-muted-foreground">Técnico</th>
