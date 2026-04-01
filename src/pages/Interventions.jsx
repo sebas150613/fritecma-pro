@@ -84,13 +84,11 @@ export default function Interventions() {
         <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold tracking-tight">Intervenciones</h1>
-        {!isAyudante && (
-          <Link to="/interventions/new">
-            <Button className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
-              <Plus className="h-4 w-4 mr-2" /> Nueva Incidencia
-            </Button>
-          </Link>
-        )}
+        <Link to="/interventions/new">
+          <Button className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
+            <Plus className="h-4 w-4 mr-2" /> Nueva Incidencia
+          </Button>
+        </Link>
       </div>
 
       {/* Search */}
@@ -158,22 +156,22 @@ export default function Interventions() {
           <TabsList className="rounded-xl">
             <TabsTrigger value="pending" className="rounded-xl gap-2">
               <AlertTriangle className="h-4 w-4" /> Pendientes
-              {pending.filter(i => i.technician_email === user?.email).length > 0 && (
+              {pending.filter(i => i.technician_email === user?.email || i.helper_email === user?.email).length > 0 && (
                 <span className="ml-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                  {pending.filter(i => i.technician_email === user?.email).length}
+                  {pending.filter(i => i.technician_email === user?.email || i.helper_email === user?.email).length}
                 </span>
               )}
             </TabsTrigger>
             <TabsTrigger value="all" className="rounded-xl">Todas</TabsTrigger>
           </TabsList>
           <TabsContent value="pending" className="mt-4">
-            {pending.filter(i => i.technician_email === user?.email).length === 0 ? (
+            {pending.filter(i => i.technician_email === user?.email || i.helper_email === user?.email).length === 0 ? (
               <div className="bg-card rounded-2xl border border-border p-12 text-center">
                 <p className="text-muted-foreground">No tienes tareas pendientes</p>
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {pending.filter(i => i.technician_email === user?.email).map(i => <InterventionCard key={i.id} intervention={i} isAdmin={false} />)}
+                {pending.filter(i => i.technician_email === user?.email || i.helper_email === user?.email).map(i => <InterventionCard key={i.id} intervention={i} isAdmin={false} />)}
               </div>
             )}
           </TabsContent>

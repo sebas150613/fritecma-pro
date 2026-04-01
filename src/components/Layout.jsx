@@ -88,6 +88,7 @@ const ayudanteLinks = [
   { to: "/", label: "Panel", icon: LayoutDashboard },
   { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
   { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
+  { to: "/workday", label: "Mi Jornada", icon: CalendarDays },
   { to: "/clients", label: "Clientes", icon: Users },
   { to: "/materials", label: "Materiales", icon: Package },
   { to: "/material-requests", label: "Pedir Material", icon: ShoppingCart },
