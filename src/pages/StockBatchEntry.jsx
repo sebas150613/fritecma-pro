@@ -152,7 +152,7 @@ export default function StockBatchEntry() {
   };
 
   return (
-    <div className="p-4 md:p-6 max-w-6xl mx-auto">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto pb-32 md:pb-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Package className="h-6 w-6 text-accent" />
