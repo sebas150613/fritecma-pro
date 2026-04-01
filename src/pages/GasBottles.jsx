@@ -91,7 +91,8 @@ export default function GasBottles() {
   const saveBottle = async () => {
     setSaving(true);
     const currentKg = parseFloat(bottleForm.current_kg) || 0;
-    const data = { ...bottleForm, tipo_botella: bottleForm.tipo_botella || "Gas", capacity_kg: parseFloat(bottleForm.capacity_kg) || 0, current_kg: currentKg, status: currentKg >= 1 ? "activa" : "vacia" };
+    const tipoBot = bottleForm.tipo_botella && bottleForm.tipo_botella.trim() ? bottleForm.tipo_botella : "Gas";
+    const data = { ...bottleForm, tipo_botella: tipoBot, capacity_kg: parseFloat(bottleForm.capacity_kg) || 0, current_kg: currentKg, status: currentKg >= 1 ? "activa" : "vacia" };
     if (editingBottle) await base44.entities.GasBottle.update(editingBottle.id, data);
     else await base44.entities.GasBottle.create(data);
     await reload(); setSaving(false); setBottleModal(false);
