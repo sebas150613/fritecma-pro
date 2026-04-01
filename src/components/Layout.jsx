@@ -154,7 +154,7 @@ export default function Layout() {
         )}
       >
         <div className="p-6 flex items-center gap-3">
-          <img src="https://media.base44.com/images/public/69c81838d85448113a40d658/54eaa6c58_Fritecma.jpg" alt="FRITECMA" className="h-16 w-auto object-contain" />
+          <img src="https://media.base44.com/images/public/69c81838d85448113a40d658/54eaa6c58_Fritecma.jpg" alt="FRITECMA" className="h-20 w-auto object-contain" />
           <Button
             variant="ghost"
             size="icon"
@@ -223,7 +223,7 @@ export default function Layout() {
           <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} className="flex-shrink-0">
             <Menu className="h-5 w-5" />
           </Button>
-          <img src="https://media.base44.com/images/public/69c81838d85448113a40d658/54eaa6c58_Fritecma.jpg" alt="FRITECMA" className="h-10 w-auto object-contain flex-1 min-w-0" />
+          <img src="https://media.base44.com/images/public/69c81838d85448113a40d658/54eaa6c58_Fritecma.jpg" alt="FRITECMA" className="h-12 w-auto object-contain flex-1 min-w-0" />
           <div className="w-9 flex-shrink-0" />
         </header>
 
