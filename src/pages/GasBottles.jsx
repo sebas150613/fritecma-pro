@@ -13,10 +13,11 @@ import { cn } from "@/lib/utils";
 import moment from "moment";
 
 const GAS_TYPES = ["R449A","R134a","R404A","R410A","R407C","R22","R32","R290","R600a","R744","otro"];
-const LOCATION_LABELS = { taller: "Taller", furgoneta: "Furgoneta", cliente: "Cliente", baja: "Baja" };
-const STATUS_COLORS = { activa: "bg-emerald-100 text-emerald-700 border-emerald-200", vacia: "bg-amber-100 text-amber-700 border-amber-200", baja: "bg-slate-100 text-slate-500 border-slate-200", devuelta: "bg-blue-100 text-blue-700 border-blue-200" };
+const BOTTLE_TYPES = ["Gas", "Recuperación"];
+const LOCATION_LABELS = { taller: "Taller", furgoneta: "Furgoneta", cliente: "Cliente" };
+const STATUS_COLORS = { activa: "bg-emerald-100 text-emerald-700 border-emerald-200", vacia: "bg-amber-100 text-amber-700 border-amber-200", devuelta: "bg-blue-100 text-blue-700 border-blue-200" };
 
-const EMPTY_BOTTLE = { serial_number: "", gas_type: "R449A", capacity_kg: "", current_kg: "", owner_type: "fritecma", casco_owner: "fritecma", owner_client_id: "", owner_client_name: "", location_type: "taller", location_detail: "", status: "activa", notes: "" };
+const EMPTY_BOTTLE = { serial_number: "", gas_type: "R449A", tipo_botella: "Gas", capacity_kg: "", current_kg: "", owner_type: "fritecma", casco_owner: "fritecma", owner_client_id: "", owner_client_name: "", location_type: "taller", location_detail: "", status: "activa", notes: "" };
 const EMPTY_TRANSFER = { from_bottle_id: "", to_bottle_id: "", kg_transferred: "", new_location_type: "", new_location_detail: "", notes: "" };
 
 export default function GasBottles() {
@@ -77,7 +78,7 @@ export default function GasBottles() {
 
   // Gas balance summary (exclude retired/returned)
   const gasSummary = bottles.reduce((acc, b) => {
-    if (b.status === "baja" || b.status === "devuelta") return acc;
+    if (b.status === "devuelta") return acc;
     const key = `${b.gas_type}__${b.owner_type}`;
     acc[key] = (acc[key] || 0) + (b.current_kg || 0);
     return acc;
@@ -89,7 +90,8 @@ export default function GasBottles() {
 
   const saveBottle = async () => {
     setSaving(true);
-    const data = { ...bottleForm, capacity_kg: parseFloat(bottleForm.capacity_kg) || 0, current_kg: parseFloat(bottleForm.current_kg) || 0 };
+    const currentKg = parseFloat(bottleForm.current_kg) || 0;
+    const data = { ...bottleForm, tipo_botella: bottleForm.tipo_botella || "Gas", capacity_kg: parseFloat(bottleForm.capacity_kg) || 0, current_kg: currentKg, status: currentKg >= 1 ? "activa" : "vacia" };
     if (editingBottle) await base44.entities.GasBottle.update(editingBottle.id, data);
     else await base44.entities.GasBottle.create(data);
     await reload(); setSaving(false); setBottleModal(false);
@@ -304,6 +306,13 @@ export default function GasBottles() {
                 <Input value={bottleForm.serial_number} onChange={e => setBottleForm(f => ({ ...f, serial_number: e.target.value }))} className="mt-1 rounded-xl" />
               </div>
               <div>
+                <Label>Tipo de Botella *</Label>
+                <Select value={bottleForm.tipo_botella || "Gas"} onValueChange={v => setBottleForm(f => ({ ...f, tipo_botella: v }))}>
+                  <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectContent>{BOTTLE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label>Tipo de Gas *</Label>
                 <Select value={bottleForm.gas_type} onValueChange={v => setBottleForm(f => ({ ...f, gas_type: v }))}>
                   <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
@@ -311,16 +320,24 @@ export default function GasBottles() {
                 </Select>
               </div>
               <div>
-                <Label>Estado</Label>
-                <Select value={bottleForm.status} onValueChange={v => setBottleForm(f => ({ ...f, status: v }))}>
-                  <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="activa">Activa</SelectItem>
-                    <SelectItem value="vacia">Vacía</SelectItem>
-                    <SelectItem value="baja">Baja</SelectItem>
-                    <SelectItem value="devuelta">Devuelta</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Estado (Solo lectura)</Label>
+                <div className="mt-1 px-3 py-2 rounded-xl border border-input bg-muted/50 text-sm text-muted-foreground">
+                  {bottleForm.status === "activa" ? "✅ Activa (Carga ≥ 1 kg)" : bottleForm.status === "vacia" ? "⚠️ Vacía (Carga < 1 kg)" : "↩️ Devuelta"}
+                  {bottleForm.tipo_botella === "Gas" && bottleForm.status === "vacia" && (
+                    <div className="mt-2">
+                      <Label className="text-xs">Marcar como Devuelta</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBottleForm(f => ({ ...f, status: "devuelta" }))}
+                        className="w-full mt-1 rounded-lg text-xs"
+                      >
+                        ↩️ Devolver Botella
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <Label>Capacidad (kg)</Label>
@@ -383,7 +400,6 @@ export default function GasBottles() {
                     <SelectItem value="taller">Taller</SelectItem>
                     <SelectItem value="furgoneta">Furgoneta</SelectItem>
                     <SelectItem value="cliente">Cliente</SelectItem>
-                    <SelectItem value="baja">Baja</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -460,7 +476,7 @@ export default function GasBottles() {
               <Select value={transferForm.to_bottle_id} onValueChange={v => setTransferForm(f => ({ ...f, to_bottle_id: v }))}>
                 <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Seleccionar botella destino..." /></SelectTrigger>
                 <SelectContent>
-                  {bottles.filter(b => b.status !== "baja" && b.id !== transferForm.from_bottle_id).map(b => (
+                  {bottles.filter(b => b.id !== transferForm.from_bottle_id).map(b => (
                     <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.gas_type} · {b.current_kg || 0} kg</SelectItem>
                   ))}
                 </SelectContent>
