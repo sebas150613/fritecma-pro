@@ -2,7 +2,6 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { useSessionGuard } from "../hooks/useSessionGuard";
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   ClipboardList,
@@ -152,9 +151,9 @@ export default function Layout() {
         </div>
 
         {/* Nav Links */}
-        <nav className="flex-1 px-3 space-y-1 mt-2">
+        <nav className="flex-1 px-3 space-y-1 mt-2 overflow-y-auto">
           {links.map((link) => {
-            const isActive = location.pathname === link.to || 
+            const isActive = location.pathname === link.to ||
               (link.to !== "/" && location.pathname.startsWith(link.to));
             return (
               <Link
@@ -202,8 +201,11 @@ export default function Layout() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top bar mobile */}
-        <header className="lg:hidden flex items-center justify-between px-4 border-b border-border bg-card" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))', paddingBottom: '0.75rem' }}>
+        {/* Top bar — mobile only */}
+        <header
+          className="lg:hidden flex items-center justify-between px-4 border-b border-border bg-card"
+          style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))', paddingBottom: '0.75rem' }}
+        >
           <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
             <Menu className="h-5 w-5" />
           </Button>
