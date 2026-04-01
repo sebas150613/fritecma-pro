@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import PullToRefresh from "../components/PullToRefresh";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Download, Clock, LogIn, LogOut, Coffee, RefreshCw, Trash2 } from "lucide-react";
@@ -144,6 +145,7 @@ export default function TimeRecords() {
   }
 
   return (
+    <PullToRefresh onRefresh={loadData}>
     <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -193,7 +195,49 @@ export default function TimeRecords() {
         </div>
       ) : (
         <div className="bg-card rounded-2xl border border-border overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile Cards */}
+          <div className="md:hidden divide-y divide-border">
+            {summary.map((s, i) => (
+              <div key={i} className="p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-sm">{s.technician}</p>
+                    <p className="text-xs text-muted-foreground">{moment(s.date).format("ddd DD/MM/YYYY")}</p>
+                  </div>
+                  <span className="font-bold text-base">{s.hoursLabel}</span>
+                </div>
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-emerald-600 font-medium">{s.entradaTime ? moment(s.entradaTime).format("HH:mm") : "—"}</span>
+                  <span className="text-muted-foreground">→</span>
+                  <span className="text-rose-600 font-medium">{s.salidaTime ? moment(s.salidaTime).format("HH:mm") : "—"}</span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {s.records.map((r) => {
+                    const Icon = TYPE_ICONS[r.type];
+                    return (
+                      <span key={r.id} className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-muted">
+                        <Icon className="h-3 w-3" />
+                        {moment(r.timestamp).format("HH:mm")}
+                      </span>
+                    );
+                  })}
+                </div>
+                {isAdmin && (
+                  <Button size="sm" variant="ghost"
+                    className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 rounded-lg"
+                    onClick={async () => {
+                      if (!window.confirm(`¿Eliminar fichajes del ${moment(s.date).format("DD/MM/YYYY")} de ${s.technician}?`)) return;
+                      await Promise.all(s.records.map(r => base44.entities.TimeRecord.delete(r.id)));
+                      setRecords(prev => prev.filter(r => !s.records.some(sr => sr.id === r.id)));
+                    }}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
@@ -236,9 +280,8 @@ export default function TimeRecords() {
                         <Button
                           size="sm" variant="ghost"
                           className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 rounded-lg"
-                          title={`Eliminar registros del ${s.date} de ${s.technician}`}
                           onClick={async () => {
-                            if (!window.confirm(`¿Eliminar todos los fichajes del ${moment(s.date).format("DD/MM/YYYY")} de ${s.technician}? Esta acción no se puede deshacer.`)) return;
+                            if (!window.confirm(`¿Eliminar todos los fichajes del ${moment(s.date).format("DD/MM/YYYY")} de ${s.technician}?`)) return;
                             await Promise.all(s.records.map(r => base44.entities.TimeRecord.delete(r.id)));
                             setRecords(prev => prev.filter(r => !s.records.some(sr => sr.id === r.id)));
                           }}
@@ -255,5 +298,6 @@ export default function TimeRecords() {
         </div>
       )}
     </div>
+    </PullToRefresh>
   );
 }

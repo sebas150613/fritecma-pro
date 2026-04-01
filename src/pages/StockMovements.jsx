@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import PullToRefresh from "../components/PullToRefresh";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -22,14 +23,14 @@ export default function StockMovements() {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
 
-  useEffect(() => {
-    Promise.all([
-      base44.entities.StockMovement.list("-created_date", 500),
-      base44.entities.Material.list("name", 500),
-    ]).then(([m, mats]) => {
-      setMovements(m); setMaterials(mats); setLoading(false);
-    });
-  }, []);
+  const loadData = () => Promise.all([
+    base44.entities.StockMovement.list("-created_date", 500),
+    base44.entities.Material.list("name", 500),
+  ]).then(([m, mats]) => {
+    setMovements(m); setMaterials(mats); setLoading(false);
+  });
+
+  useEffect(() => { loadData(); }, []);
 
   // Low stock alerts
   const lowStockItems = materials.filter(m => m.is_active && m.min_stock > 0 && (m.stock_quantity || 0) <= m.min_stock);
@@ -43,6 +44,7 @@ export default function StockMovements() {
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-muted border-t-accent rounded-full animate-spin" /></div>;
 
   return (
+    <PullToRefresh onRefresh={loadData}>
     <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Package className="h-6 w-6 text-accent" /> Movimientos de Stock</h1>
@@ -121,5 +123,6 @@ export default function StockMovements() {
         {filtered.length === 0 && <p className="text-center text-muted-foreground py-12">Sin movimientos registrados.</p>}
       </div>
     </div>
+    </PullToRefresh>
   );
 }

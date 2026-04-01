@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
+import PullToRefresh from "../components/PullToRefresh";
 import { ClipboardList, Package, Users, AlertTriangle, Plus, TrendingUp } from "lucide-react";
 import LowStockPanel from "../components/LowStockPanel";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,7 @@ export default function Dashboard() {
   const recentInterventions = interventions.slice(0, 6);
 
   return (
+    <PullToRefresh onRefresh={loadData}>
     <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -173,5 +175,6 @@ export default function Dashboard() {
         )}
       </div>
     </div>
+    </PullToRefresh>
   );
 }

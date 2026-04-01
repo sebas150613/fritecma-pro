@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import PullToRefresh from "../components/PullToRefresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -138,6 +139,7 @@ export default function WorkDayReport() {
   );
 
   return (
+    <PullToRefresh onRefresh={() => loadData(user)}>
     <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -192,44 +194,73 @@ export default function WorkDayReport() {
               Compara las horas del <strong>Fichaje</strong> (entrada → salida) con las horas registradas en los <strong>Tramos de actividad</strong>.
               Una diferencia &gt; 0.5h aparece marcada en amarillo.
             </p>
-            <div className="bg-card rounded-2xl border border-border overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 border-b border-border">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Fecha</th>
-                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Técnico</th>
-                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Fichaje (h)</th>
-                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Tramos (h)</th>
-                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Diferencia</th>
-                    <th className="text-center px-4 py-3 font-medium text-muted-foreground">Estado</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {buildCrossValidation().length === 0 ? (
-                    <tr><td colSpan={6} className="text-center py-10 text-muted-foreground">Sin datos para este período</td></tr>
-                  ) : buildCrossValidation().map((d, i) => {
-                    const ok = d.diff != null && d.diff <= 0.5;
-                    const warn = d.diff != null && d.diff > 0.5;
-                    const missing = d.fichaje_hours == null || d.tramos_hours == null;
-                    return (
-                      <tr key={i} className={cn("hover:bg-muted/20", warn && "bg-amber-50", missing && "bg-slate-50")}>
-                        <td className="px-4 py-3 font-medium">{moment(d.date).format("DD/MM/YY ddd")}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{d.name}</td>
-                        <td className="px-4 py-3 text-right font-semibold">{d.fichaje_hours != null ? d.fichaje_hours.toFixed(2) : <span className="text-muted-foreground">—</span>}</td>
-                        <td className="px-4 py-3 text-right">{d.tramos_hours != null ? d.tramos_hours.toFixed(2) : <span className="text-muted-foreground">—</span>}</td>
-                        <td className={`px-4 py-3 text-right font-semibold ${warn ? "text-amber-600" : ok ? "text-emerald-600" : "text-muted-foreground"}`}>
-                          {d.diff != null ? `${d.diff.toFixed(2)}h` : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          {missing ? <span className="text-xs text-muted-foreground">Incompleto</span>
-                            : ok ? <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" />
-                            : <AlertTriangle className="h-4 w-4 text-amber-500 mx-auto" />}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="bg-card rounded-2xl border border-border overflow-hidden">
+              {/* Mobile Cards */}
+              <div className="md:hidden divide-y divide-border">
+                {buildCrossValidation().length === 0 ? (
+                  <p className="text-center py-10 text-muted-foreground">Sin datos para este período</p>
+                ) : buildCrossValidation().map((d, i) => {
+                  const ok = d.diff != null && d.diff <= 0.5;
+                  const warn = d.diff != null && d.diff > 0.5;
+                  const missing = d.fichaje_hours == null || d.tramos_hours == null;
+                  return (
+                    <div key={i} className={cn("p-4 space-y-2", warn && "bg-amber-50", missing && "bg-slate-50")}>
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm">{moment(d.date).format("DD/MM/YY ddd")}</span>
+                        {missing ? <span className="text-xs text-muted-foreground">Incompleto</span>
+                          : ok ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          : <AlertTriangle className="h-4 w-4 text-amber-500" />}
+                      </div>
+                      <p className="text-sm text-muted-foreground">{d.name}</p>
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div><p className="text-muted-foreground">Fichaje</p><p className="font-semibold">{d.fichaje_hours != null ? d.fichaje_hours.toFixed(2) + "h" : "—"}</p></div>
+                        <div><p className="text-muted-foreground">Tramos</p><p className="font-semibold">{d.tramos_hours != null ? d.tramos_hours.toFixed(2) + "h" : "—"}</p></div>
+                        <div><p className="text-muted-foreground">Diferencia</p><p className={cn("font-semibold", warn ? "text-amber-600" : ok ? "text-emerald-600" : "text-muted-foreground")}>{d.diff != null ? d.diff.toFixed(2) + "h" : "—"}</p></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Desktop Table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 border-b border-border">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Fecha</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Técnico</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Fichaje (h)</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Tramos (h)</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Diferencia</th>
+                      <th className="text-center px-4 py-3 font-medium text-muted-foreground">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {buildCrossValidation().length === 0 ? (
+                      <tr><td colSpan={6} className="text-center py-10 text-muted-foreground">Sin datos para este período</td></tr>
+                    ) : buildCrossValidation().map((d, i) => {
+                      const ok = d.diff != null && d.diff <= 0.5;
+                      const warn = d.diff != null && d.diff > 0.5;
+                      const missing = d.fichaje_hours == null || d.tramos_hours == null;
+                      return (
+                        <tr key={i} className={cn("hover:bg-muted/20", warn && "bg-amber-50", missing && "bg-slate-50")}>
+                          <td className="px-4 py-3 font-medium">{moment(d.date).format("DD/MM/YY ddd")}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{d.name}</td>
+                          <td className="px-4 py-3 text-right font-semibold">{d.fichaje_hours != null ? d.fichaje_hours.toFixed(2) : <span className="text-muted-foreground">—</span>}</td>
+                          <td className="px-4 py-3 text-right">{d.tramos_hours != null ? d.tramos_hours.toFixed(2) : <span className="text-muted-foreground">—</span>}</td>
+                          <td className={`px-4 py-3 text-right font-semibold ${warn ? "text-amber-600" : ok ? "text-emerald-600" : "text-muted-foreground"}`}>
+                            {d.diff != null ? `${d.diff.toFixed(2)}h` : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {missing ? <span className="text-xs text-muted-foreground">Incompleto</span>
+                              : ok ? <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto" />
+                              : <AlertTriangle className="h-4 w-4 text-amber-500 mx-auto" />}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </TabsContent>
         )}
@@ -270,7 +301,40 @@ export default function WorkDayReport() {
 
           {/* Detail Table */}
           <div className="bg-card rounded-2xl border border-border overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Mobile Cards */}
+            <div className="md:hidden divide-y divide-border">
+              {filtered.length === 0 ? (
+                <p className="text-center py-12 text-muted-foreground">No hay registros para este período</p>
+              ) : filtered.map(r => (
+                <div key={r.id} className="p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{moment(r.work_date).format("DD/MM/YY ddd")}</span>
+                    <Badge className={STATUS_COLORS[r.status] || ""}>{r.status}</Badge>
+                  </div>
+                  {isAdmin && <p className="text-sm text-muted-foreground">{r.technician_name}</p>}
+                  <div className="flex flex-wrap gap-3 text-sm">
+                    <span>Total: <strong>{(r.total_hours || 0).toFixed(2)}h</strong></span>
+                    {(r.hours_extra || 0) > 0 && <span className="text-amber-600">Extra: {r.hours_extra}h</span>}
+                    {(r.hours_nocturnas || 0) > 0 && <span className="text-indigo-600">Noc: {r.hours_nocturnas}h</span>}
+                    {((r.hours_sabado || 0) + (r.hours_domingo || 0)) > 0 && <span className="text-rose-600">S/D: {((r.hours_sabado||0)+(r.hours_domingo||0)).toFixed(1)}h</span>}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="h-8 rounded-lg gap-1 text-xs flex-1" onClick={() => setDetailRecord(r)}>
+                      <Eye className="h-3.5 w-3.5" /> Ver detalle
+                    </Button>
+                    {isAdmin && (
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 rounded-lg" onClick={async () => {
+                        if (!window.confirm(`¿Eliminar el registro del ${r.work_date} de ${r.technician_name}?`)) return;
+                        await base44.entities.WorkDay.delete(r.id);
+                        setRecords(prev => prev.filter(x => x.id !== r.id));
+                      }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 border-b border-border">
                   <tr>
@@ -336,5 +400,6 @@ export default function WorkDayReport() {
         onValidate={isAdmin ? handleValidate : null}
       />
     </div>
+    </PullToRefresh>
   );
 }

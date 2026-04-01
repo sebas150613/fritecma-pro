@@ -4,6 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import BackButton from "../components/BackButton";
 import { ArrowLeft, FileText, Mail, Clock, MapPin, Flame, User, Loader2, Package, CheckCircle2, Pencil, Trash2, Plus, AlertTriangle, Wrench } from "lucide-react";
 import MapLink from "../components/MapLink";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -215,9 +216,7 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-xl">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <BackButton />
           <div>
             <p className="text-sm text-muted-foreground">{intervention.number}</p>
             <h1 className="text-xl font-bold">{intervention.client_name}</h1>

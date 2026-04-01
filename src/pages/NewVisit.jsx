@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Plus, MapPin, Loader2, Save } from "lucide-react";
+import BackButton from "../components/BackButton";
 import MaterialLineForm from "../components/MaterialLineForm";
 import LaborSection from "../components/LaborSection";
 import { validateStockAvailability, deductStockForIntervention } from "../lib/stockUtils";
@@ -221,9 +222,7 @@ export default function NewVisit() {
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6 pb-32">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-xl">
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <BackButton label="Parte" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Nueva Visita</h1>
           <p className="text-sm text-muted-foreground">{intervention?.number} · {intervention?.client_name}</p>
@@ -322,7 +321,7 @@ export default function NewVisit() {
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Materiales y Mano de Obra</h2>
-          <Button variant="outline" size="sm" onClick={() => setLines([...lines, { material_id: "", material_name: "", quantity: 1, unit_price: 0, total: 0, observation: "", unit: "ud", iva_percent: 21 }])} className="rounded-xl">
+          <Button variant="outline" size="sm" onClick={() => setLines(prev => [...prev, { _id: Date.now() + Math.random(), material_id: "", material_name: "", quantity: 1, unit_price: 0, total: 0, observation: "", unit: "ud", iva_percent: 21 }])} className="rounded-xl">
             <Plus className="h-4 w-4 mr-1" /> Añadir Línea
           </Button>
         </div>
@@ -331,7 +330,7 @@ export default function NewVisit() {
         ) : (
           <div className="space-y-3">
             {lines.map((line, i) => (
-              <MaterialLineForm key={i} line={line} index={i} materials={materials}
+              <MaterialLineForm key={line._id || i} line={line} index={i} materials={materials}
                 onUpdate={(idx, updated) => { const l = [...lines]; l[idx] = updated; setLines(l); }}
                 onRemove={(idx) => setLines(lines.filter((_, j) => j !== idx))}
                 isAdmin={isAdmin}

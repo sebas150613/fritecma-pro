@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import BackButton from "../components/BackButton";
 import { ArrowLeft, Save, Loader2, Plus } from "lucide-react";
 import MaterialLineForm from "../components/MaterialLineForm";
 import moment from "moment";
@@ -170,9 +171,7 @@ export default function EditIntervention() {
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6 pb-32">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-xl">
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <BackButton label="Parte" />
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Editar Parte</h1>
           <p className="text-sm text-muted-foreground">{original?.number}</p>

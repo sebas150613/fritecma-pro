@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Plus, MapPin, Loader2, Save, LogIn, AlertTriangle } from "lucide-react";
+import BackButton from "../components/BackButton";
 import MaterialLineForm from "../components/MaterialLineForm";
 import LaborSection from "../components/LaborSection";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -130,7 +131,7 @@ export default function NewIntervention() {
   };
 
   const addLine = () => {
-    setLines([...lines, { material_id: "", material_name: "", quantity: 1, unit_price: 0, total: 0, observation: "", unit: "ud", iva_percent: 21 }]);
+    setLines(prev => [...prev, { _id: Date.now() + Math.random(), material_id: "", material_name: "", quantity: 1, unit_price: 0, total: 0, observation: "", unit: "ud", iva_percent: 21 }]);
   };
 
   const updateLine = (index, updatedLine) => {
@@ -311,10 +312,8 @@ export default function NewIntervention() {
 
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-xl">
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="text-2xl font-bold tracking-tight">Nuevo Parte de Trabajo</h1>
+        <BackButton label="Partes" />
+        <h1 className="text-2xl font-bold tracking-tight">Nuevo Parte</h1>
       </div>
 
       {/* Client & Date */}
@@ -506,7 +505,7 @@ export default function NewIntervention() {
           <div className="space-y-3">
             {lines.map((line, i) => (
               <MaterialLineForm
-                key={i}
+                key={line._id || i}
                 line={line}
                 index={i}
                 materials={materials}
