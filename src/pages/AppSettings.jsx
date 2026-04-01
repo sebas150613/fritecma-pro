@@ -8,6 +8,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Settings, Users, Shield, Trash2 } from "lucide-react";
 
+const ROLE_LABELS = {
+  superadmin: "Super Admin",
+  admin: "Admin",
+  encargado: "Encargado",
+  oficina: "Oficina",
+  ayudante: "Ayudante",
+  user: "Técnico",
+  tecnico: "Técnico",
+};
+
 export default function AppSettings() {
   const [user, setUser] = useState(null);
   const [users, setUsers] = useState([]);
@@ -136,7 +146,7 @@ export default function AppSettings() {
                 </div>
                 <Select value={u.role || "user"} onValueChange={v => setUserRole(u.id, v)}>
                   <SelectTrigger className="h-8 text-xs rounded-lg w-32">
-                    <SelectValue />
+                    <SelectValue>{ROLE_LABELS[u.role] || u.role}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="superadmin">Super Admin</SelectItem>
