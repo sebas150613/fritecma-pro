@@ -193,7 +193,7 @@ export default function Layout() {
           })}
         </nav>
 
-        <div className="p-4 border-t border-sidebar-border">
+        <div className="p-4 border-t border-sidebar-border pb-28 lg:pb-4">
           <div className="flex items-center gap-3 px-2">
             <div className="h-9 w-9 rounded-full bg-sidebar-accent flex items-center justify-center text-sm font-semibold text-sidebar-foreground">
               {user?.full_name?.[0] || "U"}

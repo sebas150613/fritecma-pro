@@ -222,7 +222,7 @@ Asistente:`;
       {/* Floating button */}
       <button
         onClick={() => setOpen(v => !v)}
-        className="fixed bottom-6 right-6 z-50 h-14 w-14 rounded-full bg-primary shadow-xl flex items-center justify-center text-white hover:bg-primary/90 transition-all duration-200 hover:scale-105"
+        className="fixed top-20 right-4 lg:top-auto lg:bottom-6 lg:right-6 z-40 h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-primary shadow-xl flex items-center justify-center text-white hover:bg-primary/90 transition-all duration-200 hover:scale-105"
         title="Asistente IA FRITECMA"
       >
         {open ? <X className="h-6 w-6" /> : <MessageSquare className="h-6 w-6" />}
@@ -230,7 +230,7 @@ Asistente:`;
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[560px] max-h-[calc(100vh-8rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="fixed top-36 right-4 lg:bottom-24 lg:top-auto lg:right-6 z-50 w-[380px] max-w-[calc(100vw-2rem)] h-[500px] max-h-[calc(100vh-10rem)] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden">
           {/* Header */}
           <div className="bg-primary text-white px-4 py-3 flex items-center gap-3 shrink-0">
             <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center">
