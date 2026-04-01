@@ -23,13 +23,22 @@
         "otro"
       ]
     },
-    "capacity_kg": {
-      "type": "number",
-      "title": "Capacidad (kg)"
+    "tipo_botella": {
+      "type": "string",
+      "title": "Tipo de Botella",
+      "enum": [
+        "Gas",
+        "Recuperaci\u00f3n"
+      ]
     },
-    "current_kg": {
+    "carga_inicial": {
       "type": "number",
-      "title": "Kg Actuales",
+      "title": "Carga Inicial (kg)",
+      "default": 0
+    },
+    "carga_actual": {
+      "type": "number",
+      "title": "Carga Actual (kg)",
       "default": 0
     },
     "owner_type": {
@@ -72,8 +81,7 @@
       "enum": [
         "taller",
         "furgoneta",
-        "cliente",
-        "baja"
+        "cliente"
       ],
       "default": "taller"
     },
@@ -83,11 +91,10 @@
     },
     "status": {
       "type": "string",
-      "title": "Estado",
+      "title": "Estado (Solo lectura - se actualiza autom\u00e1ticamente)",
       "enum": [
         "activa",
         "vacia",
-        "baja",
         "devuelta"
       ],
       "default": "activa"
@@ -100,6 +107,6 @@
   "required": [
     "serial_number",
     "gas_type",
-    "owner_type"
+    "tipo_botella"
   ]
 }

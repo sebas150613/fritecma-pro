@@ -19,15 +19,15 @@ Deno.serve(async (req) => {
 
     const updates = [];
     for (const bottle of bottles) {
-      const currentKg = bottle.current_kg || 0;
+      const cargaActual = bottle.carga_actual || 0;
       const currentStatus = bottle.status || 'activa';
       let newStatus = currentStatus;
 
       // Sincronizar estado basado en carga
-      if (currentKg > 0 && currentStatus === 'vacia') {
+      if (cargaActual > 0 && currentStatus === 'vacia') {
         // Botella con carga pero marcada como vacía
         newStatus = 'activa';
-      } else if (currentKg <= 0 && currentStatus !== 'vacia') {
+      } else if (cargaActual <= 0 && currentStatus !== 'vacia') {
         // Botella sin carga pero no marcada como vacía
         newStatus = 'vacia';
       }
@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
           serial: bottle.serial_number,
           old_status: currentStatus,
           new_status: newStatus,
-          kg: currentKg,
+          kg: cargaActual,
         });
       }
     }
