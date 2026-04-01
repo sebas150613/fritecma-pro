@@ -43,6 +43,11 @@ export default function AppSettings() {
     loadData();
   };
 
+  const toggleUserActive = async (userId, currentValue) => {
+    await base44.entities.User.update(userId, { is_active: !currentValue });
+    loadData();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -109,6 +114,15 @@ export default function AppSettings() {
                 <p className="text-xs text-muted-foreground">{u.email}</p>
               </div>
               <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <Switch
+                    checked={u.is_active !== false}
+                    onCheckedChange={() => toggleUserActive(u.id, u.is_active !== false)}
+                  />
+                  <span className={`text-xs font-medium ${u.is_active !== false ? 'text-green-600' : 'text-destructive'}`}>
+                    {u.is_active !== false ? 'Activo' : 'Bloqueado'}
+                  </span>
+                </div>
                 <select
                   value={u.role || "user"}
                   onChange={e => setUserRole(u.id, e.target.value)}

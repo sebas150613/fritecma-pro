@@ -1,4 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
+import { useSessionGuard } from "../hooks/useSessionGuard";
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import {
@@ -97,6 +98,7 @@ export default function Layout() {
   const location = useLocation();
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  useSessionGuard();
 
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});

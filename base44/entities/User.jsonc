@@ -13,6 +13,11 @@
         "ayudante",
         "user"
       ]
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Activo",
+      "default": true
     }
   }
 }
