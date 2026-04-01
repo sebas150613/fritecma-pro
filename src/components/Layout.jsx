@@ -19,7 +19,8 @@ import {
   Building2,
   CalendarDays,
   Fingerprint,
-  Truck
+  Truck,
+  ShoppingCart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -75,6 +76,7 @@ const techLinks = [
   { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
   { to: "/workday", label: "Mi Jornada", icon: CalendarDays },
   { to: "/materials", label: "Stock / Materiales", icon: Package },
+  { to: "/material-requests", label: "Pedir Material", icon: ShoppingCart },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
   { to: "/settings", label: "Configuración", icon: Settings },

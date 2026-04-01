@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import StatsCard from "../components/StatsCard";
 import InterventionCard from "../components/InterventionCard";
 import FichajeWidget from "../components/FichajeWidget";
+import PendingRequestsPanel from "../components/PendingRequestsPanel";
 import moment from "moment";
 
 export default function Dashboard() {
@@ -117,6 +118,9 @@ export default function Dashboard() {
 
       {/* Low Stock Alerts */}
       {showAlerts && <LowStockPanel materials={materials} />}
+
+      {/* Pending Material Requests (encargado/admin only) */}
+      {isAdmin && <PendingRequestsPanel />}
 
       {/* Fichaje */}
       {!isAdmin && !isOficina && (
