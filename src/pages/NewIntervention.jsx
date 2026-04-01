@@ -91,7 +91,16 @@ export default function NewIntervention() {
         const lastType = records[0]?.type;
         const isCheckedIn = lastType === "entrada" || lastType === "reanudacion";
         setCheckedIn(isCheckedIn);
-        if (!isCheckedIn) setShowCheckinWarning(true);
+
+        // Check if already saw the clock-in warning today
+        const storedWarning = localStorage.getItem("clockInWarningDate");
+        const today_date = new Date().toISOString().slice(0, 10);
+        const hasSeenTodayWarning = storedWarning === today_date;
+
+        // Show warning only if: not checked in AND haven't seen warning today
+        if (!isCheckedIn && !hasSeenTodayWarning) {
+          setShowCheckinWarning(true);
+        }
       } else {
         setCheckedIn(true);
       }
@@ -106,7 +115,7 @@ export default function NewIntervention() {
       setMaterials(materialList || []);
       setGasBottles(bottleList || []);
       setUsers(userList || []);
-      
+
       // Extraer gases únicos de botellas en stock (activas con carga disponible)
       const activeBotles = (bottleList || []).filter(b => b.status === "activa" && (b.carga_actual || 0) > 0);
       const uniqueGases = [...new Set(activeBotles.map(b => b.gas_type))].filter(Boolean).sort();
@@ -311,7 +320,14 @@ export default function NewIntervention() {
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6 pb-32">
       {/* Checkin Warning Modal */}
-      <Dialog open={showCheckinWarning} onOpenChange={setShowCheckinWarning}>
+      <Dialog open={showCheckinWarning} onOpenChange={(open) => {
+        if (!open) {
+          // Mark warning as seen for today when closing
+          const today = new Date().toISOString().slice(0, 10);
+          localStorage.setItem("clockInWarningDate", today);
+          setShowCheckinWarning(false);
+        }
+      }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-amber-600">
@@ -322,10 +338,19 @@ export default function NewIntervention() {
             <p className="text-sm text-muted-foreground">No has registrado tu entrada hoy. Se recomienda fichar antes de crear un parte de trabajo.</p>
             <p className="text-sm text-muted-foreground">Si continúas, el parte quedará marcado como <strong className="text-amber-600">"Sin fichaje previo"</strong> para revisión de administración.</p>
             <div className="flex flex-col gap-2 pt-1">
-              <Button onClick={() => { navigate("/"); }} className="w-full rounded-xl">
+              <Button onClick={() => { 
+                const today = new Date().toISOString().slice(0, 10);
+                localStorage.setItem("clockInWarningDate", today);
+                navigate("/"); 
+              }} className="w-full rounded-xl">
                 <LogIn className="h-4 w-4 mr-2" /> Ir a Fichar Entrada
               </Button>
-              <Button variant="outline" onClick={() => { setSinFichaje(true); setShowCheckinWarning(false); }} className="w-full rounded-xl text-amber-600 border-amber-300 hover:bg-amber-50">
+              <Button variant="outline" onClick={() => { 
+                const today = new Date().toISOString().slice(0, 10);
+                localStorage.setItem("clockInWarningDate", today);
+                setSinFichaje(true); 
+                setShowCheckinWarning(false); 
+              }} className="w-full rounded-xl text-amber-600 border-amber-300 hover:bg-amber-50">
                 Continuar sin fichar
               </Button>
             </div>
