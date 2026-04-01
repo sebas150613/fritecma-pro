@@ -8,6 +8,7 @@ import StatsCard from "../components/StatsCard";
 import InterventionCard from "../components/InterventionCard";
 import FichajeWidget from "../components/FichajeWidget";
 import PendingRequestsPanel from "../components/PendingRequestsPanel";
+import PendingStockPanel from "../components/PendingStockPanel";
 import moment from "moment";
 
 export default function Dashboard() {
@@ -121,6 +122,9 @@ export default function Dashboard() {
 
       {/* Pending Material Requests (encargado/admin only) */}
       {isAdmin && <PendingRequestsPanel />}
+
+      {/* Pending Stock Entries (encargado/admin/oficina) */}
+      {(isAdmin || isOficina) && <PendingStockPanel user={user} />}
 
       {/* Fichaje */}
       {!isAdmin && !isOficina && (

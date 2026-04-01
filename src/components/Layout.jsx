@@ -76,6 +76,7 @@ const techLinks = [
   { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
   { to: "/workday", label: "Mi Jornada", icon: CalendarDays },
   { to: "/materials", label: "Stock / Materiales", icon: Package },
+  { to: "/stock-entry", label: "Entrada Stock", icon: PackagePlus },
   { to: "/material-requests", label: "Pedir Material", icon: ShoppingCart },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
