@@ -86,7 +86,7 @@ export default function Clients() {
   }
 
   return (
-    <div className="px-3 sm:px-4 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="px-3 sm:px-4 lg:p-8 max-w-7xl mx-auto space-y-6 pb-20 lg:pb-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold tracking-tight">Clientes</h1>
         {!isTecnico && (
@@ -107,58 +107,74 @@ export default function Clients() {
           <p className="text-muted-foreground">No se encontraron clientes</p>
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(c => (
-            <div key={c.id} className="bg-card rounded-2xl border border-border p-4 sm:p-5 hover:shadow-md transition-shadow h-auto">
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold whitespace-normal break-words leading-snug text-sm sm:text-base">{c.name}</h3>
-                  {c.cif && <p className="text-xs text-muted-foreground mt-1">{c.cif}</p>}
-                </div>
-                <Badge variant="outline" className="text-xs flex-shrink-0">{TIERS[c.price_tier] || "Estándar"}</Badge>
-              </div>
+        <div className="space-y-2">
+          {filtered.map(c => {
+            const isExpanded = expandedClient === c.id;
+            return (
+              <div key={c.id} className="bg-card rounded-2xl border border-border overflow-hidden">
+                {/* Collapsed/Header View */}
+                <button
+                  onClick={() => setExpandedClient(isExpanded ? null : c.id)}
+                  className="w-full px-3 sm:px-5 py-3 flex items-center justify-between hover:bg-accent/5 transition-colors text-left"
+                >
+                  <h3 className="font-semibold text-sm whitespace-normal break-words flex-1 pr-2">{c.name}</h3>
+                  <span className="text-muted-foreground text-lg flex-shrink-0">{isExpanded ? '−' : '+'}</span>
+                </button>
 
-              <div className="space-y-1.5 text-xs sm:text-sm text-muted-foreground">
-                {c.contact_person && (
-                  <p className="whitespace-normal break-words">{c.contact_person}</p>
-                )}
-                {c.phone && (
-                  <a href={`tel:${c.phone}`} className="flex items-center gap-2 text-blue-600 hover:underline">
-                    <Phone className="h-3 w-3 flex-shrink-0" /><span className="whitespace-normal break-words">{c.phone}</span>
-                  </a>
-                )}
-                {c.email && (
-                  <div className="flex items-center gap-2 min-w-0">
-                    <MailIcon className="h-3 w-3 flex-shrink-0" /><span className="whitespace-normal break-words text-xs">{c.email}</span>
+                {/* Expanded View */}
+                {isExpanded && (
+                  <div className="border-t border-border px-3 sm:px-5 py-4 space-y-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        {c.cif && <p className="text-xs text-muted-foreground mb-2">{c.cif}</p>}
+                        <Badge variant="outline" className="text-xs">{TIERS[c.price_tier] || "Estándar"}</Badge>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 text-xs sm:text-sm text-muted-foreground">
+                      {c.contact_person && (
+                        <p className="whitespace-normal break-words">{c.contact_person}</p>
+                      )}
+                      {c.phone && (
+                        <a href={`tel:${c.phone}`} className="flex items-center gap-2 text-blue-600 hover:underline">
+                          <Phone className="h-3 w-3 flex-shrink-0" /><span className="whitespace-normal break-words">{c.phone}</span>
+                        </a>
+                      )}
+                      {c.email && (
+                        <div className="flex items-center gap-2 min-w-0">
+                          <MailIcon className="h-3 w-3 flex-shrink-0" /><span className="whitespace-normal break-words text-xs">{c.email}</span>
+                        </div>
+                      )}
+                      {c.address && (
+                        <MapLink address={`${c.address}${c.postal_code ? ", " + c.postal_code : ""}${c.city ? ", " + c.city : ""}`} className="text-xs sm:text-sm" />
+                      )}
+                    </div>
+
+                    {c.discount_percent > 0 && (
+                      <p className="text-xs text-accent font-medium">Descuento: {c.discount_percent}%</p>
+                    )}
+
+                    <div className="flex gap-2 pt-3 border-t border-border">
+                      <Button variant="outline" size="sm" onClick={() => setExpandedClient(null)} className="flex-1 rounded-xl text-xs">
+                        🏢 Ver centros
+                      </Button>
+                      {!isTecnico && (
+                        <>
+                          <Button variant="outline" size="sm" onClick={() => openEdit(c)} className="rounded-xl">
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleDelete(c.id)} className="text-destructive rounded-xl">
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                    {<WorkCentersInline client={c} readOnly={isTecnico} />}
                   </div>
                 )}
-                {c.address && (
-                  <MapLink address={`${c.address}${c.postal_code ? ", " + c.postal_code : ""}${c.city ? ", " + c.city : ""}`} className="text-xs sm:text-sm" />
-                )}
               </div>
-
-              {c.discount_percent > 0 && (
-                <p className="text-xs text-accent font-medium mt-2">Descuento: {c.discount_percent}%</p>
-              )}
-
-              <div className="flex gap-2 mt-4 pt-3 border-t border-border">
-                <Button variant="outline" size="sm" onClick={() => setExpandedClient(expandedClient === c.id ? null : c.id)} className="flex-1 rounded-xl text-xs">
-                  {expandedClient === c.id ? "▲ Ocultar centros" : "🏢 Ver centros"}
-                </Button>
-                {!isTecnico && (
-                  <>
-                    <Button variant="outline" size="sm" onClick={() => openEdit(c)} className="rounded-xl">
-                      <Edit className="h-3 w-3" />
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleDelete(c.id)} className="text-destructive rounded-xl">
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </>
-                )}
-              </div>
-              {expandedClient === c.id && <WorkCentersInline client={c} readOnly={isTecnico} />}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
