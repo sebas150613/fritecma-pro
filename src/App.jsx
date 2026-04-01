@@ -26,6 +26,7 @@ import Suppliers from './pages/Suppliers';
 import StockBatchEntry from './pages/StockBatchEntry';
 import MaterialRequests from './pages/MaterialRequests';
 import AbsenceManagement from './pages/AbsenceManagement';
+import Calendar from './pages/Calendar';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -74,6 +75,7 @@ const AuthenticatedApp = () => {
         <Route path="/stock-entry" element={<StockBatchEntry />} />
         <Route path="/material-requests" element={<MaterialRequests />} />
         <Route path="/absences" element={<AbsenceManagement />} />
+        <Route path="/calendar" element={<Calendar />} />
         <Route path="*" element={<PageNotFound />} />
       </Route>
     </Routes>
