@@ -86,7 +86,7 @@ export default function Clients() {
   }
 
   return (
-    <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="px-3 sm:px-4 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold tracking-tight">Clientes</h1>
         {!isTecnico && (
@@ -109,31 +109,31 @@ export default function Clients() {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(c => (
-            <div key={c.id} className="bg-card rounded-2xl border border-border p-5 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-semibold">{c.name}</h3>
-                  {c.cif && <p className="text-xs text-muted-foreground">{c.cif}</p>}
+            <div key={c.id} className="bg-card rounded-2xl border border-border p-4 sm:p-5 hover:shadow-md transition-shadow h-auto">
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold whitespace-normal break-words leading-snug text-sm sm:text-base">{c.name}</h3>
+                  {c.cif && <p className="text-xs text-muted-foreground mt-1">{c.cif}</p>}
                 </div>
-                <Badge variant="outline" className="text-xs">{TIERS[c.price_tier] || "Estándar"}</Badge>
+                <Badge variant="outline" className="text-xs flex-shrink-0">{TIERS[c.price_tier] || "Estándar"}</Badge>
               </div>
 
-              <div className="space-y-1.5 text-sm text-muted-foreground">
+              <div className="space-y-1.5 text-xs sm:text-sm text-muted-foreground">
                 {c.contact_person && (
-                  <p>{c.contact_person}</p>
+                  <p className="whitespace-normal break-words">{c.contact_person}</p>
                 )}
                 {c.phone && (
                   <a href={`tel:${c.phone}`} className="flex items-center gap-2 text-blue-600 hover:underline">
-                    <Phone className="h-3 w-3" /><span>{c.phone}</span>
+                    <Phone className="h-3 w-3 flex-shrink-0" /><span className="whitespace-normal break-words">{c.phone}</span>
                   </a>
                 )}
                 {c.email && (
-                  <div className="flex items-center gap-2">
-                    <MailIcon className="h-3 w-3" /><span className="truncate">{c.email}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <MailIcon className="h-3 w-3 flex-shrink-0" /><span className="whitespace-normal break-words text-xs">{c.email}</span>
                   </div>
                 )}
                 {c.address && (
-                  <MapLink address={`${c.address}${c.postal_code ? ", " + c.postal_code : ""}${c.city ? ", " + c.city : ""}`} className="text-sm" />
+                  <MapLink address={`${c.address}${c.postal_code ? ", " + c.postal_code : ""}${c.city ? ", " + c.city : ""}`} className="text-xs sm:text-sm" />
                 )}
               </div>
 
