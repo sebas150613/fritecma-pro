@@ -86,7 +86,7 @@ export default function GasBottles() {
 
   // Bottle CRUD
   const openNew = () => { setEditingBottle(null); setBottleForm(EMPTY_BOTTLE); setBottleModal(true); };
-  const openEdit = (b) => { setEditingBottle(b); setBottleForm({ ...b }); setBottleModal(true); };
+  const openEdit = (b) => { setEditingBottle(b); setBottleForm({ ...b, tipo_botella: b.tipo_botella || "Gas" }); setBottleModal(true); };
 
   const saveBottle = async () => {
     setSaving(true);
