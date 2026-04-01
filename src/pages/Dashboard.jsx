@@ -11,6 +11,8 @@ import FichajeWidget from "../components/FichajeWidget";
 import PendingRequestsPanel from "../components/PendingRequestsPanel";
 import PendingStockPanel from "../components/PendingStockPanel";
 import moment from "moment";
+import "moment/locale/es";
+moment.locale("es");
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
