@@ -214,7 +214,7 @@ export default function Layout() {
         </header>
 
         {/* Content with animated transitions */}
-        <main className="flex-1 overflow-hidden pb-16 lg:pb-0">
+        <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
           <AnimatePresence mode="wait">
             <Outlet key={location.pathname} />
           </AnimatePresence>
