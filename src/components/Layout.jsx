@@ -1,4 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
+import { AnimatePresence } from "framer-motion";
 import { useSessionGuard } from "../hooks/useSessionGuard";
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
@@ -15,7 +16,6 @@ import {
   ChevronRight,
   Clock,
   FlaskConical,
-  TrendingDown,
   PackagePlus,
   Building2,
   CalendarDays,
@@ -131,7 +131,6 @@ export default function Layout() {
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
-        {/* Logo */}
         <div className="p-6 flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
             <Snowflake className="h-5 w-5 text-sidebar-primary-foreground" />
@@ -150,7 +149,6 @@ export default function Layout() {
           </Button>
         </div>
 
-        {/* Nav Links */}
         <nav className="flex-1 px-3 space-y-1 mt-2 overflow-y-auto">
           {links.map((link) => {
             const isActive = location.pathname === link.to ||
@@ -175,7 +173,6 @@ export default function Layout() {
           })}
         </nav>
 
-        {/* User Info */}
         <div className="p-4 border-t border-sidebar-border">
           <div className="flex items-center gap-3 px-2">
             <div className="h-9 w-9 rounded-full bg-sidebar-accent flex items-center justify-center text-sm font-semibold text-sidebar-foreground">
@@ -216,9 +213,11 @@ export default function Layout() {
           <div className="w-9" />
         </header>
 
-        {/* Content */}
-        <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
-          <Outlet />
+        {/* Content with animated transitions */}
+        <main className="flex-1 overflow-hidden pb-16 lg:pb-0">
+          <AnimatePresence mode="wait">
+            <Outlet key={location.pathname} />
+          </AnimatePresence>
         </main>
       </div>
 

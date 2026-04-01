@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import PullToRefresh from "../components/PullToRefresh";
+import AnimatedPage from "../components/AnimatedPage";
 import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Plus, Search, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
@@ -77,7 +79,9 @@ export default function Interventions() {
   }
 
   return (
-    <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <AnimatedPage>
+      <PullToRefresh onRefresh={loadData}>
+        <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold tracking-tight">Intervenciones</h1>
         {!isAyudante && (
@@ -180,6 +184,8 @@ export default function Interventions() {
           </TabsContent>
         </Tabs>
       )}
-    </div>
+        </div>
+      </PullToRefresh>
+    </AnimatedPage>
   );
 }

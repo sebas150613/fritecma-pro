@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import AnimatedPage from "../components/AnimatedPage";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -115,14 +116,25 @@ export default function Fichaje() {
 
   const handleFichaje = async (type) => {
     setRegistering(true);
+    // Optimistic update — show new status immediately
+    const optimisticRecord = {
+      id: `optimistic-${Date.now()}`,
+      type,
+      timestamp: new Date().toISOString(),
+      work_date: today,
+      technician_email: user.email,
+    };
+    setTodayRecords(prev => [...prev, optimisticRecord]);
+
     let location;
     try {
       location = await getLocationRequired();
     } catch {
+      // Revert optimistic update on GPS failure
+      setTodayRecords(prev => prev.filter(r => r.id !== optimisticRecord.id));
       setRegistering(false);
       return;
     }
-    // Timestamp comes from server call time — not manipulable by user device clock
     const now = new Date().toISOString();
     await base44.entities.TimeRecord.create({
       technician_email: user.email,
@@ -132,8 +144,8 @@ export default function Fichaje() {
       work_date: today,
       ...location,
     });
+    // Replace optimistic with real data
     await loadTodayRecords(user.email);
-    // Refresh admin list
     if (isAdmin) {
       const recent = await base44.entities.TimeRecord.filter(
         { work_date: today },
@@ -170,13 +182,13 @@ export default function Fichaje() {
   }
 
   return (
-    <div className="p-4 lg:p-8 max-w-2xl mx-auto space-y-6">
+    <AnimatedPage>
+      <div className="p-4 lg:p-8 max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Fichaje de Presencia</h1>
         <p className="text-sm text-muted-foreground">Registro oficial de inicio y fin de jornada · geolocalizado</p>
       </div>
 
-      {/* GPS blocked banner */}
       {gpsBlocked && (
         <div className="flex items-start gap-3 p-4 bg-destructive/10 border border-destructive/30 rounded-2xl">
           <ShieldAlert className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
@@ -189,7 +201,6 @@ export default function Fichaje() {
         </div>
       )}
 
-      {/* Status card */}
       <div className="bg-card rounded-2xl border border-border p-6 space-y-5">
         <div className="flex items-center justify-between">
           <div>
@@ -204,7 +215,6 @@ export default function Fichaje() {
           )}
         </div>
 
-        {/* Today's fichajes */}
         {todayRecords.length > 0 && (
           <div className="space-y-2">
             {todayRecords.map((r) => (
@@ -225,7 +235,6 @@ export default function Fichaje() {
           </div>
         )}
 
-        {/* Action buttons */}
         {actions.length > 0 && !gpsBlocked && (
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             {actions.map((action) => {
@@ -266,7 +275,6 @@ export default function Fichaje() {
         </p>
       </div>
 
-      {/* Admin: today's fichajes from all users */}
       {isAdmin && allRecords.length > 0 && (
         <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
           <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
@@ -295,6 +303,7 @@ export default function Fichaje() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AnimatedPage>
   );
 }
