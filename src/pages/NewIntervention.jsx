@@ -64,6 +64,15 @@ export default function NewIntervention() {
   useEffect(() => {
     loadInitialData();
     getLocation();
+    // Refresh gas bottles every 5 seconds to catch recent stock changes
+    const interval = setInterval(async () => {
+      const bottles = await base44.entities.GasBottle.list("-created_date", 200).catch(() => []);
+      setGasBottles(bottles || []);
+      const activeBotles = (bottles || []).filter(b => b.status === "activa" && (b.carga_actual || 0) > 0);
+      const uniqueGases = [...new Set(activeBotles.map(b => b.gas_type))].filter(Boolean).sort();
+      setAvailableGasTypes(uniqueGases);
+    }, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadInitialData = async () => {
@@ -99,7 +108,7 @@ export default function NewIntervention() {
       setUsers(userList || []);
       
       // Extraer gases únicos de botellas en stock (activas con carga disponible)
-      const activeBotles = (bottleList || []).filter(b => b.status === "activa" && (b.current_kg || 0) > 0);
+      const activeBotles = (bottleList || []).filter(b => b.status === "activa" && (b.carga_actual || 0) > 0);
       const uniqueGases = [...new Set(activeBotles.map(b => b.gas_type))].filter(Boolean).sort();
       setAvailableGasTypes(uniqueGases);
     } catch (error) {
@@ -173,7 +182,7 @@ export default function NewIntervention() {
 
   const totals = calcTotals();
   const availableBottles = form.gas_type
-    ? gasBottles.filter(b => b.status === "activa" && b.gas_type === form.gas_type && (b.current_kg || 0) > 0)
+    ? gasBottles.filter(b => b.status === "activa" && b.gas_type === form.gas_type && (b.carga_actual || 0) > 0)
     : [];
 
   const handleSave = async () => {
@@ -236,9 +245,9 @@ export default function NewIntervention() {
     if (form.gas_bottle_id && form.gas_loaded_kg > 0) {
       const bottle = gasBottles.find(b => b.id === form.gas_bottle_id);
       if (bottle) {
-        const newKg = Math.max(0, (bottle.current_kg || 0) - form.gas_loaded_kg);
+        const newKg = Math.max(0, (bottle.carga_actual || 0) - form.gas_loaded_kg);
         await base44.entities.GasBottle.update(form.gas_bottle_id, {
-          current_kg: newKg,
+          carga_actual: newKg,
           status: newKg <= 0 ? "vacia" : "activa",
         });
         await base44.entities.GasTransfer.create({
@@ -412,12 +421,12 @@ export default function NewIntervention() {
                   </SelectTrigger>
                   <SelectContent>
                     {availableBottles.map(b => (
-                      <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.current_kg} kg disponibles</SelectItem>
+                      <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.carga_actual} kg disponibles</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {form.gas_bottle_id && gasBottles.find(b => b.id === form.gas_bottle_id) && (
-                  <p className="text-xs text-muted-foreground mt-1">Stock actual: <strong>{gasBottles.find(b => b.id === form.gas_bottle_id)?.current_kg} kg</strong></p>
+                  <p className="text-xs text-muted-foreground mt-1">Stock actual: <strong>{gasBottles.find(b => b.id === form.gas_bottle_id)?.carga_actual} kg</strong></p>
                 )}
               </>
             )}
