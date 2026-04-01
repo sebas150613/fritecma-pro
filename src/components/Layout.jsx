@@ -154,13 +154,7 @@ export default function Layout() {
         )}
       >
         <div className="p-6 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
-            <Snowflake className="h-5 w-5 text-sidebar-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold tracking-tight text-white">FRITECMA</h1>
-            <p className="text-xs text-sidebar-foreground/60">Gestión Técnica</p>
-          </div>
+          <img src="https://media.base44.com/images/public/69c81838d85448113a40d658/54eaa6c58_Fritecma.jpg" alt="FRITECMA" className="h-12 w-auto object-contain" />
           <Button
             variant="ghost"
             size="icon"
@@ -229,10 +223,7 @@ export default function Layout() {
           <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} className="flex-shrink-0">
             <Menu className="h-5 w-5" />
           </Button>
-          <div className="flex items-center justify-center gap-2 flex-1 min-w-0">
-            <Snowflake className="h-4 w-4 sm:h-5 sm:w-5 text-accent flex-shrink-0" />
-            <span className="font-bold text-xs sm:text-sm whitespace-normal text-center">FRITECMA</span>
-          </div>
+          <img src="https://media.base44.com/images/public/69c81838d85448113a40d658/54eaa6c58_Fritecma.jpg" alt="FRITECMA" className="h-8 w-auto object-contain flex-1 min-w-0" />
           <div className="w-9 flex-shrink-0" />
         </header>
 
