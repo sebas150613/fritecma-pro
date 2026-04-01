@@ -11,8 +11,8 @@ import FichajeWidget from "../components/FichajeWidget";
 import PendingRequestsPanel from "../components/PendingRequestsPanel";
 import PendingStockPanel from "../components/PendingStockPanel";
 import moment from "moment";
-import "moment/locale/es";
-moment.locale("es");
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -103,7 +103,7 @@ export default function Dashboard() {
             {isAdmin ? "Panel de Administración" : "Mis Partes de Hoy"}
           </h1>
           <p className="text-muted-foreground mt-1">
-            {moment().format("dddd, D [de] MMMM YYYY")}
+            {format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })}
           </p>
         </div>
         {hasCheckedIn ? (
