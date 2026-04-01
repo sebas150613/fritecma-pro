@@ -13,6 +13,7 @@ export default function StockBatchEntry() {
   const [materials, setMaterials] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [lines, setLines] = useState([{ ...EMPTY_LINE, id: Date.now() }]);
+  const [albaran, setAlbaran] = useState("");
   const [saving, setSaving] = useState(false);
   const [searchTerms, setSearchTerms] = useState({});
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -64,6 +65,10 @@ export default function StockBatchEntry() {
 
   const handleConfirm = async () => {
     const validLines = lines.filter(l => l.materialId && l.quantity > 0);
+    if (!albaran.trim()) {
+      toast.error("Introduce el Nº de Albarán antes de confirmar");
+      return;
+    }
     if (!validLines.length) {
       toast.error("Añade al menos una línea con material y cantidad válidos");
       return;
@@ -88,9 +93,10 @@ export default function StockBatchEntry() {
           stock_before: mat?.stock_quantity || 0,
           stock_after: newStock,
           movement_type: "entrada_albaran",
+          albaran_number: albaran.trim(),
           technician_email: user?.email || "",
           technician_name: user?.full_name || "",
-          notes: line.supplierName ? `Entrada lote — Proveedor: ${line.supplierName}` : "Entrada lote manual",
+          notes: line.supplierName ? `Albarán ${albaran.trim()} — Proveedor: ${line.supplierName}` : `Albarán ${albaran.trim()} — Entrada lote manual`,
           supplier_id: line.supplierId || undefined,
           supplier_name: line.supplierName || undefined,
         });
@@ -103,6 +109,7 @@ export default function StockBatchEntry() {
       toast.success(`${validLines.length} línea(s) registradas correctamente`);
       setLines([{ ...EMPTY_LINE, id: Date.now() }]);
       setSearchTerms({});
+      setAlbaran("");
     } catch (e) {
       toast.error("Error al guardar: " + e.message);
     } finally {
@@ -120,6 +127,18 @@ export default function StockBatchEntry() {
         <p className="text-muted-foreground text-sm mt-1">
           Añade múltiples materiales en una sola sesión. El stock se incrementará automáticamente al confirmar.
         </p>
+      </div>
+
+      {/* Albaran number */}
+      <div className="mb-4 flex items-center gap-3 p-4 bg-card border border-border rounded-xl">
+        <label className="text-sm font-semibold whitespace-nowrap">Nº Albarán <span className="text-destructive">*</span></label>
+        <Input
+          placeholder="Ej: ALB-2024-001"
+          value={albaran}
+          onChange={e => setAlbaran(e.target.value)}
+          className="max-w-xs"
+        />
+        {albaran.trim() && <span className="text-xs text-emerald-600 font-medium">✓ Registrado</span>}
       </div>
 
       {/* Table header */}
@@ -264,7 +283,7 @@ export default function StockBatchEntry() {
         </div>
         <Button
           onClick={handleConfirm}
-          disabled={saving || !lines.some(l => l.materialId && l.quantity > 0)}
+          disabled={saving || !albaran.trim() || !lines.some(l => l.materialId && l.quantity > 0)}
           className="gap-2 bg-green-600 hover:bg-green-700 text-white"
         >
           <CheckCircle className="h-4 w-4" />

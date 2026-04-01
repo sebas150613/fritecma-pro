@@ -38,6 +38,10 @@
         "entrada_albaran"
       ]
     },
+    "albaran_number": {
+      "type": "string",
+      "title": "N\u00ba Albar\u00e1n"
+    },
     "intervention_id": {
       "type": "string",
       "title": "ID Parte"
