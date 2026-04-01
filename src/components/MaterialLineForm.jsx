@@ -1,15 +1,102 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Trash2, ChevronsUpDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+function useIsMobile() {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return mobile;
+}
+
+function MaterialCommandContent({ line, index, gasItems, otherItems, isFreeText, isAdmin, onUpdate, onSelect, onClose }) {
+  return (
+    <Command>
+      <CommandInput placeholder="Escribe para buscar..." className="h-10" />
+      <CommandList className="max-h-64">
+        <CommandEmpty>No se encontró ningún material.</CommandEmpty>
+        <CommandGroup heading="">
+          <CommandItem
+            value="__free_text__ material no registrado"
+            onSelect={() => {
+              onUpdate(index, {
+                ...line,
+                material_id: "__free_text__",
+                material_name: "",
+                material_code: "",
+                unit: "ud",
+                unit_price: 0,
+                iva_percent: 21,
+                total: 0,
+              });
+              onClose();
+            }}
+            className="flex items-center gap-2 text-amber-700 font-medium"
+          >
+            <Check className={cn("h-3.5 w-3.5 shrink-0", isFreeText ? "opacity-100" : "opacity-0")} />
+            ⚠️ MATERIAL NO REGISTRADO
+          </CommandItem>
+        </CommandGroup>
+        {gasItems.length > 0 && (
+          <CommandGroup heading="⬆ Gas Refrigerante">
+            {gasItems.map(m => (
+              <CommandItem
+                key={m.id}
+                value={`${m.code || ""} ${m.name}`}
+                onSelect={() => onSelect(m)}
+                className="flex items-center justify-between gap-2"
+              >
+                <span className="flex items-center gap-2">
+                  <Check className={cn("h-3.5 w-3.5 shrink-0", line.material_id === m.id ? "opacity-100" : "opacity-0")} />
+                  <span>
+                    {m.code && <span className="text-muted-foreground text-xs mr-1">[{m.code}]</span>}
+                    {m.name}
+                  </span>
+                </span>
+                {isAdmin && <span className="text-xs text-muted-foreground shrink-0">{m.sell_price?.toFixed(2)}€/{m.unit}</span>}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+        {otherItems.length > 0 && (
+          <CommandGroup heading="Materiales">
+            {otherItems.map(m => (
+              <CommandItem
+                key={m.id}
+                value={`${m.code || ""} ${m.name}`}
+                onSelect={() => onSelect(m)}
+                className="flex items-center justify-between gap-2"
+              >
+                <span className="flex items-center gap-2">
+                  <Check className={cn("h-3.5 w-3.5 shrink-0", line.material_id === m.id ? "opacity-100" : "opacity-0")} />
+                  <span>
+                    {m.code && <span className="text-muted-foreground text-xs mr-1">[{m.code}]</span>}
+                    {m.name}
+                  </span>
+                </span>
+                {isAdmin && <span className="text-xs text-muted-foreground shrink-0">{m.sell_price?.toFixed(2)}€/{m.unit}</span>}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+      </CommandList>
+    </Command>
+  );
+}
 
 const GAS_CATEGORY = "gas_refrigerante";
 
 export default function MaterialLineForm({ line, index, materials, onUpdate, onRemove, isAdmin }) {
   const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   // Gas first, then the rest alphabetically
   const sortedMaterials = [
@@ -51,98 +138,61 @@ export default function MaterialLineForm({ line, index, materials, onUpdate, onR
         </Button>
       </div>
 
-      {/* Combobox */}
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="w-full justify-between bg-card font-normal"
-          >
-            <span className="truncate">
-              {isFreeText
-                ? "⚠️ Material no registrado"
-                : selectedMaterial
-                  ? `${selectedMaterial.code ? `[${selectedMaterial.code}] ` : ""}${selectedMaterial.name}`
-                  : "Buscar material..."}
-            </span>
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[340px] p-0" align="start">
-          <Command>
-            <CommandInput placeholder="Escribe para buscar..." className="h-10" />
-            <CommandList className="max-h-64">
-              <CommandEmpty>No se encontró ningún material.</CommandEmpty>
-              <CommandGroup heading="">
-                <CommandItem
-                  value="__free_text__ material no registrado"
-                  onSelect={() => {
-                    onUpdate(index, {
-                      ...line,
-                      material_id: "__free_text__",
-                      material_name: "",
-                      material_code: "",
-                      unit: "ud",
-                      unit_price: 0,
-                      iva_percent: 21,
-                      total: 0,
-                    });
-                    setOpen(false);
-                  }}
-                  className="flex items-center gap-2 text-amber-700 font-medium"
-                >
-                  <Check className={cn("h-3.5 w-3.5 shrink-0", isFreeText ? "opacity-100" : "opacity-0")} />
-                  ⚠️ MATERIAL NO REGISTRADO
-                </CommandItem>
-              </CommandGroup>
-              {gasItems.length > 0 && (
-                <CommandGroup heading="⬆ Gas Refrigerante">
-                  {gasItems.map(m => (
-                    <CommandItem
-                      key={m.id}
-                      value={`${m.code || ""} ${m.name}`}
-                      onSelect={() => handleMaterialSelect(m)}
-                      className="flex items-center justify-between gap-2"
-                    >
-                      <span className="flex items-center gap-2">
-                        <Check className={cn("h-3.5 w-3.5 shrink-0", line.material_id === m.id ? "opacity-100" : "opacity-0")} />
-                        <span>
-                          {m.code && <span className="text-muted-foreground text-xs mr-1">[{m.code}]</span>}
-                          {m.name}
-                        </span>
-                      </span>
-                      {isAdmin && <span className="text-xs text-muted-foreground shrink-0">{m.sell_price?.toFixed(2)}€/{m.unit}</span>}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
-              {otherItems.length > 0 && (
-                <CommandGroup heading="Materiales">
-                  {otherItems.map(m => (
-                    <CommandItem
-                      key={m.id}
-                      value={`${m.code || ""} ${m.name}`}
-                      onSelect={() => handleMaterialSelect(m)}
-                      className="flex items-center justify-between gap-2"
-                    >
-                      <span className="flex items-center gap-2">
-                        <Check className={cn("h-3.5 w-3.5 shrink-0", line.material_id === m.id ? "opacity-100" : "opacity-0")} />
-                        <span>
-                          {m.code && <span className="text-muted-foreground text-xs mr-1">[{m.code}]</span>}
-                          {m.name}
-                        </span>
-                      </span>
-                      {isAdmin && <span className="text-xs text-muted-foreground shrink-0">{m.sell_price?.toFixed(2)}€/{m.unit}</span>}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              )}
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+      {/* Combobox — Drawer on mobile, Popover on desktop */}
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="w-full flex items-center justify-between rounded-md border border-input bg-card px-3 py-2 text-sm shadow-sm hover:bg-accent/10 transition-colors"
+      >
+        <span className="truncate text-left">
+          {isFreeText
+            ? "⚠️ Material no registrado"
+            : selectedMaterial
+              ? `${selectedMaterial.code ? `[${selectedMaterial.code}] ` : ""}${selectedMaterial.name}`
+              : <span className="text-muted-foreground">Buscar material...</span>}
+        </span>
+        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+      </button>
+
+      {isMobile ? (
+        <Drawer open={open} onOpenChange={setOpen}>
+          <DrawerContent className="max-h-[85vh]">
+            <DrawerHeader>
+              <DrawerTitle>Seleccionar Material</DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-6">
+              <MaterialCommandContent
+                line={line}
+                index={index}
+                gasItems={gasItems}
+                otherItems={otherItems}
+                isFreeText={isFreeText}
+                isAdmin={isAdmin}
+                onUpdate={onUpdate}
+                onSelect={(mat) => { handleMaterialSelect(mat); setOpen(false); }}
+                onClose={() => setOpen(false)}
+              />
+            </div>
+          </DrawerContent>
+        </Drawer>
+      ) : (
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger className="hidden" />
+          <PopoverContent className="w-[340px] p-0" align="start" onOpenAutoFocus={e => e.preventDefault()}>
+            <MaterialCommandContent
+              line={line}
+              index={index}
+              gasItems={gasItems}
+              otherItems={otherItems}
+              isFreeText={isFreeText}
+              isAdmin={isAdmin}
+              onUpdate={onUpdate}
+              onSelect={(mat) => { handleMaterialSelect(mat); setOpen(false); }}
+              onClose={() => setOpen(false)}
+            />
+          </PopoverContent>
+        </Popover>
+      )}
 
       {/* Free text description */}
       {isFreeText && (
