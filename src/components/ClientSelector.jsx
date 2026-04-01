@@ -31,14 +31,14 @@ export default function ClientSelector({ clients, selectedId, onChange, disabled
         }}
         disabled={disabled}
         className={cn(
-          "w-full h-9 px-3 py-1 text-sm rounded-md border border-input bg-transparent shadow-sm",
-          "transition-colors text-left flex items-center justify-between",
+          "w-full min-h-9 px-3 py-2 text-sm rounded-md border border-input bg-transparent shadow-sm",
+          "transition-colors text-left flex items-start justify-between whitespace-normal",
           "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
           "disabled:cursor-not-allowed disabled:opacity-50",
           "hover:bg-accent/10"
         )}
       >
-        <span className={selectedClient ? "text-foreground font-medium" : "text-muted-foreground"}>
+        <span className={cn("flex-1 break-words", selectedClient ? "text-foreground font-medium" : "text-muted-foreground")}>
           {selectedClient ? selectedClient.name : "Seleccionar cliente..."}
         </span>
       </button>
@@ -92,25 +92,7 @@ export default function ClientSelector({ clients, selectedId, onChange, disabled
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    {filtered.map((client) => (
-                      <button
-                        key={client.id}
-                        onClick={() => handleSelect(client.id)}
-                        className={cn(
-                          "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors",
-                          selectedId === client.id
-                            ? "bg-primary text-primary-foreground font-medium"
-                            : "hover:bg-accent/20 text-foreground"
-                        )}
-                      >
-                        <div className="font-medium">{client.name}</div>
-                        {(client.cif || client.city || client.phone) && (
-                          <div className="text-xs opacity-75 mt-0.5">
-                            {[client.cif, client.city, client.phone].filter(Boolean).join(" · ")}
-                          </div>
-                        )}
-                      </button>
-                    ))}
+
                   </div>
                 )}
               </div>
