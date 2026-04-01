@@ -90,6 +90,7 @@ export default function AppSettings() {
             className="rounded-xl border border-input bg-card px-3 text-sm"
           >
             <option value="tecnico">Técnico</option>
+            <option value="ayudante">Ayudante</option>
             <option value="oficina">Oficina</option>
             <option value="encargado">Encargado</option>
             <option value="admin">Admin</option>
@@ -117,6 +118,7 @@ export default function AppSettings() {
                   <option value="admin">Admin</option>
                   <option value="encargado">Encargado</option>
                   <option value="oficina">Oficina</option>
+                  <option value="ayudante">Ayudante</option>
                   <option value="user">Técnico</option>
                 </select>
               </div>
