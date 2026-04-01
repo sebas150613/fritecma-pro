@@ -1,7 +1,7 @@
+import React, { useState, useEffect, useRef } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useSessionGuard } from "../hooks/useSessionGuard";
-import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard,
@@ -95,6 +95,8 @@ const ayudanteLinks = [
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
 
+const TAB_ROOTS = ["/", "/interventions", "/fichaje", "/settings"];
+
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -102,9 +104,24 @@ export default function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   useSessionGuard();
 
+  // Remember last visited path per bottom tab
+  const tabHistoryRef = useRef({
+    "/": "/",
+    "/interventions": "/interventions",
+    "/fichaje": "/fichaje",
+    "/settings": "/settings",
+  });
+
   useEffect(() => {
     base44.auth.me().then(setUser).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const root = TAB_ROOTS.find(r =>
+      r === "/" ? location.pathname === "/" : location.pathname.startsWith(r)
+    );
+    if (root) tabHistoryRef.current[root] = location.pathname;
+  }, [location.pathname]);
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isEncargado = user?.role === "encargado";
@@ -153,8 +170,9 @@ export default function Layout() {
 
         <nav className="flex-1 px-3 space-y-1 mt-2 overflow-y-auto">
           {links.map((link) => {
-            const isActive = location.pathname === link.to ||
-              (link.to !== "/" && location.pathname.startsWith(link.to));
+            const isActive = link.to === "/"
+              ? location.pathname === "/"
+              : location.pathname.startsWith(link.to);
             return (
               <Link
                 key={link.to}
@@ -217,7 +235,18 @@ export default function Layout() {
 
         {/* Content with animated transitions */}
         <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
-          <Outlet />
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={location.pathname}
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -16 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="h-full"
+            >
+              <Outlet />
+            </motion.div>
+          </AnimatePresence>
         </main>
       </div>
 
@@ -232,16 +261,18 @@ export default function Layout() {
           { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
           { to: "/settings", label: "Config", icon: Settings },
         ].map((item) => {
-          const isActive = location.pathname === item.to ||
-            (item.to !== "/" && location.pathname.startsWith(item.to));
+          const isActive = item.to === "/"
+            ? location.pathname === "/"
+            : location.pathname.startsWith(item.to);
           return (
             <button
               key={item.to}
               onClick={() => {
-                if (location.pathname === item.to) {
+                if (isActive) {
+                  navigate(item.to);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 } else {
-                  navigate(item.to);
+                  navigate(tabHistoryRef.current[item.to] || item.to);
                 }
               }}
               className={cn(
