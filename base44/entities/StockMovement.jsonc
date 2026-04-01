@@ -34,7 +34,8 @@
         "entrada_devolucion",
         "ajuste_manual",
         "salida_obra",
-        "entrada_obra"
+        "entrada_obra",
+        "entrada_albaran"
       ]
     },
     "intervention_id": {
@@ -44,6 +45,14 @@
     "intervention_number": {
       "type": "string",
       "title": "N\u00ba Parte"
+    },
+    "supplier_id": {
+      "type": "string",
+      "title": "ID Proveedor"
+    },
+    "supplier_name": {
+      "type": "string",
+      "title": "Proveedor"
     },
     "technician_email": {
       "type": "string",

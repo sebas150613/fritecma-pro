@@ -15,6 +15,7 @@ import {
   Clock,
   FlaskConical,
   TrendingDown,
+  PackagePlus,
   Building2,
   CalendarDays,
   Fingerprint,
@@ -34,6 +35,7 @@ const adminLinks = [
   { to: "/workday-report", label: "Jornadas", icon: CalendarDays },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
+  { to: "/stock-entry", label: "Entrada Stock", icon: PackagePlus },
   { to: "/suppliers", label: "Proveedores", icon: Truck },
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
@@ -48,6 +50,7 @@ const encargadoLinks = [
   { to: "/workday-report", label: "Jornadas", icon: CalendarDays },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
+  { to: "/stock-entry", label: "Entrada Stock", icon: PackagePlus },
   { to: "/suppliers", label: "Proveedores", icon: Truck },
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
@@ -62,6 +65,7 @@ const oficinaLinks = [
   { to: "/workday-report", label: "Jornadas", icon: CalendarDays },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
+  { to: "/stock-entry", label: "Entrada Stock", icon: PackagePlus },
   { to: "/suppliers", label: "Proveedores", icon: Truck },
 ];
 

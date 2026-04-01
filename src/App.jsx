@@ -23,6 +23,7 @@ import WorkDayLog from './pages/WorkDayLog';
 import WorkDayReport from './pages/WorkDayReport';
 import Fichaje from './pages/Fichaje';
 import Suppliers from './pages/Suppliers';
+import StockBatchEntry from './pages/StockBatchEntry';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -68,6 +69,7 @@ const AuthenticatedApp = () => {
         <Route path="/stock-movements" element={<StockMovements />} />
         <Route path="/projects" element={<Projects />} />
         <Route path="/suppliers" element={<Suppliers />} />
+        <Route path="/stock-entry" element={<StockBatchEntry />} />
         <Route path="*" element={<PageNotFound />} />
       </Route>
     </Routes>

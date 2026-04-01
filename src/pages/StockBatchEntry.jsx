@@ -1,0 +1,276 @@
+import { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Trash2, CheckCircle, Package, Search } from "lucide-react";
+import { toast } from "sonner";
+
+const EMPTY_LINE = { materialId: "", materialName: "", materialCode: "", currentStock: 0, unit: "ud", quantity: "", supplierId: "", supplierName: "" };
+
+export default function StockBatchEntry() {
+  const [user, setUser] = useState(null);
+  const [materials, setMaterials] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [lines, setLines] = useState([{ ...EMPTY_LINE, id: Date.now() }]);
+  const [saving, setSaving] = useState(false);
+  const [searchTerms, setSearchTerms] = useState({});
+  const [openDropdown, setOpenDropdown] = useState(null);
+
+  useEffect(() => {
+    base44.auth.me().then(setUser).catch(() => {});
+    base44.entities.Material.filter({ is_active: true }).then(setMaterials).catch(() => {});
+    base44.entities.Supplier.filter({ is_active: true }).then(setSuppliers).catch(() => {});
+  }, []);
+
+  const filteredMaterials = (lineId) => {
+    const term = (searchTerms[lineId] || "").toLowerCase();
+    if (!term) return materials.slice(0, 20);
+    return materials.filter(m =>
+      m.name?.toLowerCase().includes(term) || m.code?.toLowerCase().includes(term)
+    ).slice(0, 20);
+  };
+
+  const selectMaterial = (lineId, material) => {
+    setLines(prev => prev.map(l => l.id === lineId ? {
+      ...l,
+      materialId: material.id,
+      materialName: material.name,
+      materialCode: material.code || "",
+      currentStock: material.stock_quantity || 0,
+      unit: material.unit || "ud"
+    } : l));
+    setSearchTerms(prev => ({ ...prev, [lineId]: material.name }));
+    setOpenDropdown(null);
+  };
+
+  const updateLine = (lineId, field, value) => {
+    setLines(prev => prev.map(l => l.id === lineId ? { ...l, [field]: value } : l));
+  };
+
+  const selectSupplier = (lineId, supplier) => {
+    setLines(prev => prev.map(l => l.id === lineId ? {
+      ...l, supplierId: supplier.id, supplierName: supplier.name
+    } : l));
+  };
+
+  const addLine = () => {
+    setLines(prev => [...prev, { ...EMPTY_LINE, id: Date.now() }]);
+  };
+
+  const removeLine = (lineId) => {
+    setLines(prev => prev.filter(l => l.id !== lineId));
+  };
+
+  const handleConfirm = async () => {
+    const validLines = lines.filter(l => l.materialId && l.quantity > 0);
+    if (!validLines.length) {
+      toast.error("Añade al menos una línea con material y cantidad válidos");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      for (const line of validLines) {
+        const qty = parseFloat(line.quantity);
+        const mat = materials.find(m => m.id === line.materialId);
+        const newStock = (mat?.stock_quantity || 0) + qty;
+
+        // Update stock
+        await base44.entities.Material.update(line.materialId, { stock_quantity: newStock });
+
+        // Create movement record
+        await base44.entities.StockMovement.create({
+          material_id: line.materialId,
+          material_name: line.materialName,
+          material_code: line.materialCode,
+          quantity: qty,
+          stock_before: mat?.stock_quantity || 0,
+          stock_after: newStock,
+          movement_type: "entrada_albaran",
+          technician_email: user?.email || "",
+          technician_name: user?.full_name || "",
+          notes: line.supplierName ? `Entrada lote — Proveedor: ${line.supplierName}` : "Entrada lote manual",
+          supplier_id: line.supplierId || undefined,
+          supplier_name: line.supplierName || undefined,
+        });
+      }
+
+      // Refresh materials stock
+      const updatedMaterials = await base44.entities.Material.filter({ is_active: true });
+      setMaterials(updatedMaterials);
+
+      toast.success(`${validLines.length} línea(s) registradas correctamente`);
+      setLines([{ ...EMPTY_LINE, id: Date.now() }]);
+      setSearchTerms({});
+    } catch (e) {
+      toast.error("Error al guardar: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="p-4 md:p-6 max-w-6xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <Package className="h-6 w-6 text-accent" />
+          Entrada de Stock por Lote
+        </h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Añade múltiples materiales en una sola sesión. El stock se incrementará automáticamente al confirmar.
+        </p>
+      </div>
+
+      {/* Table header */}
+      <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="hidden md:grid grid-cols-12 gap-2 px-4 py-3 bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wide border-b border-border">
+          <div className="col-span-4">Material (Código / Nombre)</div>
+          <div className="col-span-2 text-center">Stock Actual</div>
+          <div className="col-span-2 text-center">Cantidad Entrada</div>
+          <div className="col-span-3">Proveedor</div>
+          <div className="col-span-1"></div>
+        </div>
+
+        <div className="divide-y divide-border">
+          {lines.map((line, idx) => (
+            <div key={line.id} className="p-3 md:p-2">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center">
+                {/* Material search */}
+                <div className="md:col-span-4 relative">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      className="pl-8 text-sm"
+                      placeholder="Buscar por código o nombre..."
+                      value={searchTerms[line.id] || ""}
+                      onChange={e => {
+                        setSearchTerms(prev => ({ ...prev, [line.id]: e.target.value }));
+                        updateLine(line.id, "materialId", "");
+                        setOpenDropdown(line.id);
+                      }}
+                      onFocus={() => setOpenDropdown(line.id)}
+                      onBlur={() => setTimeout(() => setOpenDropdown(null), 200)}
+                    />
+                  </div>
+                  {openDropdown === line.id && (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg max-h-52 overflow-y-auto">
+                      {filteredMaterials(line.id).length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-muted-foreground">Sin resultados</div>
+                      ) : filteredMaterials(line.id).map(m => (
+                        <button
+                          key={m.id}
+                          className="w-full text-left px-3 py-2 hover:bg-muted text-sm flex items-center justify-between gap-2"
+                          onMouseDown={() => selectMaterial(line.id, m)}
+                        >
+                          <span>
+                            {m.code && <span className="font-mono text-xs text-muted-foreground mr-2">{m.code}</span>}
+                            {m.name}
+                          </span>
+                          <Badge variant="outline" className="text-xs shrink-0">
+                            {m.stock_quantity ?? 0} {m.unit}
+                          </Badge>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Current stock */}
+                <div className="md:col-span-2 flex md:justify-center items-center gap-2">
+                  <span className="md:hidden text-xs text-muted-foreground w-24">Stock actual:</span>
+                  {line.materialId ? (
+                    <Badge variant="secondary" className="font-mono text-xs">
+                      {line.currentStock} {line.unit}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  )}
+                </div>
+
+                {/* Quantity */}
+                <div className="md:col-span-2 flex items-center gap-2">
+                  <span className="md:hidden text-xs text-muted-foreground w-24">Cantidad:</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0"
+                    className="text-sm text-center"
+                    value={line.quantity}
+                    onChange={e => updateLine(line.id, "quantity", e.target.value)}
+                  />
+                  {line.unit && <span className="text-xs text-muted-foreground shrink-0">{line.unit}</span>}
+                </div>
+
+                {/* Supplier */}
+                <div className="md:col-span-3 flex items-center gap-2">
+                  <span className="md:hidden text-xs text-muted-foreground w-24">Proveedor:</span>
+                  <select
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    value={line.supplierId}
+                    onChange={e => {
+                      const s = suppliers.find(s => s.id === e.target.value);
+                      if (s) selectSupplier(line.id, s);
+                      else updateLine(line.id, "supplierId", "");
+                    }}
+                  >
+                    <option value="">Sin proveedor</option>
+                    {suppliers.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Remove */}
+                <div className="md:col-span-1 flex justify-end md:justify-center">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-muted-foreground hover:text-destructive h-8 w-8"
+                    onClick={() => lines.length > 1 && removeLine(line.id)}
+                    disabled={lines.length === 1}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Stock preview after entry */}
+              {line.materialId && line.quantity > 0 && (
+                <div className="mt-1 ml-1 text-xs text-muted-foreground">
+                  Stock resultante: <span className="font-semibold text-green-600">{(line.currentStock + parseFloat(line.quantity || 0)).toFixed(2)} {line.unit}</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Add line */}
+        <div className="p-3 border-t border-border bg-muted/20">
+          <Button variant="outline" size="sm" onClick={addLine} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Añadir línea
+          </Button>
+        </div>
+      </div>
+
+      {/* Summary & Confirm */}
+      <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-card border border-border rounded-xl">
+        <div className="text-sm text-muted-foreground">
+          <span className="font-medium text-foreground">
+            {lines.filter(l => l.materialId && l.quantity > 0).length}
+          </span> línea(s) listas para confirmar
+        </div>
+        <Button
+          onClick={handleConfirm}
+          disabled={saving || !lines.some(l => l.materialId && l.quantity > 0)}
+          className="gap-2 bg-green-600 hover:bg-green-700 text-white"
+        >
+          <CheckCircle className="h-4 w-4" />
+          {saving ? "Guardando..." : "Confirmar Entrada de Stock"}
+        </Button>
+      </div>
+    </div>
+  );
+}
