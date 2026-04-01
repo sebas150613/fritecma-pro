@@ -223,7 +223,7 @@ export default function Layout() {
           <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} className="flex-shrink-0">
             <Menu className="h-5 w-5" />
           </Button>
-          <img src="https://media.base44.com/images/public/69c81838d85448113a40d658/54eaa6c58_Fritecma.jpg" alt="FRITECMA" className="h-12 w-auto object-contain flex-1 min-w-0" />
+          <img src="https://media.base44.com/images/public/69c81838d85448113a40d658/54eaa6c58_Fritecma.jpg" alt="FRITECMA" className="h-18 w-auto object-contain flex-1 min-w-0" />
           <div className="w-9 flex-shrink-0" />
         </header>
 
