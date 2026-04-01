@@ -91,10 +91,24 @@ export default function ClientSelector({ clients, selectedId, onChange, disabled
                     {clients.length === 0 ? "Sin clientes" : "Sin resultados"}
                   </div>
                 ) : (
-                  <div className="space-y-1">
-
-                  </div>
-                )}
+                   <div className="space-y-1">
+                     {filtered.map(client => (
+                       <button
+                         key={client.id}
+                         onClick={() => handleSelect(client.id)}
+                         className={cn(
+                           "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors",
+                           selectedId === client.id
+                             ? "bg-primary text-primary-foreground font-medium"
+                             : "bg-muted/50 hover:bg-muted text-foreground"
+                         )}
+                       >
+                         <div className="font-medium">{client.name}</div>
+                         {client.cif && <div className="text-xs opacity-70">{client.cif}</div>}
+                       </button>
+                     ))}
+                   </div>
+                 )}
               </div>
 
               {/* Footer action */}
