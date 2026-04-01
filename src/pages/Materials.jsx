@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Package, Edit, Trash2, AlertTriangle, History, ScanLine } from "lucide-react";
+import { Plus, Search, Package, Edit, Trash2, AlertTriangle, History, ScanLine, Layers } from "lucide-react";
+import FamiliesManager from "../components/FamiliesManager";
 import AlbaranScanner from "../components/AlbaranScanner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ const UNITS = { ud: "Unidad", kg: "Kg", m: "Metro", l: "Litro", h: "Hora" };
 const emptyMaterial = {
   code: "", name: "", category: "repuesto", unit: "ud",
   cost_price: 0, sell_price: 0, stock_quantity: 0, min_stock: 0, iva_percent: 21, is_active: true,
+  family_id: "", family_name: "", subfamily_id: "", subfamily_name: "",
 };
 
 export default function Materials() {
@@ -43,6 +45,10 @@ export default function Materials() {
   const [movements, setMovements] = useState([]);
   const [loadingMovements, setLoadingMovements] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [familiesOpen, setFamiliesOpen] = useState(false);
+  const [families, setFamilies] = useState([]);
+  const [subfamilies, setSubfamilies] = useState([]);
+  const [familyFilter, setFamilyFilter] = useState("all");
 
   const openHistory = async (mat) => {
     setHistoryMaterial(mat);
@@ -59,12 +65,16 @@ export default function Materials() {
   const loadData = async () => {
     const me = await base44.auth.me();
     setUser(me);
-    const [items, sups] = await Promise.all([
+    const [items, sups, fams, subs] = await Promise.all([
       base44.entities.Material.list("name", 500),
       base44.entities.Supplier.list("name", 200),
+      base44.entities.MaterialFamily.list("name", 200),
+      base44.entities.MaterialSubfamily.list("name", 500),
     ]);
     setMaterials(items);
     setSuppliers(sups);
+    setFamilies(fams);
+    setSubfamilies(subs);
     setLoading(false);
   };
 
@@ -105,11 +115,80 @@ export default function Materials() {
   const filtered = materials.filter(m => {
     const matchSearch = !search || m.name?.toLowerCase().includes(search.toLowerCase()) || m.code?.toLowerCase().includes(search.toLowerCase());
     const matchCategory = categoryFilter === "all" || m.category === categoryFilter;
-    return matchSearch && matchCategory;
+    const matchFamily = familyFilter === "all" || m.family_id === familyFilter;
+    return matchSearch && matchCategory && matchFamily;
   });
+
+  // Group filtered materials by family
+  const grouped = familyFilter !== "all" ? null : filtered.reduce((acc, m) => {
+    const key = m.family_name || "Sin familia";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(m);
+    return acc;
+  }, {});
+
+  function renderCard(m) {
+    return (
+      <div key={m.id} className="bg-card rounded-2xl border border-border p-5 hover:shadow-md transition-shadow">
+        <div className="flex items-start justify-between mb-3">
+          <div>
+            {m.code && <p className="text-xs text-muted-foreground">{m.code}</p>}
+            <h3 className="font-semibold">{m.name}</h3>
+            {(m.family_name || m.subfamily_name) && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {m.family_name}{m.subfamily_name ? ` › ${m.subfamily_name}` : ""}
+              </p>
+            )}
+          </div>
+          <Badge variant="outline" className="text-xs">{CATEGORIES[m.category] || m.category}</Badge>
+        </div>
+        <div className="space-y-2 text-sm">
+          {canSeePrices && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Precio Venta</span>
+              <span className="font-semibold">{(m.sell_price || 0).toFixed(2)} €/{m.unit || "ud"}</span>
+            </div>
+          )}
+          {isAdmin && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Precio Coste</span>
+              <span>{(m.cost_price || 0).toFixed(2)} €</span>
+            </div>
+          )}
+          <div className="flex justify-between items-center">
+            <span className="text-muted-foreground">Stock</span>
+            <span className={cn("font-semibold", m.stock_quantity <= m.min_stock && "text-destructive")}>
+              {m.stock_quantity || 0} {m.unit || "ud"}
+              {m.stock_quantity <= m.min_stock && <AlertTriangle className="inline h-3 w-3 ml-1" />}
+            </span>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4 pt-3 border-t border-border">
+          <Button variant="outline" size="sm" onClick={() => openEdit(m)} className="flex-1 rounded-xl">
+            <Edit className="h-3 w-3 mr-1" /> {isTecnico ? "Actualizar Stock" : "Editar"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => openHistory(m)} className="rounded-xl gap-1 text-xs">
+            <History className="h-3 w-3" /> Historial
+          </Button>
+          {isAdmin && (
+            <Button variant="outline" size="sm" onClick={() => handleDelete(m.id)} className="text-destructive rounded-xl">
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
+      <div className="flex items-center justify-center h-full">
+        <div className="w-8 h-8 border-4 border-muted border-t-accent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
       <div className="flex items-center justify-center h-full">
         <div className="w-8 h-8 border-4 border-muted border-t-accent rounded-full animate-spin" />
       </div>
@@ -122,6 +201,11 @@ export default function Materials() {
         <h1 className="text-2xl font-bold tracking-tight">
           {isAdmin ? "Stock / Materiales" : "Catálogo de Materiales"}
         </h1>
+        {isAdmin && (
+          <Button onClick={() => setFamiliesOpen(true)} variant="outline" className="rounded-xl px-4 gap-2">
+            <Layers className="h-4 w-4" /> Familias
+          </Button>
+        )}
         {canCreate && (
           <div className="flex gap-2">
             {isAdmin && (
@@ -153,6 +237,17 @@ export default function Materials() {
             ))}
           </SelectContent>
         </Select>
+        {families.length > 0 && (
+          <Select value={familyFilter} onValueChange={setFamilyFilter}>
+            <SelectTrigger className="w-full sm:w-48 rounded-xl bg-card">
+              <SelectValue placeholder="Todas las familias" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las familias</SelectItem>
+              {families.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* Material Grid */}
@@ -161,52 +256,19 @@ export default function Materials() {
           <Package className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
           <p className="text-muted-foreground">No se encontraron materiales</p>
         </div>
-      ) : (
+      ) : familyFilter !== "all" ? (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(m => (
-            <div key={m.id} className="bg-card rounded-2xl border border-border p-5 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  {m.code && <p className="text-xs text-muted-foreground">{m.code}</p>}
-                  <h3 className="font-semibold">{m.name}</h3>
-                </div>
-                <Badge variant="outline" className="text-xs">{CATEGORIES[m.category] || m.category}</Badge>
-              </div>
-
-              <div className="space-y-2 text-sm">
-                {canSeePrices && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Precio Venta</span>
-                    <span className="font-semibold">{(m.sell_price || 0).toFixed(2)} €/{m.unit || "ud"}</span>
-                  </div>
-                )}
-                {isAdmin && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Precio Coste</span>
-                    <span>{(m.cost_price || 0).toFixed(2)} €</span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Stock</span>
-                  <span className={cn("font-semibold", m.stock_quantity <= m.min_stock && "text-destructive")}>
-                    {m.stock_quantity || 0} {m.unit || "ud"}
-                    {m.stock_quantity <= m.min_stock && <AlertTriangle className="inline h-3 w-3 ml-1" />}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex gap-2 mt-4 pt-3 border-t border-border">
-                <Button variant="outline" size="sm" onClick={() => openEdit(m)} className="flex-1 rounded-xl">
-                  <Edit className="h-3 w-3 mr-1" /> {isTecnico ? "Actualizar Stock" : "Editar"}
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => openHistory(m)} className="rounded-xl gap-1 text-xs">
-                  <History className="h-3 w-3" /> Historial
-                </Button>
-                {isAdmin && (
-                  <Button variant="outline" size="sm" onClick={() => handleDelete(m.id)} className="text-destructive rounded-xl">
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                )}
+          {filtered.map(m => renderCard(m))}
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(filtered.reduce((acc, m) => { const key = m.family_name || "Sin familia"; if (!acc[key]) acc[key] = []; acc[key].push(m); return acc; }, {})).sort(([a],[b]) => a === "Sin familia" ? 1 : b === "Sin familia" ? -1 : a.localeCompare(b)).map(([familyName, items]) => (
+            <div key={familyName}>
+              <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
+                <Layers className="h-4 w-4" /> {familyName} <span className="text-xs font-normal normal-case">({items.length})</span>
+              </h2>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {items.map(m => renderCard(m))}
               </div>
             </div>
           ))}
@@ -342,6 +404,36 @@ export default function Materials() {
                 <Input type="number" value={form.min_stock || ""} disabled={isTecnico} onChange={isTecnico ? undefined : (e) => setForm(f => ({ ...f, min_stock: parseFloat(e.target.value) || 0 }))} className="mt-1" />
               </div>
             </div>
+            {!isTecnico && families.length > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Familia</Label>
+                  <Select value={form.family_id || "__none__"} onValueChange={v => {
+                    const fam = families.find(f => f.id === v);
+                    setForm(f => ({ ...f, family_id: v === "__none__" ? "" : v, family_name: fam?.name || "", subfamily_id: "", subfamily_name: "" }));
+                  }}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Sin familia" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Sin familia</SelectItem>
+                      {families.map(f => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Subfamilia</Label>
+                  <Select value={form.subfamily_id || "__none__"} disabled={!form.family_id} onValueChange={v => {
+                    const sub = subfamilies.find(s => s.id === v);
+                    setForm(f => ({ ...f, subfamily_id: v === "__none__" ? "" : v, subfamily_name: sub?.name || "" }));
+                  }}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Sin subfamilia" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Sin subfamilia</SelectItem>
+                      {subfamilies.filter(s => s.family_id === form.family_id).map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
             {!isTecnico && suppliers.length > 0 && (
               <div>
                 <Label>Proveedor Principal</Label>
@@ -369,6 +461,7 @@ export default function Materials() {
           </div>
         </DialogContent>
       </Dialog>
+      <FamiliesManager open={familiesOpen} onClose={() => { setFamiliesOpen(false); loadData(); }} />
       <AlbaranScanner
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}

@@ -23,6 +23,22 @@
         "otro"
       ]
     },
+    "family_id": {
+      "type": "string",
+      "title": "ID Familia"
+    },
+    "family_name": {
+      "type": "string",
+      "title": "Familia"
+    },
+    "subfamily_id": {
+      "type": "string",
+      "title": "ID Subfamilia"
+    },
+    "subfamily_name": {
+      "type": "string",
+      "title": "Subfamilia"
+    },
     "unit": {
       "type": "string",
       "title": "Unidad",

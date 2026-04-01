@@ -1,0 +1,31 @@
+{
+  "name": "MaterialSubfamily",
+  "type": "object",
+  "properties": {
+    "family_id": {
+      "type": "string",
+      "title": "ID Familia"
+    },
+    "family_name": {
+      "type": "string",
+      "title": "Familia"
+    },
+    "name": {
+      "type": "string",
+      "title": "Nombre Subfamilia"
+    },
+    "description": {
+      "type": "string",
+      "title": "Descripci\u00f3n"
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Activa",
+      "default": true
+    }
+  },
+  "required": [
+    "family_id",
+    "name"
+  ]
+}
