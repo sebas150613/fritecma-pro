@@ -80,7 +80,7 @@ export default function GasBottles() {
   const gasSummary = bottles.reduce((acc, b) => {
     if (b.status === "devuelta") return acc;
     const key = `${b.gas_type}__${b.owner_type}`;
-    acc[key] = (acc[key] || 0) + (b.current_kg || 0);
+    acc[key] = (acc[key] || 0) + (b.carga_actual || 0);
     return acc;
   }, {});
 
@@ -90,12 +90,37 @@ export default function GasBottles() {
 
   const saveBottle = async () => {
     setSaving(true);
-    const currentKg = parseFloat(bottleForm.current_kg) || 0;
-    const tipoBot = bottleForm.tipo_botella && bottleForm.tipo_botella.trim() ? bottleForm.tipo_botella : "Gas";
-    const data = { ...bottleForm, tipo_botella: tipoBot, capacity_kg: parseFloat(bottleForm.capacity_kg) || 0, current_kg: currentKg, status: currentKg >= 1 ? "activa" : "vacia" };
-    if (editingBottle) await base44.entities.GasBottle.update(editingBottle.id, data);
-    else await base44.entities.GasBottle.create(data);
-    await reload(); setSaving(false); setBottleModal(false);
+    try {
+      const cargaInicial = parseFloat(bottleForm.carga_inicial) || 0;
+      const cargaActual = parseFloat(bottleForm.carga_actual) || 0;
+      const tipoBot = bottleForm.tipo_botella && bottleForm.tipo_botella.trim() ? bottleForm.tipo_botella : "Gas";
+      const newStatus = cargaActual >= 1 ? "activa" : "vacia";
+      
+      const data = {
+        serial_number: bottleForm.serial_number,
+        gas_type: bottleForm.gas_type,
+        tipo_botella: tipoBot,
+        carga_inicial: cargaInicial,
+        carga_actual: cargaActual,
+        owner_type: bottleForm.owner_type,
+        casco_owner: bottleForm.casco_owner,
+        owner_client_id: bottleForm.owner_client_id || "",
+        owner_client_name: bottleForm.owner_client_name || "",
+        supplier_id: bottleForm.supplier_id || "",
+        supplier_name: bottleForm.supplier_name || "",
+        location_type: bottleForm.location_type,
+        location_detail: bottleForm.location_detail || "",
+        status: newStatus,
+        notes: bottleForm.notes || ""
+      };
+      
+      if (editingBottle) await base44.entities.GasBottle.update(editingBottle.id, data);
+      else await base44.entities.GasBottle.create(data);
+      await reload(); setSaving(false); setBottleModal(false);
+    } catch (err) {
+      console.error("Error guardando botella:", err);
+      setSaving(false);
+    }
   };
 
   const deleteBottle = async (id) => {
@@ -116,7 +141,7 @@ export default function GasBottles() {
     if (!transferForm.from_bottle_id || !transferForm.to_bottle_id) return setTransferError("Selecciona ambas botellas.");
     if (transferForm.from_bottle_id === transferForm.to_bottle_id) return setTransferError("Las botellas deben ser distintas.");
     if (!kg || kg <= 0) return setTransferError("Indica los Kg a traspasar.");
-    if (fromBottle && kg > (fromBottle.current_kg || 0)) return setTransferError(`La botella origen solo tiene ${fromBottle.current_kg} kg.`);
+    if (fromBottle && kg > (fromBottle.carga_actual || 0)) return setTransferError(`La botella origen solo tiene ${fromBottle.carga_actual} kg.`);
     if (fromBottle && toBottle && fromBottle.gas_type !== toBottle.gas_type) return setTransferError("Las botellas deben contener el mismo tipo de gas.");
 
     setSaving(true);
@@ -124,12 +149,12 @@ export default function GasBottles() {
 
     // Update origin (subtract)
     await base44.entities.GasBottle.update(transferForm.from_bottle_id, {
-      current_kg: (fromBottle.current_kg || 0) - kg,
-      status: ((fromBottle.current_kg || 0) - kg) <= 0 ? "vacia" : "activa",
+      carga_actual: (fromBottle.carga_actual || 0) - kg,
+      status: ((fromBottle.carga_actual || 0) - kg) <= 0 ? "vacia" : "activa",
     });
 
     // Update destination (add) + optional location change
-    const destUpdate = { current_kg: (toBottle.current_kg || 0) + kg };
+    const destUpdate = { carga_actual: (toBottle.carga_actual || 0) + kg };
     if (transferForm.new_location_type) {
       destUpdate.location_type = transferForm.new_location_type;
       destUpdate.location_detail = transferForm.new_location_detail || "";
@@ -203,7 +228,7 @@ export default function GasBottles() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map(b => {
-              const pct = b.capacity_kg ? Math.min(100, ((b.current_kg || 0) / b.capacity_kg) * 100) : null;
+              const pct = b.carga_inicial ? Math.min(100, ((b.carga_actual || 0) / b.carga_inicial) * 100) : null;
               const low = pct !== null && pct < 20;
               return (
                 <div key={b.id} className="bg-card rounded-2xl border border-border p-5 space-y-3">
@@ -216,11 +241,11 @@ export default function GasBottles() {
                   </div>
 
                   {/* Fill bar */}
-                  {b.capacity_kg > 0 && (
+                  {b.carga_inicial > 0 && (
                     <div>
                       <div className="flex justify-between text-xs mb-1 text-muted-foreground">
-                        <span>{(b.current_kg || 0).toFixed(2)} kg</span>
-                        <span>{b.capacity_kg} kg cap.</span>
+                        <span>{(b.carga_actual || 0).toFixed(2)} kg</span>
+                        <span>{b.carga_inicial} kg cap.</span>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div className={cn("h-full rounded-full transition-all", low ? "bg-amber-400" : "bg-emerald-400")} style={{ width: `${pct}%` }} />
@@ -341,12 +366,12 @@ export default function GasBottles() {
                 </div>
               </div>
               <div>
-                <Label>Capacidad (kg)</Label>
-                <Input type="number" min="0" step="0.1" value={bottleForm.capacity_kg} onChange={e => setBottleForm(f => ({ ...f, capacity_kg: e.target.value }))} className="mt-1 rounded-xl" />
+                <Label>Carga Inicial (kg)</Label>
+                <Input type="number" min="0" step="0.01" value={bottleForm.carga_inicial} onChange={e => setBottleForm(f => ({ ...f, carga_inicial: e.target.value }))} className="mt-1 rounded-xl" />
               </div>
               <div>
-                <Label>Kg Actuales</Label>
-                <Input type="number" min="0" step="0.1" value={bottleForm.current_kg} onChange={e => setBottleForm(f => ({ ...f, current_kg: e.target.value }))} className="mt-1 rounded-xl" />
+                <Label>Carga Actual (kg)</Label>
+                <Input type="number" min="0" step="0.01" value={bottleForm.carga_actual} onChange={e => setBottleForm(f => ({ ...f, carga_actual: e.target.value }))} className="mt-1 rounded-xl" />
               </div>
               <div>
                 <Label>Propietario Gas</Label>
@@ -464,12 +489,12 @@ export default function GasBottles() {
               <Select value={transferForm.from_bottle_id} onValueChange={v => setTransferForm(f => ({ ...f, from_bottle_id: v }))}>
                 <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Seleccionar botella origen..." /></SelectTrigger>
                 <SelectContent>
-                  {bottles.filter(b => b.status === "activa" && (b.current_kg || 0) > 0).map(b => (
-                    <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.gas_type} · {b.current_kg} kg</SelectItem>
+                  {bottles.filter(b => b.status === "activa" && (b.carga_actual || 0) > 0).map(b => (
+                    <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.gas_type} · {b.carga_actual} kg</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {fromBottle && <p className="text-xs text-muted-foreground mt-1">Disponible: <strong>{fromBottle.current_kg} kg</strong> · {LOCATION_LABELS[fromBottle.location_type]}</p>}
+              {fromBottle && <p className="text-xs text-muted-foreground mt-1">Disponible: <strong>{fromBottle.carga_actual} kg</strong> · {LOCATION_LABELS[fromBottle.location_type]}</p>}
             </div>
 
             <div>
@@ -478,12 +503,12 @@ export default function GasBottles() {
                 <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Seleccionar botella destino..." /></SelectTrigger>
                 <SelectContent>
                   {bottles.filter(b => b.id !== transferForm.from_bottle_id).map(b => (
-                    <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.gas_type} · {b.current_kg || 0} kg</SelectItem>
+                    <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.gas_type} · {b.carga_actual || 0} kg</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {toBottle && <p className="text-xs text-muted-foreground mt-1">Tiene: <strong>{toBottle.current_kg || 0} kg</strong> · {LOCATION_LABELS[toBottle.location_type]}</p>}
-            </div>
+              {toBottle && <p className="text-xs text-muted-foreground mt-1">Tiene: <strong>{toBottle.carga_actual || 0} kg</strong> - {LOCATION_LABELS[toBottle.location_type]}</p>}
+              </div>
 
             <div>
               <Label>Kg a Traspasar *</Label>
