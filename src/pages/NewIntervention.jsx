@@ -66,35 +66,40 @@ export default function NewIntervention() {
   }, []);
 
   const loadInitialData = async () => {
-    const me = await base44.auth.me();
-    setUser(me);
-    const isAdmin = me.role === "admin";
+    try {
+      const me = await base44.auth.me();
+      setUser(me);
+      const isAdmin = me.role === "admin";
 
-    if (!isAdmin) {
-      const today = new Date().toISOString().slice(0, 10);
-      const records = await base44.entities.TimeRecord.filter(
-        { technician_email: me.email, work_date: today },
-        "-timestamp",
-        1
-      );
-      const lastType = records[0]?.type;
-      const isCheckedIn = lastType === "entrada" || lastType === "reanudacion";
-      setCheckedIn(isCheckedIn);
-      if (!isCheckedIn) setShowCheckinWarning(true);
-    } else {
+      if (!isAdmin) {
+        const today = new Date().toISOString().slice(0, 10);
+        const records = await base44.entities.TimeRecord.filter(
+          { technician_email: me.email, work_date: today },
+          "-timestamp",
+          1
+        );
+        const lastType = records[0]?.type;
+        const isCheckedIn = lastType === "entrada" || lastType === "reanudacion";
+        setCheckedIn(isCheckedIn);
+        if (!isCheckedIn) setShowCheckinWarning(true);
+      } else {
+        setCheckedIn(true);
+      }
+
+      const [clientList, materialList, bottleList, userList] = await Promise.all([
+        base44.entities.Client.list("name", 500).catch(() => []),
+        base44.entities.Material.filter({ is_active: true }, "name", 500).catch(() => []),
+        base44.entities.GasBottle.list("-created_date", 200).catch(() => []),
+        base44.entities.User.list("full_name", 100).catch(() => []),
+      ]);
+      setClients(clientList || []);
+      setMaterials(materialList || []);
+      setGasBottles(bottleList || []);
+      setUsers(userList || []);
+    } catch (error) {
+      console.error("Error loading initial data:", error);
       setCheckedIn(true);
     }
-
-    const [clientList, materialList, bottleList, userList] = await Promise.all([
-      base44.entities.Client.list("name", 500),
-      base44.entities.Material.filter({ is_active: true }, "name", 500),
-      base44.entities.GasBottle.list("-created_date", 200),
-      base44.entities.User.list("full_name", 100),
-    ]);
-    setClients(clientList);
-    setMaterials(materialList);
-    setGasBottles(bottleList);
-    setUsers(userList);
   };
 
   const getLocation = () => {
