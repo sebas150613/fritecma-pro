@@ -223,17 +223,17 @@ export default function Layout() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar — mobile only */}
         <header
-          className="lg:hidden flex items-center justify-between px-4 border-b border-border bg-card"
-          style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))', paddingBottom: '0.75rem' }}
+          className="lg:hidden flex items-center justify-between px-3 border-b border-border bg-card gap-3"
+          style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))', paddingBottom: '1rem' }}
         >
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
+          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} className="flex-shrink-0">
             <Menu className="h-5 w-5" />
           </Button>
-          <div className="flex items-center gap-2">
-            <Snowflake className="h-5 w-5 text-accent" />
-            <span className="font-bold text-sm">FRITECMA</span>
+          <div className="flex items-center justify-center gap-2 flex-1 min-w-0">
+            <Snowflake className="h-4 w-4 sm:h-5 sm:w-5 text-accent flex-shrink-0" />
+            <span className="font-bold text-xs sm:text-sm whitespace-normal text-center">FRITECMA</span>
           </div>
-          <div className="w-9" />
+          <div className="w-9 flex-shrink-0" />
         </header>
 
         {/* Content with animated transitions */}
