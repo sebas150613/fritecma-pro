@@ -155,6 +155,12 @@ export default function Materials() {
               <span>{(m.cost_price || 0).toFixed(2)} €</span>
             </div>
           )}
+          {!isTecnico && m.supplier_name && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Proveedor</span>
+              <span className="text-xs truncate max-w-[120px]">{m.supplier_name}</span>
+            </div>
+          )}
           <div className="flex justify-between items-center">
             <span className="text-muted-foreground">Stock</span>
             <span className={cn("font-semibold", m.stock_quantity <= m.min_stock && "text-destructive")}>
@@ -164,10 +170,12 @@ export default function Materials() {
           </div>
         </div>
         <div className="flex gap-2 mt-4 pt-3 border-t border-border">
-          <Button variant="outline" size="sm" onClick={() => openEdit(m)} className="flex-1 rounded-xl">
-            <Edit className="h-3 w-3 mr-1" /> {isTecnico ? "Actualizar Stock" : "Editar"}
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => openHistory(m)} className="rounded-xl gap-1 text-xs">
+          {!isTecnico && (
+            <Button variant="outline" size="sm" onClick={() => openEdit(m)} className="flex-1 rounded-xl">
+              <Edit className="h-3 w-3 mr-1" /> Editar
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => openHistory(m)} className="rounded-xl gap-1 text-xs flex-1">
             <History className="h-3 w-3" /> Historial
           </Button>
           {isAdmin && (
