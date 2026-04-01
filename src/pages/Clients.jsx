@@ -43,7 +43,7 @@ export default function Clients() {
     setLoading(false);
   };
 
-  const isTecnico = user?.role === "user" || user?.role === "tecnico";
+  const isTecnico = user?.role === "user" || user?.role === "tecnico" || user?.role === "ayudante";
 
   const openNew = () => {
     setEditingClient(null);

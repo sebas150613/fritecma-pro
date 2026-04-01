@@ -26,6 +26,14 @@ export default function Interventions() {
     let items;
     if (isAdmin) {
       items = await base44.entities.Intervention.list("-created_date", 200);
+    } else if (me.role === "ayudante") {
+      // Ayudante can see interventions where they are the helper
+      const [asTech, asHelper] = await Promise.all([
+        base44.entities.Intervention.filter({ technician_email: me.email }, "-created_date", 200),
+        base44.entities.Intervention.filter({ helper_email: me.email }, "-created_date", 200),
+      ]);
+      const ids = new Set(asTech.map(i => i.id));
+      items = [...asTech, ...asHelper.filter(i => !ids.has(i.id))];
     } else {
       items = await base44.entities.Intervention.filter(
         { technician_email: me.email },
@@ -44,6 +52,7 @@ export default function Interventions() {
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
   const isOficina = user?.role === "oficina";
+  const isAyudante = user?.role === "ayudante";
   const isTecnico = !isAdmin && !isOficina;
 
   // Pending: incident not finalizado
@@ -71,11 +80,13 @@ export default function Interventions() {
     <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold tracking-tight">Intervenciones</h1>
-        <Link to="/interventions/new">
-          <Button className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
-            <Plus className="h-4 w-4 mr-2" /> Nueva Incidencia
-          </Button>
-        </Link>
+        {!isAyudante && (
+          <Link to="/interventions/new">
+            <Button className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
+              <Plus className="h-4 w-4 mr-2" /> Nueva Incidencia
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* Search */}

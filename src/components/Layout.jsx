@@ -83,6 +83,16 @@ const techLinks = [
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
 
+const ayudanteLinks = [
+  { to: "/", label: "Panel", icon: LayoutDashboard },
+  { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
+  { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
+  { to: "/clients", label: "Clientes", icon: Users },
+  { to: "/materials", label: "Materiales", icon: Package },
+  { to: "/material-requests", label: "Pedir Material", icon: ShoppingCart },
+  { to: "/settings", label: "Configuración", icon: Settings },
+];
+
 export default function Layout() {
   const location = useLocation();
   const [user, setUser] = useState(null);
@@ -95,7 +105,8 @@ export default function Layout() {
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const isEncargado = user?.role === "encargado";
   const isOficina = user?.role === "oficina";
-  const links = isAdmin ? adminLinks : isEncargado ? encargadoLinks : isOficina ? oficinaLinks : techLinks;
+  const isAyudante = user?.role === "ayudante";
+  const links = isAdmin ? adminLinks : isEncargado ? encargadoLinks : isOficina ? oficinaLinks : isAyudante ? ayudanteLinks : techLinks;
 
   const handleLogout = () => {
     base44.auth.logout("/");
@@ -171,7 +182,7 @@ export default function Layout() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">{user?.full_name || "Usuario"}</p>
               <p className="text-xs text-sidebar-foreground/50 capitalize">
-                {isAdmin ? "Administrador" : isEncargado ? "Encargado" : isOficina ? "Oficina" : "Técnico"}
+                {isAdmin ? "Administrador" : isEncargado ? "Encargado" : isOficina ? "Oficina" : isAyudante ? "Ayudante" : "Técnico"}
               </p>
             </div>
             <Button
