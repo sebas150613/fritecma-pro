@@ -308,7 +308,7 @@ export default function GasBottles() {
               </div>
               <div>
                 <Label>Tipo de Botella *</Label>
-                <Select value={bottleForm.tipo_botella} onValueChange={v => setBottleForm(f => ({ ...f, tipo_botella: v }))}>
+                <Select value={bottleForm.tipo_botella || "Gas"} onValueChange={v => setBottleForm(f => ({ ...f, tipo_botella: v }))}>
                   <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>{BOTTLE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                 </Select>
