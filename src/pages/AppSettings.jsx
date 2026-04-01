@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Settings, Save, Users, Shield } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Settings, Users, Shield, Trash2 } from "lucide-react";
 
 export default function AppSettings() {
   const [user, setUser] = useState(null);
@@ -13,6 +14,8 @@ export default function AppSettings() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("tecnico");
   const [inviting, setInviting] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
 
   useEffect(() => {
     loadData();
@@ -46,6 +49,12 @@ export default function AppSettings() {
   const toggleUserActive = async (userId, currentValue) => {
     await base44.entities.User.update(userId, { is_active: !currentValue });
     loadData();
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirm !== "ELIMINAR") return;
+    await base44.entities.User.delete(user.id);
+    base44.auth.logout("/");
   };
 
   if (loading) {
@@ -151,6 +160,38 @@ export default function AppSettings() {
           <p>Soporte: Contactar con administrador</p>
         </div>
       </div>
+
+      {/* Delete Account */}
+      <div className="bg-card rounded-2xl border border-destructive/30 p-5 space-y-3">
+        <h2 className="font-semibold text-destructive flex items-center gap-2">
+          <Trash2 className="h-4 w-4" /> Zona de peligro
+        </h2>
+        <p className="text-sm text-muted-foreground">Eliminar tu cuenta es una acción irreversible. Perderás el acceso inmediatamente.</p>
+        <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)} className="rounded-xl">
+          Eliminar mi cuenta
+        </Button>
+      </div>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Eliminar cuenta?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Esta acción es irreversible. Escribe <strong>ELIMINAR</strong> para confirmar.</p>
+          <Input
+            value={deleteConfirm}
+            onChange={e => setDeleteConfirm(e.target.value)}
+            placeholder="Escribe ELIMINAR"
+            className="rounded-xl"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} className="rounded-xl">Cancelar</Button>
+            <Button variant="destructive" disabled={deleteConfirm !== "ELIMINAR"} onClick={handleDeleteAccount} className="rounded-xl">
+              Confirmar eliminación
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

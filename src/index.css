@@ -84,5 +84,16 @@
   }
   body {
     @apply bg-background text-foreground font-inter;
+    overscroll-behavior: none;
+  }
+  button, [role="button"], a {
+    -webkit-user-select: none;
+    user-select: none;
+    min-height: 44px;
+    min-width: 44px;
+  }
+  input, textarea, select {
+    -webkit-user-select: text;
+    user-select: text;
   }
 }

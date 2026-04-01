@@ -15,6 +15,14 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     checkAppState();
+    // Apply dark mode based on system preference
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const applyDark = (e) => {
+      document.documentElement.classList.toggle('dark', e.matches);
+    };
+    applyDark(mq);
+    mq.addEventListener('change', applyDark);
+    return () => mq.removeEventListener('change', applyDark);
   }, []);
 
   const checkAppState = async () => {

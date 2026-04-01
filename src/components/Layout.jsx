@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { useSessionGuard } from "../hooks/useSessionGuard";
 import { useState, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   ClipboardList,
@@ -202,7 +203,7 @@ export default function Layout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar mobile */}
-        <header className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card">
+        <header className="lg:hidden flex items-center justify-between px-4 border-b border-border bg-card" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))', paddingBottom: '0.75rem' }}>
           <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
             <Menu className="h-5 w-5" />
           </Button>
@@ -214,10 +215,39 @@ export default function Layout() {
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto pb-16 lg:pb-0">
           <Outlet />
         </main>
       </div>
+
+      {/* Bottom Tab Bar — mobile only */}
+      <nav
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border flex items-center justify-around"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)', minHeight: '56px' }}
+      >
+        {[
+          { to: "/", label: "Panel", icon: LayoutDashboard },
+          { to: "/interventions", label: "Partes", icon: ClipboardList },
+          { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
+          { to: "/settings", label: "Config", icon: Settings },
+        ].map((item) => {
+          const isActive = location.pathname === item.to ||
+            (item.to !== "/" && location.pathname.startsWith(item.to));
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className={cn(
+                "flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-xl transition-colors flex-1",
+                isActive ? "text-accent" : "text-muted-foreground"
+              )}
+            >
+              <item.icon className="h-5 w-5" />
+              <span className="text-[10px] font-medium">{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
       {/* AI Chat Widget */}
       {user && <AIChat user={user} />}
