@@ -189,13 +189,6 @@ export default function Materials() {
   }
 
   return (
-      <div className="flex items-center justify-center h-full">
-        <div className="w-8 h-8 border-4 border-muted border-t-accent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  return (
     <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold tracking-tight">
