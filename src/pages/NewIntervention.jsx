@@ -16,7 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { validateStockAvailability, deductStockForIntervention } from "../lib/stockUtils";
 import moment from "moment";
 
-const GAS_TYPES = ["R449A", "R134a", "R404A", "R410A", "R407C", "R22", "R32", "R290", "R600a", "R744", "otro"];
+// GAS_TYPES se cargará dinámicamente desde las botellas en stock
 
 export default function NewIntervention() {
   const navigate = useNavigate();
@@ -32,6 +32,7 @@ export default function NewIntervention() {
   const [checkedIn, setCheckedIn] = useState(null); // null=loading, true/false
   const [showCheckinWarning, setShowCheckinWarning] = useState(false);
   const [sinFichaje, setSinFichaje] = useState(false);
+  const [availableGasTypes, setAvailableGasTypes] = useState([]);
 
   const [form, setForm] = useState({
     client_id: "",
@@ -96,6 +97,11 @@ export default function NewIntervention() {
       setMaterials(materialList || []);
       setGasBottles(bottleList || []);
       setUsers(userList || []);
+      
+      // Extraer gases únicos de botellas en stock (activas con carga disponible)
+      const activeBotles = (bottleList || []).filter(b => b.status === "activa" && (b.current_kg || 0) > 0);
+      const uniqueGases = [...new Set(activeBotles.map(b => b.gas_type))].filter(Boolean).sort();
+      setAvailableGasTypes(uniqueGases);
     } catch (error) {
       console.error("Error loading initial data:", error);
       setCheckedIn(true);
@@ -166,7 +172,9 @@ export default function NewIntervention() {
   };
 
   const totals = calcTotals();
-  const availableBottles = gasBottles.filter(b => b.status === "activa" && (!form.gas_type || b.gas_type === form.gas_type) && (b.current_kg || 0) > 0);
+  const availableBottles = form.gas_type
+    ? gasBottles.filter(b => b.status === "activa" && b.gas_type === form.gas_type && (b.current_kg || 0) > 0)
+    : [];
 
   const handleSave = async () => {
     if (!form.client_id) return;
@@ -376,27 +384,42 @@ export default function NewIntervention() {
                 <SelectValue placeholder="Seleccionar tipo de gas..." />
               </SelectTrigger>
               <SelectContent>
-                {GAS_TYPES.map(g => (
-                  <SelectItem key={g} value={g}>{g}</SelectItem>
-                ))}
+                {availableGasTypes.length === 0 ? (
+                  <SelectItem value="__none__" disabled>Sin gases en stock</SelectItem>
+                ) : (
+                  availableGasTypes.map(g => (
+                    <SelectItem key={g} value={g}>{g}</SelectItem>
+                  ))
+                )}
               </SelectContent>
             </Select>
           </div>
           <div>
             <Label>Botella (S/N)</Label>
-            <Select value={form.gas_bottle_id} onValueChange={(v) => setForm(f => ({ ...f, gas_bottle_id: v }))} disabled={!form.gas_type}>
-              <SelectTrigger className="mt-1 rounded-xl">
-                <SelectValue placeholder={form.gas_type ? "Seleccionar botella..." : "Selecciona gas primero"} />
-              </SelectTrigger>
-              <SelectContent>
-                {availableBottles.map(b => (
-                  <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.current_kg} kg disponibles</SelectItem>
-                ))}
-                {availableBottles.length === 0 && form.gas_type && <SelectItem value="__none__" disabled>Sin botellas con stock</SelectItem>}
-              </SelectContent>
-            </Select>
-            {form.gas_bottle_id && gasBottles.find(b => b.id === form.gas_bottle_id) && (
-              <p className="text-xs text-muted-foreground mt-1">Stock actual: <strong>{gasBottles.find(b => b.id === form.gas_bottle_id)?.current_kg} kg</strong></p>
+            {!form.gas_type ? (
+              <div className="mt-1 px-3 py-2 rounded-xl border border-input bg-muted/50 text-sm text-muted-foreground">
+                Selecciona un tipo de gas primero
+              </div>
+            ) : availableBottles.length === 0 ? (
+              <div className="mt-1 px-3 py-2 rounded-xl border border-destructive bg-destructive/10 text-sm text-destructive">
+                ⚠️ No hay botellas disponibles para este gas
+              </div>
+            ) : (
+              <>
+                <Select value={form.gas_bottle_id} onValueChange={(v) => setForm(f => ({ ...f, gas_bottle_id: v }))}>
+                  <SelectTrigger className="mt-1 rounded-xl">
+                    <SelectValue placeholder="Seleccionar botella..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableBottles.map(b => (
+                      <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.current_kg} kg disponibles</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.gas_bottle_id && gasBottles.find(b => b.id === form.gas_bottle_id) && (
+                  <p className="text-xs text-muted-foreground mt-1">Stock actual: <strong>{gasBottles.find(b => b.id === form.gas_bottle_id)?.current_kg} kg</strong></p>
+                )}
+              </>
             )}
           </div>
         </div>
