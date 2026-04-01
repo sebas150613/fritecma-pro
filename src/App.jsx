@@ -25,6 +25,7 @@ import Fichaje from './pages/Fichaje';
 import Suppliers from './pages/Suppliers';
 import StockBatchEntry from './pages/StockBatchEntry';
 import MaterialRequests from './pages/MaterialRequests';
+import AbsenceManagement from './pages/AbsenceManagement';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -72,6 +73,7 @@ const AuthenticatedApp = () => {
         <Route path="/suppliers" element={<Suppliers />} />
         <Route path="/stock-entry" element={<StockBatchEntry />} />
         <Route path="/material-requests" element={<MaterialRequests />} />
+        <Route path="/absences" element={<AbsenceManagement />} />
         <Route path="*" element={<PageNotFound />} />
       </Route>
     </Routes>
