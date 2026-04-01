@@ -11,6 +11,7 @@ import { ArrowLeft, Plus, MapPin, Loader2, Save, LogIn, AlertTriangle } from "lu
 import BackButton from "../components/BackButton";
 import MaterialLineForm from "../components/MaterialLineForm";
 import LaborSection from "../components/LaborSection";
+import ClientSelector from "../components/ClientSelector";
 import { Checkbox } from "@/components/ui/checkbox";
 import { validateStockAvailability, deductStockForIntervention } from "../lib/stockUtils";
 import moment from "moment";
@@ -322,53 +323,14 @@ export default function NewIntervention() {
 
         <div>
           <Label>Cliente *</Label>
-          <Select value={form.client_id} onValueChange={handleClientChange}>
-            <SelectTrigger className="mt-1 rounded-xl">
-              <SelectValue placeholder="Seleccionar cliente..." />
-            </SelectTrigger>
-            <SelectContent>
-              {clients.map(c => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {form.client_id && (
-          <div>
-            <Label>Centro de Trabajo</Label>
-            <Select value={form.work_center_id} onValueChange={v => {
-              const wc = workCenters.find(x => x.id === v);
-              setForm(f => ({
-                ...f,
-                work_center_id: v,
-                work_center_name: wc?.name || "",
-                location_address: wc?.address ? `${wc.address}${wc.city ? ", " + wc.city : ""}` : f.location_address,
-              }));
-            }}>
-              <SelectTrigger className="mt-1 rounded-xl">
-                <SelectValue placeholder={workCenters.length === 0 ? "Sin centros registrados" : "Seleccionar sede..."} />
-              </SelectTrigger>
-              <SelectContent>
-                {workCenters.map(wc => (
-                  <SelectItem key={wc.id} value={wc.id}>
-                    {wc.name}{wc.city ? ` · ${wc.city}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {form.work_center_id && (() => {
-              const wc = workCenters.find(x => x.id === form.work_center_id);
-              return wc ? (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {wc.address && <span>📍 {wc.address}{wc.city ? `, ${wc.city}` : ""}</span>}
-                  {wc.contact_person && <span className="ml-2">· {wc.contact_person}</span>}
-                  {wc.phone && <span className="ml-2">· {wc.phone}</span>}
-                </p>
-              ) : null;
-            })()}
+          <div className="mt-1">
+            <ClientSelector
+              clients={clients}
+              selectedId={form.client_id}
+              onChange={handleClientChange}
+            />
           </div>
-        )}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
