@@ -10,10 +10,9 @@
         "admin",
         "encargado",
         "oficina",
+        "ayudante",
         "user"
-      ],
-      "default": "user"
+      ]
     }
-  },
-  "required": []
+  }
 }
