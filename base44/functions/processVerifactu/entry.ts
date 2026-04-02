@@ -316,8 +316,8 @@ Deno.serve(async (req) => {
     let timestampAeat = '';
 
     try {
-      console.log(`[Verifactu] Iniciando envío mTLS a AEAT (${IS_PRODUCCION ? 'PROD' : 'SANDBOX'}): ${AEAT_ENDPOINT}`);
-      console.log(`[Verifactu] NIF emisor: ${emisorNif}, Nº factura: ${invoiceNumber}`);
+      const logContext = { evento: 'verifactu_inicio', modo: IS_PRODUCCION ? 'PROD' : 'SANDBOX', endpoint: AEAT_ENDPOINT, nif: emisorNif, factura: invoiceNumber };
+      console.log(JSON.stringify(logContext));
 
       // Obtener certificado .p12 del almacenamiento privado
       const certUri = adminUser.verifactu_cert_uri;
@@ -326,7 +326,7 @@ Deno.serve(async (req) => {
       }
 
       const certPassword = adminUser.verifactu_cert_password || '';
-      console.log(`[Verifactu] Certificado URI: ${certUri}, contraseña configurada: ${certPassword ? 'Sí' : 'No (vacía)'}`);
+      console.log(JSON.stringify({ evento: 'certificado_info', uri: certUri, con_password: !!certPassword }));
 
       // Descargar .p12 desde almacenamiento privado
       const { signed_url } = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
@@ -340,7 +340,7 @@ Deno.serve(async (req) => {
       const { Buffer } = await import('node:buffer');
       const certBuffer = Buffer.from(certArrayBuffer);
       const xmlBytes = Buffer.byteLength(xmlPayload, 'utf8');
-      console.log(`[Verifactu] Certificado descargado: ${certBuffer.length} bytes`);
+      console.log(JSON.stringify({ evento: 'certificado_descargado', bytes: certBuffer.length }));
 
       // Usar node:https con pfx para mTLS real
       const https = await import('node:https');
@@ -364,7 +364,7 @@ Deno.serve(async (req) => {
 
         const req = https.default.request(options, (res) => {
           httpStatus = res.statusCode;
-          console.log(`[Verifactu] HTTP Status AEAT: ${res.statusCode} ${res.statusMessage}`);
+          console.log(JSON.stringify({ evento: 'respuesta_aeat', httpStatus: res.statusCode, statusMessage: res.statusMessage }));
           let data = '';
           res.setEncoding('utf8');
           res.on('data', chunk => { data += chunk; });
@@ -372,7 +372,7 @@ Deno.serve(async (req) => {
         });
 
         req.on('error', (err) => {
-          console.error('[Verifactu] Error de red mTLS:', err.message);
+          console.error(JSON.stringify({ evento: 'error_red_mtls', error: err.message }));
           reject(err);
         });
 
@@ -387,17 +387,16 @@ Deno.serve(async (req) => {
 
       // En SANDBOX: aceptar respuestas sin error HTTP y sin SOAP Fault
       if (!IS_PRODUCCION && httpStatus >= 200 && httpStatus < 400 && !responseText.includes('<Fault>')) {
-        console.log(`[Verifactu] SANDBOX MODE - Aceptando respuesta HTTP ${httpStatus} como válida para testing`);
+        console.log(JSON.stringify({ evento: 'sandbox_aceptado', httpStatus, modo: 'testing' }));
         verifactuStatus = 'aceptado';
         verifactuResponse = `Testing SANDBOX - HTTP ${httpStatus}. En producción requiere CSV válido de AEAT.`;
       } else if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
-        console.warn('[Verifactu] AEAT devolvió HTML en lugar de SOAP. Certificado rechazado o endpoint incorrecto.');
-        console.log('[Verifactu] Respuesta HTML (primeros 500):', responseText.slice(0, 500));
+        console.warn(JSON.stringify({ evento: 'error_html_response', causa: 'certificado_rechazado_o_endpoint_incorrecto', respuesta_primeros_500: responseText.slice(0, 500) }));
         verifactuStatus = 'sin_envio';
         verifactuResponse = 'AEAT rechazó el certificado cliente (respuesta HTML). Verifica que el .p12 sea el certificado homologado para Veri*factu y que la contraseña sea correcta.';
       } else {
         // PRODUCCION: requiere CSV e IDRegistro
-        console.log(`[Verifactu] Respuesta SOAP AEAT:`, responseText.slice(0, 1500));
+        console.log(JSON.stringify({ evento: 'respuesta_soap', respuesta_primeros_1500: responseText.slice(0, 1500) }));
         verifactuResponse = responseText.slice(0, 2000);
 
         const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
@@ -406,25 +405,27 @@ Deno.serve(async (req) => {
         const timestampMatch = responseText.match(/<FechaHoraRecepcion>([^<]+)<\/FechaHoraRecepcion>/);
         timestampAeat = timestampMatch ? timestampMatch[1] : '';
         const codigoMatch = responseText.match(/<CodigoErrorRegistro>([^<]+)<\/CodigoErrorRegistro>/);
+        const codigoError = codigoMatch ? codigoMatch[1] : '';
+        const esDuplicado = ['30002', '30003', '21000055'].includes(codigoError); // Códigos AEAT para duplicado/factura ya registrada
 
         // Producción: requiere AMBOS CSV e IDRegistro
         if (csvMatch && idRegistro) {
           csvCode = csvMatch[1];
           verifactuStatus = 'aceptado';
-          console.log(`[Verifactu] ACEPTADO - CSV: ${csvCode}, IDRegistro: ${idRegistro}, Timestamp: ${timestampAeat}`);
-        } else if (codigoMatch) {
-          verifactuStatus = 'rechazado';
-          verifactuResponse = `Error AEAT: ${codigoMatch[1]} — ${verifactuResponse}`;
-          console.warn(`[Verifactu] RECHAZADO - Código: ${codigoMatch[1]}`);
+          console.log(JSON.stringify({ evento: 'aceptado', csv: csvCode, idRegistro, timestamp: timestampAeat }));
+        } else if (codigoError) {
+          verifactuStatus = esDuplicado ? 'duplicado' : 'rechazado';
+          verifactuResponse = `Error AEAT: ${codigoError} — ${verifactuResponse}`;
+          console.warn(JSON.stringify({ evento: 'rechazado', codigo: codigoError, esDuplicado }));
         } else {
           verifactuStatus = 'error';
           verifactuResponse = 'Respuesta AEAT inválida: falta CSV o IDRegistro';
-          console.warn('[Verifactu] ERROR - Respuesta sin CSV o IDRegistro');
+          console.warn(JSON.stringify({ evento: 'error_respuesta_invalida', razon: 'falta_csv_o_idregistro' }));
         }
       }
 
     } catch (aeatErr) {
-      console.error('[Verifactu] Error al enviar a AEAT:', aeatErr.message);
+      console.error(JSON.stringify({ evento: 'error_envio_aeat', error: aeatErr.message }));
       verifactuStatus = 'sin_envio';
       verifactuResponse = `Error: ${aeatErr.message}`;
     }
