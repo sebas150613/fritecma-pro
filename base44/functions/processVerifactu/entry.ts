@@ -319,7 +319,11 @@ Deno.serve(async (req) => {
       });
       const certResponse = await fetch(signed_url);
       const certArrayBuffer = await certResponse.arrayBuffer();
+
+      // En Deno, Buffer no es global — importar desde node:buffer
+      const { Buffer } = await import('node:buffer');
       const certBuffer = Buffer.from(certArrayBuffer);
+      const xmlBytes = Buffer.byteLength(xmlPayload, 'utf8');
       console.log(`[Verifactu] Certificado descargado: ${certBuffer.length} bytes`);
 
       // Usar node:https con pfx para mTLS real
@@ -334,7 +338,7 @@ Deno.serve(async (req) => {
           headers: {
             'Content-Type': 'text/xml; charset=utf-8',
             'SOAPAction': 'https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR',
-            'Content-Length': Buffer.byteLength(xmlPayload, 'utf8'),
+            'Content-Length': xmlBytes,
           },
           pfx: certBuffer,
           passphrase: certPassword,
