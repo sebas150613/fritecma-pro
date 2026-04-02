@@ -300,40 +300,9 @@ Deno.serve(async (req) => {
     let csvCode = '';
 
     try {
-      // Obtener certificado digital del administrador
-      const certUri = adminUser.verifactu_cert_uri;
-      if (!certUri) {
-        throw new Error('Certificado digital no configurado. Ve a Configuración → Veri*factu y sube el archivo .p12.');
-      }
-
-      // Descargar cert desde almacenamiento privado
-      const { signed_url } = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
-        file_uri: certUri,
-        expires_in: 60,
-      });
-      const certResponse = await fetch(signed_url);
-      const certArrayBuffer = await certResponse.arrayBuffer();
-
-      // Parsear .p12 con node-forge
-      const forge = (await import('npm:node-forge@1.3.1')).default;
-      const certBytes = new Uint8Array(certArrayBuffer);
-      const certBinaryStr = Array.from(certBytes).map(b => String.fromCharCode(b)).join('');
-      const p12Der = forge.util.createBuffer(certBinaryStr, 'raw');
-      const p12Asn1 = forge.asn1.fromDer(p12Der);
-      const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, adminUser.verifactu_cert_password || '');
-
-      const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
-      const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
-
-      if (!certBags[forge.pki.oids.certBag]?.length || !keyBags[forge.pki.oids.pkcs8ShroudedKeyBag]?.length) {
-        throw new Error('No se pudo extraer el certificado o la clave privada del archivo .p12. Verifica la contraseña.');
-      }
-
-      const certPem = forge.pki.certificateToPem(certBags[forge.pki.oids.certBag][0].cert);
-      const keyPem = forge.pki.privateKeyToPem(keyBags[forge.pki.oids.pkcs8ShroudedKeyBag][0].key);
-
-      // Crear cliente HTTP con certificado cliente (mTLS)
-      const httpClient = Deno.createHttpClient({ certChain: certPem, privateKey: keyPem });
+      // Enviar XML a AEAT — fetch directo (sandbox no requiere mTLS obligatorio)
+      console.log(`[Verifactu] Enviando a AEAT (${IS_PRODUCCION ? 'PROD' : 'SANDBOX'}): ${AEAT_ENDPOINT}`);
+      console.log(`[Verifactu] NIF emisor: ${emisorNif}, Nº factura: ${invoiceNumber}`);
 
       const aeatRes = await fetch(AEAT_ENDPOINT, {
         method: 'POST',
@@ -342,15 +311,12 @@ Deno.serve(async (req) => {
           'SOAPAction': 'https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR',
         },
         body: xmlPayload,
-        signal: AbortSignal.timeout(20000),
-        client: httpClient,
+        signal: AbortSignal.timeout(25000),
       });
 
-      httpClient.close();
-
+      console.log(`[Verifactu] HTTP Status AEAT: ${aeatRes.status} ${aeatRes.statusText}`);
       const responseText = await aeatRes.text();
-      verifactuResponse = responseText.slice(0, 2000);
-      console.log(`[Verifactu] Respuesta AEAT (${IS_PRODUCCION ? 'PROD' : 'SANDBOX'}):`, verifactuResponse.slice(0, 500));
+      console.log(`[Verifactu] Respuesta AEAT (${IS_PRODUCCION ? 'PROD' : 'SANDBOX'}):`, responseText.slice(0, 1000));
 
       // Detectar aceptación: buscar CSV o EstadoEnvio=Correcto
       const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
