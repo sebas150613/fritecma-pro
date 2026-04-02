@@ -246,6 +246,7 @@ Deno.serve(async (req) => {
   <soapenv:Body>
     <sum:RegFactuSistemaFacturacion>
       <sum:Cabecera>
+        <sum:TipoComunicacion>A0</sum:TipoComunicacion>
         <sum:ObligadoEmision>
           <sum:NombreRazon>${emisorNombre}</sum:NombreRazon>
           <sum:NIF>${emisorNif}</sum:NIF>
@@ -381,13 +382,19 @@ Deno.serve(async (req) => {
         const estadoMatch = responseText.match(/<EstadoEnvio>([^<]+)<\/EstadoEnvio>/);
         const codigoMatch = responseText.match(/<CodigoErrorRegistro>([^<]+)<\/CodigoErrorRegistro>/);
 
+        // Extraer IDRegistro y Timestamp AEAT
+        const idRegistroMatch = responseText.match(/<IDRegistro>([^<]+)<\/IDRegistro>/);
+        const idRegistro = idRegistroMatch ? idRegistroMatch[1] : '';
+        const timestampMatch = responseText.match(/<FechaHoraRecepcion>([^<]+)<\/FechaHoraRecepcion>/);
+        const timestampAeat = timestampMatch ? timestampMatch[1] : '';
+        
         if (csvMatch) {
           csvCode = csvMatch[1];
           verifactuStatus = 'aceptado';
-          console.log(`[Verifactu] ACEPTADO - CSV: ${csvCode}`);
+          console.log(`[Verifactu] ACEPTADO - CSV: ${csvCode}, IDRegistro: ${idRegistro}`);
         } else if (estadoMatch && (estadoMatch[1] === 'Correcto' || estadoMatch[1] === 'AceptadoConErrores')) {
           verifactuStatus = 'aceptado';
-          console.log(`[Verifactu] ACEPTADO - EstadoEnvio: ${estadoMatch[1]}`);
+          console.log(`[Verifactu] ACEPTADO - EstadoEnvio: ${estadoMatch[1]}, IDRegistro: ${idRegistro}`);
         } else if (codigoMatch) {
           verifactuStatus = 'rechazado';
           verifactuResponse = `Error AEAT: ${codigoMatch[1]} — ${verifactuResponse}`;
