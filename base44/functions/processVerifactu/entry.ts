@@ -89,6 +89,27 @@ async function sendToAEAT(xmlPayload, base44, adminUser, emisorNif) {
   return { httpStatus, responseText };
 }
 
+// Genera descripción detallada de la operación para cumplimiento fiscal
+function generateDetailedDescription(intervention) {
+  const parts = ['Mantenimiento y reparación de sistemas frigoríficos'];
+  
+  if (intervention.gas_type) {
+    parts.push(`Gas: ${intervention.gas_type}`);
+  }
+  if (intervention.gas_loaded_kg > 0) {
+    parts.push(`Carga: ${intervention.gas_loaded_kg}kg`);
+  }
+  if (intervention.gas_recovered_kg > 0) {
+    parts.push(`Recuperación: ${intervention.gas_recovered_kg}kg`);
+  }
+  if (intervention.description) {
+    parts.push(intervention.description);
+  }
+  
+  const description = parts.join(' | ');
+  return description.slice(0, 200);
+}
+
 // Genera número de factura correlativo
 async function getNextInvoiceNumber(base44, serie = 'A') {
   const year = new Date().getFullYear();
@@ -435,7 +456,7 @@ Deno.serve(async (req) => {
           </sum:IDFactura>
           <sum:NombreRazonEmisor>${emisorNombre}</sum:NombreRazonEmisor>
           <sum:TipoFactura>F1</sum:TipoFactura>
-          <sum:DescripcionOperacion>Servicios de mantenimiento y reparación - ${intervention.description || 'Servicio técnico'}</sum:DescripcionOperacion>
+          <sum:DescripcionOperacion>${generateDetailedDescription(intervention)}</sum:DescripcionOperacion>
           <sum:Destinatarios>
             <sum:IDDestinatario>
               <sum:NombreRazon>${intervention.client_name}</sum:NombreRazon>
