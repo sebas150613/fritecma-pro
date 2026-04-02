@@ -71,7 +71,8 @@
         "pendiente_revision",
         "validado",
         "completado",
-        "facturado"
+        "facturado",
+        "anulado"
       ],
       "default": "pendiente_revision"
     },
@@ -209,6 +210,11 @@
       "type": "boolean",
       "title": "Enviar Email Autom\u00e1tico",
       "default": false
+    },
+    "rectified_by_info": {
+      "type": "string",
+      "title": "Informaci\u00f3n de Rectificaci\u00f3n",
+      "description": "Log de usuario y fecha de la rectificaci\u00f3n"
     }
   },
   "required": [
