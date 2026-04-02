@@ -216,12 +216,12 @@ Deno.serve(async (req) => {
           <sum:Desglose>
             <sum:DetalleIVA>
               <sum:TipoImpositivo>21.00</sum:TipoImpositivo>
-              <sum:BaseImponibleOimporteNoSujeto>${Math.abs(origInvoice.subtotal || 0).toFixed(2)}</sum:BaseImponibleOimporteNoSujeto>
-              <sum:CuotaRepercutida>${Math.abs(origInvoice.iva_total || 0).toFixed(2)}</sum:CuotaRepercutida>
+              <sum:BaseImponibleOimporteNoSujeto>${-(origInvoice.subtotal || 0).toFixed(2)}</sum:BaseImponibleOimporteNoSujeto>
+              <sum:CuotaRepercutida>${-(origInvoice.iva_total || 0).toFixed(2)}</sum:CuotaRepercutida>
             </sum:DetalleIVA>
           </sum:Desglose>
-          <sum:CuotaTotal>${Math.abs(origInvoice.iva_total || 0).toFixed(2)}</sum:CuotaTotal>
-          <sum:ImporteTotal>${Math.abs(origInvoice.total || 0).toFixed(2)}</sum:ImporteTotal>
+          <sum:CuotaTotal>${-(origInvoice.iva_total || 0).toFixed(2)}</sum:CuotaTotal>
+          <sum:ImporteTotal>${-(origInvoice.total || 0).toFixed(2)}</sum:ImporteTotal>
           <sum:Encadenamiento>
             <sum:RegistroAnterior><sum:Huella>${origInvoice.hash_huella}</sum:Huella></sum:RegistroAnterior>
           </sum:Encadenamiento>
