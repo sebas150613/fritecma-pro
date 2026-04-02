@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Settings, Users, Shield, Trash2 } from "lucide-react";
+import { Settings, Users, Shield, Trash2, Upload, Key, FileCheck, Loader2 } from "lucide-react";
 
 const ROLE_LABELS = {
   superadmin: "Super Admin",
@@ -27,6 +27,12 @@ export default function AppSettings() {
   const [inviting, setInviting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [certFile, setCertFile] = useState(null);
+  const [certPassword, setCertPassword] = useState("");
+  const [emisorNif, setEmisorNif] = useState("");
+  const [emisorNombre, setEmisorNombre] = useState("FRITECMA S.L.");
+  const [savingCert, setSavingCert] = useState(false);
+  const [certSaved, setCertSaved] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -161,6 +167,71 @@ export default function AppSettings() {
             </div>
           ))}
         </div>
+      </div>
+      )}
+
+      {/* Verifactu / Certificado Digital */}
+      {(user?.role === 'admin' || user?.role === 'superadmin') && (
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+        <h2 className="font-semibold flex items-center gap-2">
+          <FileCheck className="h-4 w-4 text-accent" /> Configuración Veri*factu (Ley Antifraude)
+        </h2>
+        <p className="text-xs text-muted-foreground">Configure los datos de emisión y el certificado digital para el protocolo Veri*factu de la AEAT.</p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <Label>NIF / CIF Empresa *</Label>
+            <Input value={emisorNif} onChange={e => setEmisorNif(e.target.value)} placeholder="B12345678" className="mt-1 rounded-xl" />
+          </div>
+          <div>
+            <Label>Nombre / Razón Social *</Label>
+            <Input value={emisorNombre} onChange={e => setEmisorNombre(e.target.value)} placeholder="FRITECMA S.L." className="mt-1 rounded-xl" />
+          </div>
+        </div>
+
+        <div>
+          <Label className="flex items-center gap-2"><Key className="h-3.5 w-3.5" /> Certificado Digital (.p12 / .pfx)</Label>
+          <div className="mt-1 flex items-center gap-3">
+            <label className="flex-1 cursor-pointer">
+              <div className="border-2 border-dashed border-border rounded-xl p-4 text-center hover:border-accent transition-colors">
+                {certFile ? (
+                  <p className="text-sm text-emerald-600 font-medium">✓ {certFile.name}</p>
+                ) : (
+                  <>
+                    <Upload className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">Subir archivo .p12 / .pfx</p>
+                  </>
+                )}
+              </div>
+              <input type="file" accept=".p12,.pfx" className="hidden" onChange={e => setCertFile(e.target.files[0])} />
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <Label className="flex items-center gap-2"><Key className="h-3.5 w-3.5" /> Contraseña del Certificado</Label>
+          <Input type="password" value={certPassword} onChange={e => setCertPassword(e.target.value)} placeholder="Contraseña del certificado" className="mt-1 rounded-xl" />
+        </div>
+
+        <Button
+          onClick={async () => {
+            setSavingCert(true);
+            // Aquí se subiría el certificado al backend de forma segura
+            // Por ahora guardamos los datos de texto en el perfil del admin
+            await base44.auth.updateMe({ verifactu_nif: emisorNif, verifactu_nombre: emisorNombre });
+            setCertSaved(true);
+            setSavingCert(false);
+            setTimeout(() => setCertSaved(false), 3000);
+          }}
+          disabled={savingCert || !emisorNif}
+          className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+        >
+          {savingCert ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+          {certSaved ? '✓ Guardado' : 'Guardar Configuración'}
+        </Button>
+        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-3 rounded-xl">
+          ⚠️ El certificado digital se usa para firmar las facturas enviadas a la AEAT. Mantenlo seguro y no lo compartas. El entorno actual usa el sandbox de la AEAT (preproducción). Para producción real contacta con el soporte técnico.
+        </p>
       </div>
       )}
 

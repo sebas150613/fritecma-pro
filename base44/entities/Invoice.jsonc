@@ -1,0 +1,128 @@
+{
+  "name": "Invoice",
+  "type": "object",
+  "properties": {
+    "invoice_number": {
+      "type": "string",
+      "title": "N\u00famero de Factura"
+    },
+    "serie": {
+      "type": "string",
+      "title": "Serie",
+      "default": "A"
+    },
+    "intervention_id": {
+      "type": "string",
+      "title": "ID Parte"
+    },
+    "intervention_number": {
+      "type": "string",
+      "title": "N\u00ba Parte"
+    },
+    "client_id": {
+      "type": "string",
+      "title": "ID Cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "title": "Cliente"
+    },
+    "client_nif": {
+      "type": "string",
+      "title": "NIF Cliente"
+    },
+    "client_address": {
+      "type": "string",
+      "title": "Direcci\u00f3n Cliente"
+    },
+    "issue_date": {
+      "type": "string",
+      "title": "Fecha Emisi\u00f3n",
+      "format": "date-time"
+    },
+    "subtotal": {
+      "type": "number",
+      "title": "Base Imponible (\u20ac)",
+      "default": 0
+    },
+    "iva_total": {
+      "type": "number",
+      "title": "Total IVA (\u20ac)",
+      "default": 0
+    },
+    "total": {
+      "type": "number",
+      "title": "Total (\u20ac)",
+      "default": 0
+    },
+    "lines_json": {
+      "type": "string",
+      "title": "L\u00edneas (JSON)"
+    },
+    "hash_huella": {
+      "type": "string",
+      "title": "Huella Digital (Hash SHA-256)"
+    },
+    "hash_anterior": {
+      "type": "string",
+      "title": "Hash Factura Anterior"
+    },
+    "invoice_chain_index": {
+      "type": "number",
+      "title": "\u00cdndice en la Cadena",
+      "default": 1
+    },
+    "verifactu_status": {
+      "type": "string",
+      "title": "Estado Veri*factu",
+      "enum": [
+        "pendiente",
+        "enviado",
+        "aceptado",
+        "rechazado",
+        "sin_envio"
+      ],
+      "default": "pendiente"
+    },
+    "verifactu_csv": {
+      "type": "string",
+      "title": "CSV AEAT (C\u00f3digo Seguro Verificaci\u00f3n)"
+    },
+    "verifactu_response": {
+      "type": "string",
+      "title": "Respuesta AEAT (JSON)"
+    },
+    "qr_url": {
+      "type": "string",
+      "title": "URL QR Verificaci\u00f3n AEAT"
+    },
+    "pdf_url": {
+      "type": "string",
+      "title": "URL PDF Factura"
+    },
+    "is_locked": {
+      "type": "boolean",
+      "title": "Bloqueada (inalterable)",
+      "default": true
+    },
+    "issuer_nif": {
+      "type": "string",
+      "title": "NIF Emisor"
+    },
+    "issuer_name": {
+      "type": "string",
+      "title": "Nombre Emisor"
+    },
+    "created_by_email": {
+      "type": "string",
+      "title": "Creado por"
+    }
+  },
+  "required": [
+    "invoice_number",
+    "intervention_id",
+    "client_name",
+    "issue_date",
+    "total"
+  ]
+}

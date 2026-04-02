@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import BackButton from "../components/BackButton";
-import { ArrowLeft, FileText, Mail, Clock, MapPin, Flame, User, Loader2, Package, CheckCircle2, Pencil, Trash2, Plus, AlertTriangle, Wrench } from "lucide-react";
+import { ArrowLeft, FileText, Mail, Clock, MapPin, Flame, User, Loader2, Package, CheckCircle2, Pencil, Trash2, Plus, AlertTriangle, Wrench, Lock, Receipt } from "lucide-react";
 import MapLink from "../components/MapLink";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,9 @@ export default function InterventionDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [visits, setVisits] = useState([]);
+  const [showValidateModal, setShowValidateModal] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validateResult, setValidateResult] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -146,6 +149,7 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
   const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
   const isOficina = user?.role === "oficina";
   const canEdit = isAdmin || isOficina;
+  const isLocked = intervention?.status === "facturado" || intervention?.status === "completado";
   const materials = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
 
   const handleDelete = async () => {
@@ -165,36 +169,83 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
     navigate("/interventions");
   };
 
-  const validatePart = async () => {
-    const now = new Date().toISOString();
-    await base44.entities.Intervention.update(id, {
-      status: "validado",
-      validated_by: user.email,
-      validated_at: now,
-    });
-    setIntervention(prev => ({ ...prev, status: "validado", validated_by: user.email, validated_at: now }));
-    // Auto-send email on validation
-    const clientRes = await base44.entities.Client.filter({ id: intervention.client_id }, "-created_date", 1);
-    const clientEmail = clientRes[0]?.email;
-    if (clientEmail) {
-      setSendingEmail(true);
-      try {
-        await base44.integrations.Core.SendEmail({
-          to: clientEmail,
-          subject: `Parte Validado ${intervention.number} - FRITECMA`,
-          body: `Estimado/a ${intervention.client_name},\n\nSu parte de trabajo ${intervention.number} ha sido validado.\n\nTotal: ${(intervention.total || 0).toFixed(2)} €\n\nGracias por confiar en FRITECMA.`,
-        });
-        await base44.entities.Intervention.update(id, { email_sent: true });
-        setIntervention(prev => ({ ...prev, email_sent: true }));
-      } catch (e) {
-        console.warn("Email no enviado:", e.message);
-      }
-      setSendingEmail(false);
+  const handleValidateOption = async (mode) => {
+    setValidating(true);
+    try {
+      const res = await base44.functions.invoke('processVerifactu', { intervention_id: id, mode });
+      const data = res.data;
+      setValidateResult(data);
+      await loadData();
+    } catch (e) {
+      alert('Error al procesar: ' + e.message);
     }
+    setValidating(false);
   };
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
+      {/* Validate Modal */}
+      <Dialog open={showValidateModal} onOpenChange={v => { if (!validating) { setShowValidateModal(v); setValidateResult(null); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-600" /> Validar Parte</DialogTitle>
+          </DialogHeader>
+          {validateResult ? (
+            <div className="space-y-4">
+              {validateResult.mode === 'facturar' ? (
+                <div className="space-y-3">
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <p className="font-semibold text-emerald-700 flex items-center gap-2"><Receipt className="h-4 w-4" /> Factura generada</p>
+                    <p className="text-sm text-emerald-700 mt-1">Nº {validateResult.invoice_number}</p>
+                  </div>
+                  <div className="text-xs space-y-1 font-mono bg-muted/50 p-3 rounded-xl">
+                    <p className="text-muted-foreground">Hash SHA-256:</p>
+                    <p className="break-all">{validateResult.hash?.slice(0, 32)}...</p>
+                    <p className="text-muted-foreground mt-2">Estado Veri*factu: <span className="font-semibold">{validateResult.verifactu_status}</span></p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">⚠️ Este parte queda bloqueado y no puede editarse ni eliminarse.</p>
+                </div>
+              ) : (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                  <p className="font-semibold text-blue-700">✓ Parte guardado sin factura</p>
+                  <p className="text-sm text-blue-600 mt-1">Archivado como completado.</p>
+                </div>
+              )}
+              <Button onClick={() => { setShowValidateModal(false); setValidateResult(null); }} className="w-full rounded-xl">Cerrar</Button>
+            </div>
+          ) : (
+            <div className="space-y-4 mt-2">
+              <p className="text-sm text-muted-foreground">Selecciona cómo deseas cerrar este parte:</p>
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  onClick={() => handleValidateOption('guardar')}
+                  disabled={validating}
+                  className="p-4 border-2 border-border hover:border-primary rounded-xl text-left transition-all hover:bg-primary/5"
+                >
+                  <p className="font-semibold flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-blue-600" /> Guardar Parte (sin factura)</p>
+                  <p className="text-xs text-muted-foreground mt-1">Para garantías, mantenimientos incluidos en cuota o partes internos. Se archiva sin registro fiscal.</p>
+                </button>
+                <button
+                  onClick={() => handleValidateOption('facturar')}
+                  disabled={validating}
+                  className="p-4 border-2 border-border hover:border-accent rounded-xl text-left transition-all hover:bg-accent/5"
+                >
+                  <p className="font-semibold flex items-center gap-2"><Receipt className="h-5 w-5 text-accent" /> Facturar (Protocolo Veri*factu)</p>
+                  <p className="text-xs text-muted-foreground mt-1">Genera factura con hash encadenado, envía a la AEAT y bloquea el parte. Cumple Ley Antifraude.</p>
+                </button>
+              </div>
+              {validating && (
+                <div className="flex items-center justify-center gap-2 py-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-accent" />
+                  <span className="text-sm text-muted-foreground">Procesando...</span>
+                </div>
+              )}
+              <Button variant="outline" onClick={() => setShowValidateModal(false)} disabled={validating} className="w-full rounded-xl">Cancelar</Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirm Modal */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
         <DialogContent className="max-w-sm">
@@ -244,9 +295,14 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
             </Select>
 
             {intervention.status === "pendiente_revision" && (
-              <Button onClick={validatePart} disabled={sendingEmail} className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Button onClick={() => setShowValidateModal(true)} className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
                 <CheckCircle2 className="h-4 w-4" /> Validar Parte
               </Button>
+            )}
+            {isLocked && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground px-3 py-2 bg-muted/50 rounded-xl">
+                <Lock className="h-3.5 w-3.5" /> Parte bloqueado (inalterable)
+              </div>
             )}
 
             <Button variant="outline" onClick={generatePDF} disabled={generatingPdf} className="rounded-xl">
@@ -261,14 +317,16 @@ Generate clean, professional HTML with inline CSS. Include FRITECMA logo area, c
           {intervention.validated_by && (
           <p className="text-xs text-muted-foreground">✓ Validado por {intervention.validated_by} el {intervention.validated_at ? new Date(intervention.validated_at).toLocaleString("es") : ""}</p>
           )}
+          {!isLocked && (
           <div className="flex gap-2 pt-2 border-t border-border">
-          <Button variant="outline" onClick={() => navigate(`/interventions/${id}/edit`)} className="rounded-xl gap-2">
-            <Pencil className="h-4 w-4" /> Editar Parte
-          </Button>
-          <Button variant="outline" onClick={() => setShowDeleteConfirm(true)} className="rounded-xl gap-2 text-destructive border-destructive/30 hover:bg-destructive/10">
-            <Trash2 className="h-4 w-4" /> Eliminar Parte
-          </Button>
+            <Button variant="outline" onClick={() => navigate(`/interventions/${id}/edit`)} className="rounded-xl gap-2">
+              <Pencil className="h-4 w-4" /> Editar Parte
+            </Button>
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(true)} className="rounded-xl gap-2 text-destructive border-destructive/30 hover:bg-destructive/10">
+              <Trash2 className="h-4 w-4" /> Eliminar Parte
+            </Button>
           </div>
+          )}
           </div>
           )}
 
