@@ -177,42 +177,8 @@ export default function AppSettings() {
       </div>
       )}
 
-      {/* Datos de Empresa — Admin, Encargado y Oficina */}
+      {/* Verifactu / Datos Empresa + Certificado Digital */}
       {['admin','superadmin','encargado','oficina'].includes(user?.role) && (
-      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
-        <h2 className="font-semibold flex items-center gap-2">
-          <Settings className="h-4 w-4 text-muted-foreground" /> Datos de la Empresa (Cabecera PDF)
-        </h2>
-        <p className="text-xs text-muted-foreground">Estos datos aparecen en la cabecera de todos los PDF generados.</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <Label>Dirección Fiscal</Label>
-            <Input value={emisorDireccion} onChange={e => setEmisorDireccion(e.target.value)} placeholder="C/ Ejemplo, 1 · 28001 Madrid" className="mt-1 rounded-xl" />
-          </div>
-          <div>
-            <Label>Teléfono</Label>
-            <Input value={emisorTelefono} onChange={e => setEmisorTelefono(e.target.value)} placeholder="+34 91 000 00 00" className="mt-1 rounded-xl" />
-          </div>
-        </div>
-        <Button
-          onClick={async () => {
-            setSavingCert(true);
-            await base44.auth.updateMe({ emisor_direccion: emisorDireccion, emisor_telefono: emisorTelefono });
-            setCertSaved(true);
-            setSavingCert(false);
-            setTimeout(() => setCertSaved(false), 3000);
-          }}
-          disabled={savingCert}
-          className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
-        >
-          {savingCert ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-          {certSaved ? '✓ Guardado' : 'Guardar Datos'}
-        </Button>
-      </div>
-      )}
-
-      {/* Verifactu / Certificado Digital */}
-      {(user?.role === 'admin' || user?.role === 'superadmin') && (
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2">
           <FileCheck className="h-4 w-4 text-accent" /> Configuración Veri*factu (Ley Antifraude)
@@ -238,6 +204,7 @@ export default function AppSettings() {
           </div>
         </div>
 
+        {(user?.role === 'admin' || user?.role === 'superadmin') && (<>
         <div>
           <Label className="flex items-center gap-2"><Key className="h-3.5 w-3.5" /> Certificado Digital (.p12 / .pfx)</Label>
           <div className="mt-1 flex items-center gap-3">
@@ -261,6 +228,7 @@ export default function AppSettings() {
           <Label className="flex items-center gap-2"><Key className="h-3.5 w-3.5" /> Contraseña del Certificado</Label>
           <Input type="password" value={certPassword} onChange={e => setCertPassword(e.target.value)} placeholder="Contraseña del certificado" className="mt-1 rounded-xl" />
         </div>
+        </>)}
 
         <Button
           onClick={async () => {
@@ -286,6 +254,7 @@ export default function AppSettings() {
           {savingCert ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
           {certSaved ? '✓ Guardado' : 'Guardar Configuración'}
         </Button>
+        {(user?.role === 'admin' || user?.role === 'superadmin') && (<>
         {/* Toggle sandbox / producción */}
         <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/30">
           <div>
@@ -308,6 +277,7 @@ export default function AppSettings() {
             🧪 <strong>Modo Sandbox activo.</strong> Los envíos a la AEAT son simulados. El hash se genera correctamente para poder verificar el flujo. Para activar producción, pon <code>VERIFACTU_PRODUCCION = true</code> en los secrets.
           </p>
         )}
+        </>)}
       </div>
       )}
 
