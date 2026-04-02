@@ -11,6 +11,19 @@
       "title": "Serie",
       "default": "A"
     },
+    "tipo_factura": {
+      "type": "string",
+      "title": "Tipo Factura Veri*factu",
+      "enum": [
+        "F1",
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5"
+      ],
+      "default": "F1"
+    },
     "intervention_id": {
       "type": "string",
       "title": "ID Parte"
@@ -120,6 +133,18 @@
     "created_by_email": {
       "type": "string",
       "title": "Creado por"
+    },
+    "factura_rectificada_id": {
+      "type": "string",
+      "title": "ID Factura Original Rectificada"
+    },
+    "factura_rectificada_number": {
+      "type": "string",
+      "title": "N\u00ba Factura Original Rectificada"
+    },
+    "rectificativa_motivo": {
+      "type": "string",
+      "title": "Motivo de Rectificaci\u00f3n"
     }
   },
   "required": [

@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { intervention_id, mode } = body; // mode: 'guardar' | 'facturar'
+    const { intervention_id, mode, original_invoice_id, rectificativa_motivo } = body; // mode: 'guardar' | 'facturar' | 'rectificar'
 
     if (!intervention_id) {
       return Response.json({ error: 'intervention_id requerido' }, { status: 400 });
@@ -65,6 +65,85 @@ Deno.serve(async (req) => {
         validated_at: now,
       });
       return Response.json({ success: true, mode: 'guardar', status: 'completado' });
+    }
+
+    // ── MODO: RECTIFICATIVA ──
+    if (mode === 'rectificar') {
+      if (!original_invoice_id) {
+        return Response.json({ error: 'original_invoice_id requerido para rectificar' }, { status: 400 });
+      }
+
+      const origInvoices = await base44.asServiceRole.entities.Invoice.filter({ id: original_invoice_id }, '-created_date', 1);
+      if (!origInvoices.length) {
+        return Response.json({ error: 'Factura original no encontrada' }, { status: 404 });
+      }
+      const origInvoice = origInvoices[0];
+
+      const adminUsers = await base44.asServiceRole.entities.User.filter({ role: 'admin' }, '-created_date', 1);
+      const adminUser = adminUsers[0] || {};
+      const emisorNif = adminUser.verifactu_nif || Deno.env.get('VERIFACTU_NIF') || 'B00000000';
+      const emisorNombre = adminUser.verifactu_nombre || Deno.env.get('VERIFACTU_NOMBRE') || 'EMPRESA S.L.';
+
+      const { number: rectNumber, index: rectIndex } = await getNextInvoiceNumber(base44, 'R');
+
+      // Hash encadenado al hash de la factura original
+      const fechaHoraHuella = now.replace(/[-:T.Z]/g, '').slice(0, 14);
+      const hashInput = [
+        `NIF=${emisorNif}`,
+        `NombreRazonEmisor=${emisorNombre}`,
+        `NumSerieFactura=${rectNumber}`,
+        `FechaExpedicionFactura=${now.slice(0, 10)}`,
+        `TipoFactura=R1`,
+        `CuotaTotalIVA=${(origInvoice.iva_total || 0).toFixed(2)}`,
+        `ImporteTotal=${-(origInvoice.total || 0).toFixed(2)}`,
+        `Huella=${origInvoice.hash_huella}`,
+        `FechaHoraHuella=${fechaHoraHuella}`,
+      ].join('&');
+      const hashRect = await sha256(hashInput);
+
+      const retentionDate = new Date();
+      retentionDate.setFullYear(retentionDate.getFullYear() + 6);
+
+      const rectData = {
+        invoice_number: rectNumber,
+        serie: 'R',
+        intervention_id: intervention_id,
+        intervention_number: intervention.number,
+        client_id: origInvoice.client_id,
+        client_name: origInvoice.client_name,
+        client_nif: origInvoice.client_nif,
+        client_address: origInvoice.client_address,
+        issue_date: now,
+        subtotal: -(origInvoice.subtotal || 0),
+        iva_total: -(origInvoice.iva_total || 0),
+        total: -(origInvoice.total || 0),
+        lines_json: origInvoice.lines_json,
+        hash_huella: hashRect,
+        hash_anterior: origInvoice.hash_huella,
+        invoice_chain_index: rectIndex,
+        retention_until: retentionDate.toISOString().slice(0, 10),
+        verifactu_status: 'pendiente',
+        is_locked: true,
+        issuer_nif: emisorNif,
+        issuer_name: emisorNombre,
+        created_by_email: user.email,
+        // Campos rectificativa
+        tipo_factura: 'R1',
+        factura_rectificada_id: original_invoice_id,
+        factura_rectificada_number: origInvoice.invoice_number,
+        rectificativa_motivo: rectificativa_motivo || '',
+      };
+
+      const rectInvoice = await base44.asServiceRole.entities.Invoice.create(rectData);
+
+      return Response.json({
+        success: true,
+        mode: 'rectificar',
+        invoice_number: rectNumber,
+        hash: hashRect,
+        verifactu_status: 'pendiente',
+        invoice_id: rectInvoice.id,
+      });
     }
 
     // ── MODO: FACTURAR (Veri*factu) ──

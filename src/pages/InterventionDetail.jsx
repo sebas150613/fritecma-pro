@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import BackButton from "../components/BackButton";
-import { ArrowLeft, FileText, Mail, Clock, MapPin, Flame, User, Loader2, Package, CheckCircle2, Pencil, Trash2, Plus, AlertTriangle, Wrench, Lock, Receipt } from "lucide-react";
+import { ArrowLeft, FileText, Mail, Clock, MapPin, Flame, User, Loader2, Package, CheckCircle2, Pencil, Trash2, Plus, AlertTriangle, Wrench, Lock, Receipt, RotateCcw } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import MapLink from "../components/MapLink";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -44,6 +45,10 @@ export default function InterventionDetail() {
   const [validating, setValidating] = useState(false);
   const [validateResult, setValidateResult] = useState(null);
   const [invoice, setInvoice] = useState(null);
+  const [showRectModal, setShowRectModal] = useState(false);
+  const [rectMotivo, setRectMotivo] = useState('');
+  const [rectificando, setRectificando] = useState(false);
+  const [rectResult, setRectResult] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -325,8 +330,79 @@ ${verifactuBlock}
     setValidating(false);
   };
 
+  const handleRectificativa = async () => {
+    if (!rectMotivo.trim()) return;
+    setRectificando(true);
+    try {
+      const res = await base44.functions.invoke('processVerifactu', {
+        intervention_id: id,
+        mode: 'rectificar',
+        original_invoice_id: invoice.id,
+        rectificativa_motivo: rectMotivo,
+      });
+      setRectResult(res.data);
+      await loadData();
+    } catch (e) {
+      alert('Error al rectificar: ' + e.message);
+    }
+    setRectificando(false);
+  };
+
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
+
+      {/* Modal Factura Rectificativa */}
+      <Dialog open={showRectModal} onOpenChange={v => { if (!rectificando) { setShowRectModal(v); if (!v) { setRectMotivo(''); setRectResult(null); } } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><RotateCcw className="h-5 w-5 text-amber-600" /> Factura Rectificativa</DialogTitle>
+          </DialogHeader>
+          {rectResult ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <p className="font-semibold text-emerald-700 flex items-center gap-2"><Receipt className="h-4 w-4" /> Rectificativa generada</p>
+                <p className="text-sm text-emerald-700 mt-1">Nº {rectResult.invoice_number}</p>
+                <p className="text-xs text-emerald-600 mt-1">Rectifica: {invoice?.invoice_number}</p>
+              </div>
+              <div className="text-xs font-mono bg-muted/50 p-3 rounded-xl space-y-1">
+                <p className="text-muted-foreground">Hash SHA-256:</p>
+                <p className="break-all">{rectResult.hash?.slice(0, 32)}...</p>
+                <p className="text-muted-foreground mt-2">Estado Veri*factu: <span className="font-semibold">{rectResult.verifactu_status}</span></p>
+              </div>
+              <Button onClick={() => { setShowRectModal(false); setRectResult(null); setRectMotivo(''); }} className="w-full rounded-xl">Cerrar</Button>
+            </div>
+          ) : (
+            <div className="space-y-4 mt-2">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <p className="text-xs text-amber-800 font-semibold">Factura original: {invoice?.invoice_number}</p>
+                <p className="text-xs text-amber-700 mt-1">Se generará una nueva factura con TipoFactura=R1 encadenada al hash original. La factura original queda referenciada pero no se anula del registro AEAT.</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Motivo de rectificación *</label>
+                <Textarea
+                  className="mt-1 rounded-xl"
+                  placeholder="Ej: Error en importe, cambio de tipo IVA, datos del cliente incorrectos..."
+                  value={rectMotivo}
+                  onChange={e => setRectMotivo(e.target.value)}
+                  rows={3}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setShowRectModal(false)} disabled={rectificando} className="flex-1 rounded-xl">Cancelar</Button>
+                <Button
+                  onClick={handleRectificativa}
+                  disabled={rectificando || !rectMotivo.trim()}
+                  className="flex-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  {rectificando ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RotateCcw className="h-4 w-4 mr-2" />}
+                  Generar Rectificativa
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Validate Modal */}
       <Dialog open={showValidateModal} onOpenChange={v => { if (!validating) { setShowValidateModal(v); setValidateResult(null); } }}>
         <DialogContent className="max-w-md">
@@ -448,6 +524,11 @@ ${verifactuBlock}
               </div>
             )}
 
+            {invoiceAceptada && (
+              <Button variant="outline" onClick={() => setShowRectModal(true)} className="rounded-xl gap-2 border-amber-300 text-amber-700 hover:bg-amber-50">
+                <RotateCcw className="h-4 w-4" /> Rectificativa
+              </Button>
+            )}
             <Button variant="outline" onClick={generatePDF} disabled={generatingPdf} className="rounded-xl">
               {generatingPdf ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileText className="h-4 w-4 mr-2" />}
               Generar PDF
