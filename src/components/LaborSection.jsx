@@ -261,47 +261,6 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
         </div>
       )}
 
-      {/* Total MO */}
-      {hours > 0 && (
-        <div className="bg-primary/5 rounded-xl px-4 py-2.5 text-sm font-medium">
-          {isAdmin
-            ? (mode === "oficial_ayudante"
-                ? `Total MO: ${(hours * baseRate + hours * ayudanteRate).toFixed(2)} € (Tarifa ${tipoHorario}: ${baseRate}€/h + Ay. ${ayudanteRate.toFixed(2)}€/h)`
-                : `Total MO: ${(hours * operatorCount * baseRate).toFixed(2)} € (${operatorCount} op. × ${hours}h × ${baseRate}€/h · ${tipoHorario})`)
-            : `${hours.toFixed(2)} h × ${operatorCount} operario${operatorCount !== 1 ? "s" : ""} = ${(hours * operatorCount).toFixed(2)} unidades de trabajo`
-          }
-        </div>
-      )}
-
-      {/* Admin: override tarifa */}
-      {isAdmin && hours > 0 && (
-        <div className="space-y-2 pt-2 border-t border-border">
-          <p className="text-xs text-muted-foreground font-medium">
-            Tarifa aplicada: {getTarifa(clientTarifas, tipoHorario)} €/h (cliente)
-            {adminPriceOverride !== null && " — override activo"}
-          </p>
-          <div className="flex items-center gap-3">
-            <div>
-              <Label className="text-xs">Override tarifa (€/h)</Label>
-              <Input
-                type="number" step="0.5"
-                placeholder={String(getTarifa(clientTarifas, tipoHorario))}
-                value={adminPriceOverride ?? ""}
-                onChange={e => setAdminPriceOverride(e.target.value === "" ? null : parseFloat(e.target.value) || 0)}
-                className="mt-1 rounded-xl w-32"
-              />
-            </div>
-            {adminPriceOverride !== null && (
-              <button
-                onClick={() => setAdminPriceOverride(null)}
-                className="text-xs text-muted-foreground underline mt-5"
-              >
-                Restablecer
-              </button>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
