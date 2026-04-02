@@ -105,208 +105,83 @@ export default function InterventionDetail() {
   const generatePDF = async () => {
     setGeneratingPdf(true);
 
-    // Cargar datos del cliente y del emisor
-    const [clientList, allUserList] = await Promise.all([
+    if (!invoice) {
+      alert('No hay factura generada para este parte.');
+      setGeneratingPdf(false);
+      return;
+    }
+
+    // Cargar datos del cliente, emisor y rectificativas
+    const [clientList, allUserList, rectInvoices] = await Promise.all([
       base44.entities.Client.filter({ id: intervention.client_id }, '-created_date', 1).catch(() => []),
       base44.entities.User.list('full_name', 100).catch(() => []),
+      base44.entities.Invoice.filter({ factura_rectificada_id: invoice.id }, '-created_date', 10).catch(() => []),
     ]);
+    const hasRectificativa = rectInvoices.length > 0 || intervention.status === 'anulado';
+    
     const client = clientList[0] || {};
     const adminUser = allUserList.find(u => u.verifactu_nif) || {};
-
-    // Datos del emisor (Fritecma)
-    const emisorNif = adminUser.verifactu_nif || 'B00000000';
-    const emisorNombre = adminUser.verifactu_nombre || 'FRITECMA S.L.';
-    const emisorDireccion = adminUser.emisor_direccion || '';
-    const emisorTelefono = adminUser.emisor_telefono || '';
-
-    // Datos del cliente
-    const clientNif = client.cif || invoice?.client_nif || '';
-    const clientAddress = client.address ? `${client.address}${client.postal_code ? ', ' + client.postal_code : ''}${client.city ? ' ' + client.city : ''}` : '';
-
-    const mats = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
-    const materialsRows = mats.map((m, i) =>
-      `<tr style="border-bottom:1px solid #e2e8f0">
-        <td style="padding:8px 4px">${i+1}. ${m.material_name || 'Material'}${m.observation ? '<br><span style="font-size:11px;color:#64748b">' + m.observation + '</span>' : ''}</td>
-        <td style="padding:8px 4px;text-align:center">${m.quantity} ${m.unit || 'ud'}</td>
-        <td style="padding:8px 4px;text-align:right">${(m.unit_price||0).toFixed(2)} €</td>
-        <td style="padding:8px 4px;text-align:center">${m.iva_percent || 21}%</td>
-        <td style="padding:8px 4px;text-align:right"><strong>${(m.total||0).toFixed(2)} €</strong></td>
-      </tr>`
-    ).join('');
-
-    // Desglose IVA por tipo
-    const ivaByRate = {};
-    mats.forEach(m => {
-      const rate = m.iva_percent || 21;
-      const lineBase = (m.total || 0) * (1 - (intervention.discount_percent || 0) / 100);
-      if (!ivaByRate[rate]) ivaByRate[rate] = { base: 0, cuota: 0 };
-      ivaByRate[rate].base += lineBase;
-      ivaByRate[rate].cuota += lineBase * (rate / 100);
-    });
-    const ivaRows = Object.entries(ivaByRate).sort(([a],[b]) => Number(a)-Number(b)).map(([rate, vals]) =>
-      `<tr>
-        <td style="padding:6px 8px;font-size:12px">IVA ${rate}%</td>
-        <td style="padding:6px 8px;text-align:right;font-size:12px">${vals.base.toFixed(2)} €</td>
-        <td style="padding:6px 8px;text-align:right;font-size:12px">${vals.cuota.toFixed(2)} €</td>
-      </tr>`
-    ).join('');
-
-    // QR: siempre presente. En producción usa qr_url de la AEAT; en sandbox construye la URL de cotejo de pruebas.
-    const AEAT_QR_BASE_SANDBOX = 'https://prewww2.aeat.es/wlpl/TIKE-CONT/ValidarQR';
-    const qrTargetUrl = invoice?.qr_url || (() => {
-      if (!invoice) return '';
-      const fechaQR = invoice.issue_date?.slice(0,10).split('-').reverse().join('-') || '';
-      const params = new URLSearchParams({
-        nif: invoice.issuer_nif || '',
-        numserie: invoice.invoice_number || '',
-        fecha: fechaQR,
-        importe: (invoice.total || 0).toFixed(2),
-      });
-      return `${AEAT_QR_BASE_SANDBOX}?${params.toString()}`;
-    })();
-
-    const isSandbox = invoice && !invoice.qr_url;
-
-    const isSinEnvio = invoice?.verifactu_status === 'sin_envio';
-    const verifactuBlock = invoice ? (
-      isSinEnvio ? `
-      <div style="padding:14px;border:2px solid #f59e0b;border-radius:8px;background:#fffbeb">
-        <p style="font-size:11px;font-weight:700;color:#92400e;margin:0">⚠️ FACTURA GENERADA — ENVÍO MANUAL REQUERIDO</p>
-        <p style="font-size:10px;color:#b45309;margin:4px 0 0">El XML de la factura es correcto y cumple la Ley Antifraude (hash SHA-256 encadenado). Sin embargo, el envío automático a la AEAT requiere autenticación mTLS que debe realizarse desde el portal de la AEAT o con software homologado.</p>
-        <p style="font-size:10px;color:#b45309;margin:4px 0 0">Nº Factura: <strong>${invoice.invoice_number}</strong> · Hash: ${invoice.hash_huella?.slice(0,32)}...</p>
-      </div>` :
-      `${isSandbox ? `<div style="margin-bottom:10px;padding:10px 14px;border:1px solid #f59e0b;background:#fffbeb;border-radius:8px">
-        <p style="font-size:11px;font-weight:700;color:#92400e;margin:0">⚠️ MODO SANDBOX — PRUEBAS AEAT (sin validez fiscal real)</p>
-        <p style="font-size:10px;color:#b45309;margin:3px 0 0">Factura generada en entorno de pruebas. El QR apunta al cotejo de Sandbox de la AEAT.</p>
-      </div>` : ''}
-      <div style="padding:16px;border:2px solid #1e3a5f;border-radius:8px;display:flex;align-items:flex-start;gap:16px">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(qrTargetUrl)}" width="100" height="100" alt="QR AEAT" />
-        <div>
-          <p style="font-size:11px;font-weight:700;color:#1e3a5f;margin:0">FACTURA VERIFICABLE EN LA SEDE ELECTRÓNICA DE LA AEAT</p>
-          <p style="font-size:10px;color:#475569;margin:4px 0 0">Verificable en www.agenciatributaria.es · ${isSandbox ? 'Entorno Sandbox' : 'Producción'}</p>
-          <p style="font-size:10px;color:#475569;margin:4px 0 0">Nº Factura: ${invoice.invoice_number} · Fecha: ${moment(invoice.issue_date).format('DD/MM/YYYY')}</p>
-          <p style="font-size:10px;color:#475569;margin:2px 0 0">Hash (SHA-256): ${invoice.hash_huella?.slice(0,32)}...</p>
-          ${invoice.verifactu_csv ? `<p style="font-size:10px;color:#475569;margin:2px 0 0">CSV AEAT: ${invoice.verifactu_csv}</p>` : ''}
-        </div>
-      </div>`
-    ) : '';
-
-    // Detectar si hay rectificativa
-    const rectInvoice = rectInvoices && rectInvoices.length > 0 ? rectInvoices[0] : null;
-
-    // Función auxiliar para generar bloque de factura
+    
+    // Función auxiliar para generar bloque de factura HTML
     const generateInvoiceBlock = (inv, titulo) => {
       const mats = inv.lines_json ? JSON.parse(inv.lines_json) : [];
-      const materialsRowsLocal = mats.map((m, i) =>
-        `<tr style="border-bottom:1px solid #e2e8f0">
-          <td style="padding:8px 4px">${i+1}. ${m.material_name || 'Material'}${m.observation ? '<br><span style="font-size:11px;color:#64748b">' + m.observation + '</span>' : ''}</td>
-          <td style="padding:8px 4px;text-align:center">${m.quantity} ${m.unit || 'ud'}</td>
-          <td style="padding:8px 4px;text-align:right">${(m.unit_price||0).toFixed(2)} €</td>
-          <td style="padding:8px 4px;text-align:center">${m.iva_percent || 21}%</td>
-          <td style="padding:8px 4px;text-align:right"><strong>${(m.total||0).toFixed(2)} €</strong></td>
-        </tr>`
-      ).join('');
-
-      const ivaByRateLocal = {};
+      const ivaByRate = {};
       mats.forEach(m => {
         const rate = m.iva_percent || 21;
-        if (!ivaByRateLocal[rate]) ivaByRateLocal[rate] = { base: 0, cuota: 0 };
-        ivaByRateLocal[rate].base += (m.total || 0);
-        ivaByRateLocal[rate].cuota += (m.total || 0) * (rate / 100);
+        if (!ivaByRate[rate]) ivaByRate[rate] = { base: 0, cuota: 0 };
+        ivaByRate[rate].base += m.total || 0;
+        ivaByRate[rate].cuota += (m.total || 0) * (rate / 100);
       });
-      const ivaRowsLocal = Object.entries(ivaByRateLocal).sort(([a],[b]) => Number(a)-Number(b)).map(([rate, vals]) =>
-        `<tr><td style="padding:6px 8px;font-size:12px">IVA ${rate}%</td><td style="padding:6px 8px;text-align:right;font-size:12px">${vals.base.toFixed(2)} €</td><td style="padding:6px 8px;text-align:right;font-size:12px">${vals.cuota.toFixed(2)} €</td></tr>`
-      ).join('');
-
-      return `
-      <div style="page-break-after: always; padding-bottom: 40px;">
-        <h2 style="font-size:18px;color:#1e3a5f;margin:20px 0 10px;border-bottom:2px solid #1e3a5f;padding-bottom:10px">${titulo}</h2>
-        ${mats.length > 0 ? `
-        <table style="width:100%;margin-top:10px;border-collapse:collapse">
-          <thead><tr style="background:#1e3a5f;color:white"><th style="padding:8px;text-align:left">Descripción</th><th style="padding:8px;text-align:center">Cant.</th><th style="padding:8px;text-align:right">Precio Ud.</th><th style="padding:8px;text-align:center">IVA</th><th style="padding:8px;text-align:right">Total</th></tr></thead><tbody>${materialsRowsLocal}</tbody>
+      
+      return `<div style="page-break-after: always; padding: 40px; font-family: Arial, sans-serif;">
+        <h2 style="font-size: 20px; color: #1e3a5f; border-bottom: 2px solid #1e3a5f; padding-bottom: 10px; margin: 0 0 20px;">${titulo}</h2>
+        <p style="font-size: 12px; margin: 5px 0;"><strong>Nº Factura:</strong> ${inv.invoice_number}</p>
+        <p style="font-size: 12px; margin: 5px 0;"><strong>Fecha:</strong> ${moment(inv.issue_date).format('DD/MM/YYYY')}</p>
+        ${hasRectificativa && inv.serie === 'R' ? '<p style="font-size: 12px; color: red; margin: 10px 0; font-weight: bold;">⚠️ Esta factura ANULA la factura original</p>' : ''}
+        <table style="width: 100%; margin-top: 20px; border-collapse: collapse; font-size: 11px;">
+          <thead style="background: #1e3a5f; color: white;">
+            <tr>
+              <th style="padding: 8px; text-align: left;">Descripción</th>
+              <th style="padding: 8px; text-align: center;">Cantidad</th>
+              <th style="padding: 8px; text-align: right;">Precio</th>
+              <th style="padding: 8px; text-align: center;">IVA%</th>
+              <th style="padding: 8px; text-align: right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${mats.map((m, i) => `<tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 8px;">${m.material_name || 'Material'}</td>
+              <td style="padding: 8px; text-align: center;">${m.quantity} ${m.unit || 'ud'}</td>
+              <td style="padding: 8px; text-align: right;">${(m.unit_price || 0).toFixed(2)}€</td>
+              <td style="padding: 8px; text-align: center;">${m.iva_percent || 21}%</td>
+              <td style="padding: 8px; text-align: right;"><strong>${(m.total || 0).toFixed(2)}€</strong></td>
+            </tr>`).join('')}
+          </tbody>
         </table>
-        <div style="display:flex;justify-content:flex-end;margin-top:16px">
-          <div style="min-width:340px">
-            <table style="width:100%;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
-              <tbody>${ivaRowsLocal}</tbody>
-            </table>
-            <div style="margin-top:8px;text-align:right">
-              <p style="margin:4px 0;font-size:12px">Base Imponible: <strong>${inv.subtotal.toFixed(2)} €</strong></p>
-              <p style="margin:4px 0;font-size:12px">Total IVA: <strong>${inv.iva_total.toFixed(2)} €</strong></p>
-              <p style="margin:8px 0 0;font-size:16px;color:#1e3a5f;font-weight:700;border-top:2px solid #1e3a5f;padding-top:6px">TOTAL: ${inv.total.toFixed(2)} €</p>
-            </div>
+        <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+          <div style="min-width: 300px; border: 1px solid #ddd; border-radius: 4px; padding: 12px;">
+            ${Object.entries(ivaByRate).map(([rate, vals]) => `<p style="margin: 4px 0; font-size: 11px;">IVA ${rate}%: ${vals.base.toFixed(2)}€ + ${vals.cuota.toFixed(2)}€</p>`).join('')}
+            <p style="margin: 8px 0 0; padding-top: 8px; border-top: 1px solid #ddd; font-size: 12px;"><strong>TOTAL: ${inv.total.toFixed(2)}€</strong></p>
           </div>
         </div>
-        ` : ''}
-        ${inv.verifactu_status === 'aceptado' || inv.qr_url ? `
-        <div style="margin-top:20px;padding:16px;border:2px solid #1e3a5f;border-radius:8px;display:flex;align-items:flex-start;gap:16px">
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(inv.qr_url || '')}" width="100" height="100" alt="QR" />
-          <div><p style="font-size:11px;font-weight:700;color:#1e3a5f;margin:0">Verificable en AEAT</p><p style="font-size:10px;color:#475569;margin:4px 0 0">Nº: ${inv.invoice_number} · Hash: ${inv.hash_huella?.slice(0,32)}...</p></div>
-        </div>
-        ` : ''}
-      </div>
-      `;
+      </div>`;
     };
-
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Factura ${invoice ? invoice.invoice_number : intervention.number}</title>
-
+    
+    // Generar PDF: original + rectificativas si existen
+    let pdfContent = generateInvoiceBlock(invoice, `Factura Original ${invoice.invoice_number}`);
+    if (hasRectificativa && rectInvoices.length > 0) {
+      rectInvoices.forEach(rect => {
+        pdfContent += generateInvoiceBlock(rect, `Factura Rectificativa ${rect.invoice_number}`);
+      });
+    }
+    
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Factura ${invoice.invoice_number}</title></head><body>${pdfContent}</body></html>`;
+    
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const win = window.open(url, '_blank');
     if (win) win.print();
     setGeneratingPdf(false);
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="w-8 h-8 border-4 border-muted border-t-accent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (!intervention) {
-    return (
-      <div className="p-8 text-center">
-        <p className="text-muted-foreground">Intervención no encontrada</p>
-      </div>
-    );
-  }
-
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
-  const isOficina = user?.role === "oficina";
-  const canEdit = isAdmin || isOficina;
-  // PERMANENTE: parte facturado = bloqueado para siempre (Ley Antifraude)
-  const invoiceAceptada = invoice?.verifactu_status === 'aceptado';
-  const isLocked = intervention?.status === "facturado" || intervention?.status === "completado" || invoiceAceptada;
-
-  const handleRectificativaAnular = async () => {
-  setRectificando(true);
-  try {
-    const res = await base44.functions.invoke('processVerifactu', {
-      intervention_id: id,
-      mode: 'rectificar',
-      original_invoice_id: invoice.id,
-      rectificativa_motivo: 'Anulación completa de factura',
-    });
-    setRectResult(res.data);
-    // Cambiar estado a "Anulado" y registrar log
-    await base44.entities.Intervention.update(id, { status: 'anulado' });
-    await base44.entities.AuditLog.create({
-      action: 'modificacion',
-      entity_type: 'Intervention',
-      entity_id: id,
-      entity_reference: intervention.number,
-      user_email: user.email,
-      user_name: user.full_name,
-      changes_summary: 'Parte anulado - Rectificativa generada: ' + res.data.invoice_number,
-      timestamp: new Date().toISOString(),
-    });
-    await loadData();
-  } catch (e) {
-    alert('Error al anular: ' + e.message);
-  }
-  setRectificando(false);
   };
   const materials = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
 
@@ -345,7 +220,39 @@ export default function InterventionDetail() {
     setValidating(false);
   };
 
+  const handleRectificativaAnular = async () => {
+    setRectificando(true);
+    try {
+      const res = await base44.functions.invoke('processVerifactu', {
+        intervention_id: id,
+        mode: 'rectificar',
+        original_invoice_id: invoice.id,
+        rectificativa_motivo: 'Anulación completa de factura',
+      });
+      setRectResult(res.data);
+      await base44.entities.Intervention.update(id, { status: 'anulado' });
+      await base44.entities.AuditLog.create({
+        action: 'modificacion',
+        entity_type: 'Intervention',
+        entity_id: id,
+        entity_reference: intervention.number,
+        user_email: user.email,
+        user_name: user.full_name,
+        changes_summary: 'Parte anulado - Rectificativa generada: ' + res.data.invoice_number,
+        timestamp: new Date().toISOString(),
+      });
+      await loadData();
+    } catch (e) {
+      alert('Error al anular: ' + e.message);
+    }
+    setRectificando(false);
+  };
 
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
+  const isOficina = user?.role === "oficina";
+  const canEdit = isAdmin || isOficina;
+  const invoiceAceptada = invoice?.verifactu_status === 'aceptado';
+  const isLocked = intervention?.status === "facturado" || intervention?.status === "completado" || invoiceAceptada;
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
@@ -626,16 +533,13 @@ export default function InterventionDetail() {
           {intervention.validated_by && (
           <p className="text-xs text-muted-foreground">✓ Validado por {intervention.validated_by} el {intervention.validated_at ? new Date(intervention.validated_at).toLocaleString("es") : ""}</p>
           )}
-          {/* Log visible de rectificación */}
-          {invoice && (() => {
-           const rectList = invoice.factura_rectificada_id ? true : false;
-           return rectList ? (
-             <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-               <p className="text-xs font-semibold text-amber-900 flex items-center gap-2"><RotateCcw className="h-3.5 w-3.5" /> Rectificada</p>
-               <p className="text-xs text-amber-800 mt-1">Rectificada por {user?.full_name} el {new Date().toLocaleString('es')}</p>
-             </div>
-           ) : null;
-          })()}
+          {/* Registro legal de rectificación */}
+          {intervention.rectified_by_info && (
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+              <p className="text-xs font-semibold text-amber-900 flex items-center gap-2"><RotateCcw className="h-3.5 w-3.5" /> Registro de Rectificación</p>
+              <p className="text-xs text-amber-800 mt-1">{intervention.rectified_by_info}</p>
+            </div>
+          )}
           {!isLocked && (
           <div className="flex gap-2 pt-2 border-t border-border">
             <Button variant="outline" onClick={() => navigate(`/interventions/${id}/edit`)} className="rounded-xl gap-2">
