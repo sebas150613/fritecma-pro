@@ -59,6 +59,10 @@
       "type": "string",
       "title": "L\u00edneas (JSON)"
     },
+    "xml_payload": {
+      "type": "string",
+      "title": "Registro XML Veri*factu (texto plano, conservaci\u00f3n 6 a\u00f1os)"
+    },
     "hash_huella": {
       "type": "string",
       "title": "Huella Digital (Hash SHA-256)"
@@ -71,6 +75,10 @@
       "type": "number",
       "title": "\u00cdndice en la Cadena",
       "default": 1
+    },
+    "retention_until": {
+      "type": "string",
+      "title": "Conservar hasta (YYYY-MM-DD) \u2014 m\u00edn. 6 a\u00f1os"
     },
     "verifactu_status": {
       "type": "string",
@@ -95,10 +103,6 @@
     "qr_url": {
       "type": "string",
       "title": "URL QR Verificaci\u00f3n AEAT"
-    },
-    "pdf_url": {
-      "type": "string",
-      "title": "URL PDF Factura"
     },
     "is_locked": {
       "type": "boolean",

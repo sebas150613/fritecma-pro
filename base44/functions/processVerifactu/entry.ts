@@ -185,7 +185,12 @@ Deno.serve(async (req) => {
       verifactuResponse = `Error conexión AEAT: ${aeatErr.message}. Configure el certificado digital en Ajustes.`;
     }
 
-    // 9. Crear registro de factura
+    // 9. Calcular fecha de retención legal (6 años desde emisión)
+    const retentionDate = new Date();
+    retentionDate.setFullYear(retentionDate.getFullYear() + 6);
+    const retentionUntil = retentionDate.toISOString().slice(0, 10);
+
+    // 10. Crear registro de factura — XML en texto plano, sin PDF
     const invoiceData = {
       invoice_number: invoiceNumber,
       serie: 'A',
@@ -200,9 +205,11 @@ Deno.serve(async (req) => {
       iva_total: intervention.iva_total || 0,
       total: intervention.total || 0,
       lines_json: intervention.materials_json || '[]',
+      xml_payload: xmlPayload,
       hash_huella: hashHuella,
       hash_anterior: hashAnterior,
       invoice_chain_index: chainIndex,
+      retention_until: retentionUntil,
       verifactu_status: verifactuStatus,
       verifactu_csv: csvCode,
       verifactu_response: verifactuResponse,
@@ -215,7 +222,7 @@ Deno.serve(async (req) => {
 
     const invoice = await base44.asServiceRole.entities.Invoice.create(invoiceData);
 
-    // 10. Marcar el parte como facturado e inalterable
+    // 11. Marcar el parte como facturado e inalterable
     await base44.asServiceRole.entities.Intervention.update(intervention_id, {
       status: 'facturado',
       validated_by: user.email,
