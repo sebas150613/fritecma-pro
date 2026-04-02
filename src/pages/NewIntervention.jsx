@@ -318,7 +318,7 @@ export default function NewIntervention() {
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   return (
-    <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6 pb-32">
+    <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6 pb-48">
       {/* Checkin Warning Modal */}
       <Dialog open={showCheckinWarning} onOpenChange={(open) => {
         if (!open) {
@@ -620,7 +620,7 @@ export default function NewIntervention() {
       </div>
 
       {/* Save Button */}
-      <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-card/80 backdrop-blur-xl border-t border-border p-4">
+      <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-card/80 backdrop-blur-xl border-t border-border p-4 pb-20 lg:pb-4">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div>
             {isAdmin && (

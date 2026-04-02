@@ -83,10 +83,10 @@ export default function Interventions() {
       <PullToRefresh onRefresh={loadData}>
         <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold tracking-tight">Intervenciones</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Partes</h1>
         <Link to="/interventions/new">
           <Button className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
-            <Plus className="h-4 w-4 mr-2" /> Nueva Incidencia
+            <Plus className="h-4 w-4 mr-2" /> Nuevo Parte
           </Button>
         </Link>
       </div>
@@ -102,7 +102,7 @@ export default function Interventions() {
           <TabsList className="rounded-xl">
             <TabsTrigger value="pending" className="rounded-xl gap-2">
               <AlertTriangle className="h-4 w-4" />
-              Incidencias en Curso
+              Partes en Curso
               {pending.length > 0 && <span className="ml-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full">{pending.length}</span>}
             </TabsTrigger>
             <TabsTrigger value="validation" className="rounded-xl gap-2">
@@ -118,7 +118,7 @@ export default function Interventions() {
           <TabsContent value="pending" className="mt-4">
             {pending.length === 0 ? (
               <div className="bg-card rounded-2xl border border-border p-12 text-center">
-                <p className="text-muted-foreground">No hay incidencias en curso</p>
+                <p className="text-muted-foreground">No hay partes en curso</p>
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
