@@ -290,7 +290,9 @@ ${verifactuBlock}
   const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
   const isOficina = user?.role === "oficina";
   const canEdit = isAdmin || isOficina;
-  const isLocked = intervention?.status === "completado"; // TEMPORAL: facturado no bloquea para pruebas
+  // PERMANENTE: si la factura fue aceptada por la AEAT, queda bloqueada para siempre (Ley Antifraude)
+  const invoiceAceptada = invoice?.verifactu_status === 'aceptado';
+  const isLocked = intervention?.status === "completado" || invoiceAceptada; // TEMPORAL pruebas: facturado no bloquea, PERO aceptado sí
   const materials = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
 
   const handleDelete = async () => {
