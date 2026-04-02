@@ -96,7 +96,7 @@ export default function AppSettings() {
   const isSuperAdmin = user?.role === "superadmin";
 
   return (
-    <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
+    <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6 pb-32 lg:pb-8">
       <div className="flex items-center gap-3">
         <Settings className="h-6 w-6 text-accent" />
         <h1 className="text-2xl font-bold tracking-tight">Configuración</h1>
