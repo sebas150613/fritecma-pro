@@ -408,10 +408,12 @@ Deno.serve(async (req) => {
         const codigoError = codigoMatch ? codigoMatch[1] : '';
         const estadoMatch = responseText.match(/<EstadoEnvio>([^<]+)<\/EstadoEnvio>/);
         const estadoEnvio = estadoMatch ? estadoMatch[1] : '';
+        const estadoRegistroMatch = responseText.match(/<EstadoRegistro>([^<]+)<\/EstadoRegistro>/);
+        const estadoRegistro = estadoRegistroMatch ? estadoRegistroMatch[1] : '';
         const esDuplicado = ['30002', '30003', '21000055'].includes(codigoError); // Códigos AEAT para duplicado/factura ya registrada
 
-        // Producción: requiere AMBOS CSV e IDRegistro + EstadoEnvio='Correcto'
-        if (csvMatch && idRegistro && estadoEnvio === 'Correcto') {
+        // Producción: requiere CSV + IDRegistro + EstadoEnvio='Correcto' + EstadoRegistro='Correcto'
+        if (csvMatch && idRegistro && estadoEnvio === 'Correcto' && estadoRegistro === 'Correcto') {
           csvCode = csvMatch[1];
           verifactuStatus = 'aceptado';
           console.log(JSON.stringify({ evento: 'aceptado', csv: csvCode, idRegistro, timestamp: timestampAeat }));
