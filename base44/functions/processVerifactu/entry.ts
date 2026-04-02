@@ -289,7 +289,8 @@ Deno.serve(async (req) => {
           </sum:SistemaInformatico>
           <sum:FechaHoraHusoHorarioGenRegistro>${now.slice(0, 19)}+01:00</sum:FechaHoraHusoHorarioGenRegistro>
           <sum:Huella>${hashHuella}</sum:Huella>
-        </sum:RegistroAlta>
+          <sum:TipoHuella>01</sum:TipoHuella>
+          </sum:RegistroAlta>
       </sum:RegistroFactura>
     </sum:RegFactuSistemaFacturacion>
   </soapenv:Body>
