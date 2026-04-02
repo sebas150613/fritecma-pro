@@ -254,6 +254,14 @@ export default function InterventionDetail() {
   const invoiceAceptada = invoice?.verifactu_status === 'aceptado';
   const isLocked = intervention?.status === "facturado" || intervention?.status === "completado" || invoiceAceptada;
 
+  if (loading || !intervention) {
+    return (
+      <div className="p-4 lg:p-8 max-w-3xl mx-auto flex items-center justify-center min-h-screen">
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
 
