@@ -60,12 +60,11 @@ export default function InterventionDetail() {
   }, [id]);
 
   const loadData = async () => {
-    const [me, items, visitList, invoiceList, rectList] = await Promise.all([
+    const [me, items, visitList, invoiceList] = await Promise.all([
       base44.auth.me(),
       base44.entities.Intervention.filter({ id }, "-created_date", 1),
       base44.entities.Visit.filter({ intervention_id: id }, "date", 50),
       base44.entities.Invoice.filter({ intervention_id: id }, "-created_date", 1),
-      base44.entities.Invoice.filter({ factura_rectificada_id: invoiceList?.length > 0 ? invoiceList[0]?.id : null }, "-created_date", 1).catch(() => []),
     ]);
     setUser(me);
     if (items.length > 0) setIntervention(items[0]);
