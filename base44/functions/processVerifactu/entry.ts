@@ -80,9 +80,11 @@ Deno.serve(async (req) => {
     const prevInvoices = await base44.asServiceRole.entities.Invoice.list('-invoice_chain_index', 1);
     const hashAnterior = prevInvoices.length > 0 ? (prevInvoices[0].hash_huella || '') : '';
 
-    // 4. Leer NIF y nombre desde secrets (configurados en Ajustes)
-    const emisorNif = Deno.env.get('VERIFACTU_NIF') || 'B00000000';
-    const emisorNombre = Deno.env.get('VERIFACTU_NOMBRE') || 'EMPRESA S.L.';
+    // 4. NIF y nombre: primero del perfil del admin (guardado desde Ajustes), luego secrets como fallback
+    const adminUsers = await base44.asServiceRole.entities.User.filter({ role: 'admin' }, '-created_date', 1);
+    const adminUser = adminUsers[0] || {};
+    const emisorNif = adminUser.verifactu_nif || Deno.env.get('VERIFACTU_NIF') || 'B00000000';
+    const emisorNombre = adminUser.verifactu_nombre || Deno.env.get('VERIFACTU_NOMBRE') || 'EMPRESA S.L.';
 
     // 5. Construir string para hash (según spec Veri*factu: NIF+NombreEmisor+NumFactura+FechaExpedicion+TipoFactura+CuotaTotal+ImporteTotal+Huella Anterior+FechaHoraHuella)
     const fechaHoraHuella = now.replace(/[-:T.Z]/g, '').slice(0, 14);
