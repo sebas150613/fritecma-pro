@@ -23,14 +23,41 @@ async function sha256(text) {
 }
 
 // Calcula zona horaria dinámica: UTC+2 en verano (CEST), UTC+1 en invierno (CET)
+// CRÍTICO: Este offset se incluye en el hash SHA-256 y en FechaHoraHusoHorarioGenRegistro.
+// Errores aquí rompen la firma fiscal sin aviso. Para producción real, usar luxon o equivalent.
 function getTimeZoneOffset(date) {
-  // España cambio de hora: último domingo de marzo (inicio verano) y último domingo de octubre (fin verano)
-  const year = date.getFullYear();
-  const lastSunMar = new Date(year, 2, 31);
-  lastSunMar.setDate(lastSunMar.getDate() - ((lastSunMar.getDay() + 6) % 7));
-  const lastSunOct = new Date(year, 9, 31);
-  lastSunOct.setDate(lastSunOct.getDate() - ((lastSunOct.getDay() + 6) % 7));
-  return (date >= lastSunMar && date < lastSunOct) ? '+02:00' : '+01:00';
+  if (!date || !(date instanceof Date) || isNaN(date)) {
+    console.warn(JSON.stringify({ evento: 'error_timezone_fecha_invalida', tipo: typeof date }));
+    return '+01:00'; // fallback seguro
+  }
+  
+  try {
+    const year = date.getFullYear();
+    
+    // España: último domingo de marzo (inicio verano) y último domingo de octubre (fin verano)
+    // En 2026: 29-marzo (verano) y 25-octubre (invierno)
+    const lastSunMar = new Date(year, 2, 31);
+    lastSunMar.setDate(lastSunMar.getDate() - ((lastSunMar.getDay() + 6) % 7));
+    
+    const lastSunOct = new Date(year, 9, 31);
+    lastSunOct.setDate(lastSunOct.getDate() - ((lastSunOct.getDay() + 6) % 7));
+    
+    const isSummer = date >= lastSunMar && date < lastSunOct;
+    const offset = isSummer ? '+02:00' : '+01:00';
+    
+    console.log(JSON.stringify({
+      evento: 'timezone_calculado',
+      fecha: date.toISOString(),
+      offset,
+      esMesVerano: isSummer,
+      cambioVeX: 'desde ' + lastSunMar.toISOString().slice(0, 10) + ' hasta ' + lastSunOct.toISOString().slice(0, 10),
+    }));
+    
+    return offset;
+  } catch (err) {
+    console.error(JSON.stringify({ evento: 'error_calculando_timezone', error: err.message }));
+    return '+01:00'; // fallback seguro
+  }
 }
 
 // Envía XML a AEAT vía mTLS y parsea respuesta
@@ -472,7 +499,15 @@ Deno.serve(async (req) => {
     const qrUrlBase = `${AEAT_QR_BASE}?${qrParams.toString()}`;
 
     // 7. Construir XML Veri*factu (estructura básica RegFactuSistemaFacturacion)
-    const timeZoneOffset = getTimeZoneOffset(new Date(now));
+    // CRÍTICO: El timezone offset aquí se usa en el hash SHA-256. Cualquier error rompe la firma.
+    const nowDate = new Date(now);
+    const timeZoneOffset = getTimeZoneOffset(nowDate);
+    
+    // Validación adicional: confirmar que el offset esté en formato ISO correcto
+    if (!/^[+-]\d{2}:\d{2}$/.test(timeZoneOffset)) {
+      console.error(JSON.stringify({ evento: 'timezone_offset_invalido', offset: timeZoneOffset, fallback: '+01:00' }));
+      return Response.json({ error: 'Timezone offset inválido' }, { status: 500 });
+    }
     const xmlPayload = `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sum="https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR.xsd">
   <soapenv:Header/>
