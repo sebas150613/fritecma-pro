@@ -1,5 +1,18 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
+// ── CONFIGURACIÓN DE ENTORNO ──────────────────────────────────────────────────
+// Cambia VERIFACTU_PRODUCCION a 'true' en secrets para activar producción real.
+const IS_PRODUCCION = Deno.env.get('VERIFACTU_PRODUCCION') === 'true';
+
+const AEAT_ENDPOINT = IS_PRODUCCION
+  ? 'https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP'
+  : 'https://prewww1.aeat.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP';
+
+const AEAT_QR_BASE = IS_PRODUCCION
+  ? 'https://www2.aeat.es/wlpl/TIKE-CONT/ValidarQR'
+  : 'https://prewww2.aeat.es/wlpl/TIKE-CONT/ValidarQR';
+// ─────────────────────────────────────────────────────────────────────────────
+
 // SHA-256 hash usando Web Crypto API (async)
 async function sha256(text) {
   const encoder = new TextEncoder();
@@ -67,10 +80,9 @@ Deno.serve(async (req) => {
     const prevInvoices = await base44.asServiceRole.entities.Invoice.list('-invoice_chain_index', 1);
     const hashAnterior = prevInvoices.length > 0 ? (prevInvoices[0].hash_huella || '') : '';
 
-    // 4. Cargar configuración (NIF emisor desde settings si existe)
-    const settings = await base44.asServiceRole.entities.User.filter({ email: user.email }, '-created_date', 1);
-    const emisorNif = 'B12345678'; // Reemplazar con NIF real de la empresa
-    const emisorNombre = 'FRITECMA S.L.';
+    // 4. Leer NIF y nombre desde secrets (configurados en Ajustes)
+    const emisorNif = Deno.env.get('VERIFACTU_NIF') || 'B00000000';
+    const emisorNombre = Deno.env.get('VERIFACTU_NOMBRE') || 'EMPRESA S.L.';
 
     // 5. Construir string para hash (según spec Veri*factu: NIF+NombreEmisor+NumFactura+FechaExpedicion+TipoFactura+CuotaTotal+ImporteTotal+Huella Anterior+FechaHoraHuella)
     const fechaHoraHuella = now.replace(/[-:T.Z]/g, '').slice(0, 14);
@@ -88,14 +100,14 @@ Deno.serve(async (req) => {
 
     const hashHuella = await sha256(hashInput);
 
-    // 6. Generar URL QR verificación AEAT (sandbox)
+    // 6. Generar URL QR verificación AEAT (sandbox o producción según flag)
     const qrParams = new URLSearchParams({
       nif: emisorNif,
       numserie: invoiceNumber,
       fecha: now.slice(0, 10),
       importe: (intervention.total || 0).toFixed(2),
     });
-    const qrUrl = `https://prewww2.aeat.es/wlpl/TIKE-CONT/ValidarQR?${qrParams.toString()}`;
+    const qrUrl = `${AEAT_QR_BASE}?${qrParams.toString()}`;
 
     // 7. Construir XML Veri*factu (estructura básica RegFactuSistemaFacturacion)
     const xmlPayload = `<?xml version="1.0" encoding="UTF-8"?>
@@ -152,37 +164,42 @@ Deno.serve(async (req) => {
   </soapenv:Body>
 </soapenv:Envelope>`;
 
-    // 8. Enviar a AEAT (sandbox/preproducción)
-    // Para producción: https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP
+    // 8. Enviar a AEAT — sandbox o producción según flag VERIFACTU_PRODUCCION
     let verifactuStatus = 'pendiente';
     let verifactuResponse = '';
     let csvCode = '';
 
-    try {
-      const aeatUrl = 'https://prewww1.aeat.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP';
-      const aeatRes = await fetch(aeatUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
-          'SOAPAction': 'https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR',
-        },
-        body: xmlPayload,
-        signal: AbortSignal.timeout(10000),
-      });
-      const responseText = await aeatRes.text();
-      verifactuResponse = responseText.slice(0, 1000);
-      // Extraer CSV si viene en la respuesta
-      const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
-      if (csvMatch) {
-        csvCode = csvMatch[1];
-        verifactuStatus = 'aceptado';
-      } else {
-        verifactuStatus = 'enviado';
+    if (!IS_PRODUCCION) {
+      // ── MODO SANDBOX: simula respuesta OK de la AEAT para pruebas ──
+      // En producción se usará el endpoint real con certificado .p12
+      csvCode = `SANDBOX-${hashHuella.slice(0, 16)}`;
+      verifactuStatus = 'aceptado';
+      verifactuResponse = `[SANDBOX] Simulación OK. Hash: ${hashHuella}. Endpoint que se usará en producción: ${AEAT_ENDPOINT}`;
+    } else {
+      // ── MODO PRODUCCIÓN: envío real a la AEAT ──
+      try {
+        const aeatRes = await fetch(AEAT_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/xml; charset=utf-8',
+            'SOAPAction': 'https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR',
+          },
+          body: xmlPayload,
+          signal: AbortSignal.timeout(15000),
+        });
+        const responseText = await aeatRes.text();
+        verifactuResponse = responseText.slice(0, 1000);
+        const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
+        if (csvMatch) {
+          csvCode = csvMatch[1];
+          verifactuStatus = 'aceptado';
+        } else {
+          verifactuStatus = 'enviado';
+        }
+      } catch (aeatErr) {
+        verifactuStatus = 'pendiente';
+        verifactuResponse = `Error conexión AEAT: ${aeatErr.message}`;
       }
-    } catch (aeatErr) {
-      // AEAT no disponible (sandbox o sin certificado configurado)
-      verifactuStatus = 'pendiente';
-      verifactuResponse = `Error conexión AEAT: ${aeatErr.message}. Configure el certificado digital en Ajustes.`;
     }
 
     // 9. Calcular fecha de retención legal (6 años desde emisión)
