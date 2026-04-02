@@ -38,7 +38,7 @@ function getTarifa(clientTarifas, tipoHorario) {
 export default function LaborSection({ materials, isAdmin, onLaborLines, currentUser, allUsers = [], clientTarifas = null }) {
   const [startTime, setStartTime]   = useState("");
   const [endTime, setEndTime]       = useState("");
-  const [tipoHorario, setTipoHorario] = useState("normal");
+  const [tipoHorario, setTipoHorario] = useState("");
   const [mode, setMode]             = useState("1_oficial");
   const [customCount, setCustomCount] = useState(2);
   const [helperEmail, setHelperEmail] = useState("");
@@ -83,7 +83,7 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
   const getUserName = (email) => allUsers.find(u => u.email === email)?.full_name || email;
 
   useEffect(() => {
-    if (hours <= 0) { onLaborLines([]); return; }
+    if (hours <= 0 || !tipoHorario) { onLaborLines([]); return; }
 
     const rate = baseRate;
     const ayRate = mode === "oficial_ayudante" ? ayudanteRate : rate;
@@ -182,13 +182,18 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
           Tipo de Horario <span className="text-destructive">*</span>
         </Label>
         <Select value={tipoHorario} onValueChange={setTipoHorario}>
-          <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Seleccionar tipo de horario..." /></SelectTrigger>
           <SelectContent>
             {SCHEDULE_TYPES.map(s => (
               <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
+        {hours > 0 && !tipoHorario && (
+          <p className="text-xs text-destructive flex items-center gap-1 mt-1 font-medium">
+            <AlertCircle className="h-3 w-3" /> Obligatorio: selecciona el tipo de horario para registrar las horas
+          </p>
+        )}
         {!tarifaCargada && (
           <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
             <AlertCircle className="h-3 w-3" /> Sin tarifas configuradas en el cliente — se usarán valores por defecto

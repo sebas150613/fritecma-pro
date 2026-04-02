@@ -58,7 +58,7 @@ export default function NewIntervention() {
     incident_status: "finalizado",
     helper_email: "",
     helper_name: "",
-    tipo_horario: "normal",
+    tipo_horario: "",
   });
 
   const [lines, setLines] = useState([]);
