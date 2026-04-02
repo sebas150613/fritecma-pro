@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
+import { Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -161,6 +162,21 @@ export default function EditIntervention() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="w-8 h-8 border-4 border-muted border-t-accent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Bloqueo legal: parte facturado es inalterable (Ley Antifraude)
+  if (original?.status === 'facturado') {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center gap-4 text-center max-w-md mx-auto">
+        <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center">
+          <Lock className="h-8 w-8 text-amber-600" />
+        </div>
+        <h2 className="text-xl font-bold">Parte bloqueado</h2>
+        <p className="text-muted-foreground text-sm">Este parte ha sido facturado bajo el protocolo Veri*factu y es inalterable según la Ley 11/2021 (Antifraude). No se puede modificar ningún dato.</p>
+        <p className="text-xs text-muted-foreground">Si hay un error, genera una <strong>Factura Rectificativa</strong> desde el detalle del parte.</p>
+        <Button variant="outline" onClick={() => navigate(`/interventions/${id}`)} className="rounded-xl mt-2">Volver al Parte</Button>
       </div>
     );
   }

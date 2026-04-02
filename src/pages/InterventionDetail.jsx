@@ -305,9 +305,9 @@ ${verifactuBlock}
   const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
   const isOficina = user?.role === "oficina";
   const canEdit = isAdmin || isOficina;
-  // PERMANENTE: si la factura fue aceptada por la AEAT, queda bloqueada para siempre (Ley Antifraude)
+  // PERMANENTE: parte facturado = bloqueado para siempre (Ley Antifraude)
   const invoiceAceptada = invoice?.verifactu_status === 'aceptado';
-  const isLocked = intervention?.status === "completado" || invoiceAceptada; // TEMPORAL pruebas: facturado no bloquea, PERO aceptado sí
+  const isLocked = intervention?.status === "facturado" || intervention?.status === "completado" || invoiceAceptada;
   const materials = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
 
   const handleDelete = async () => {
@@ -572,7 +572,7 @@ ${verifactuBlock}
               </div>
             )}
 
-            {invoiceAceptada && (
+            {(invoiceAceptada || intervention?.status === 'facturado') && invoice && (
               <Button variant="outline" onClick={() => setShowRectModal(true)} className="rounded-xl gap-2 border-amber-300 text-amber-700 hover:bg-amber-50">
                 <RotateCcw className="h-4 w-4" /> Rectificativa
               </Button>
