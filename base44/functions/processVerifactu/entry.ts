@@ -386,29 +386,23 @@ Deno.serve(async (req) => {
         verifactuResponse = responseText.slice(0, 2000);
 
         const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
-        const estadoMatch = responseText.match(/<EstadoEnvio>([^<]+)<\/EstadoEnvio>/);
-        const codigoMatch = responseText.match(/<CodigoErrorRegistro>([^<]+)<\/CodigoErrorRegistro>/);
-
-        // Extraer IDRegistro y Timestamp AEAT
         const idRegistroMatch = responseText.match(/<IDRegistro>([^<]+)<\/IDRegistro>/);
         const idRegistro = idRegistroMatch ? idRegistroMatch[1] : '';
-        const timestampMatch = responseText.match(/<FechaHoraRecepcion>([^<]+)<\/FechaHoraRecepcion>/);
-        const timestampAeat = timestampMatch ? timestampMatch[1] : '';
-        
-        if (csvMatch) {
+        const codigoMatch = responseText.match(/<CodigoErrorRegistro>([^<]+)<\/CodigoErrorRegistro>/);
+
+        // Producción: requiere AMBOS CSV e IDRegistro
+        if (csvMatch && idRegistro) {
           csvCode = csvMatch[1];
           verifactuStatus = 'aceptado';
           console.log(`[Verifactu] ACEPTADO - CSV: ${csvCode}, IDRegistro: ${idRegistro}`);
-        } else if (estadoMatch && (estadoMatch[1] === 'Correcto' || estadoMatch[1] === 'AceptadoConErrores')) {
-          verifactuStatus = 'aceptado';
-          console.log(`[Verifactu] ACEPTADO - EstadoEnvio: ${estadoMatch[1]}, IDRegistro: ${idRegistro}`);
         } else if (codigoMatch) {
           verifactuStatus = 'rechazado';
           verifactuResponse = `Error AEAT: ${codigoMatch[1]} — ${verifactuResponse}`;
           console.warn(`[Verifactu] RECHAZADO - Código: ${codigoMatch[1]}`);
         } else {
-          verifactuStatus = 'enviado';
-          console.log('[Verifactu] Enviado - respuesta sin CSV ni error claro');
+          verifactuStatus = 'error';
+          verifactuResponse = 'Respuesta AEAT inválida: falta CSV o IDRegistro';
+          console.warn('[Verifactu] ERROR - Respuesta sin CSV o IDRegistro');
         }
       }
 
