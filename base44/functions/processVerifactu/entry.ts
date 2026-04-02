@@ -22,6 +22,17 @@ async function sha256(text) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
 }
 
+// Calcula zona horaria dinámica: UTC+2 en verano (CEST), UTC+1 en invierno (CET)
+function getTimeZoneOffset(date) {
+  // España cambio de hora: último domingo de marzo (inicio verano) y último domingo de octubre (fin verano)
+  const year = date.getFullYear();
+  const lastSunMar = new Date(year, 2, 31);
+  lastSunMar.setDate(lastSunMar.getDate() - ((lastSunMar.getDay() + 6) % 7));
+  const lastSunOct = new Date(year, 9, 31);
+  lastSunOct.setDate(lastSunOct.getDate() - ((lastSunOct.getDay() + 6) % 7));
+  return (date >= lastSunMar && date < lastSunOct) ? '+02:00' : '+01:00';
+}
+
 // Genera número de factura correlativo
 async function getNextInvoiceNumber(base44, serie = 'A') {
   const year = new Date().getFullYear();
@@ -240,6 +251,7 @@ Deno.serve(async (req) => {
     const qrUrlBase = `${AEAT_QR_BASE}?${qrParams.toString()}`;
 
     // 7. Construir XML Veri*factu (estructura básica RegFactuSistemaFacturacion)
+    const timeZoneOffset = getTimeZoneOffset(new Date(now));
     const xmlPayload = `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sum="https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR.xsd">
   <soapenv:Header/>
@@ -287,10 +299,10 @@ Deno.serve(async (req) => {
             <sum:NombreSistemaInformatico>FRITECMA App</sum:NombreSistemaInformatico>
             <sum:Version>1.0</sum:Version>
           </sum:SistemaInformatico>
-          <sum:FechaHoraHusoHorarioGenRegistro>${now.slice(0, 19)}+01:00</sum:FechaHoraHusoHorarioGenRegistro>
+          <sum:FechaHoraHusoHorarioGenRegistro>${now.slice(0, 19)}${timeZoneOffset}</sum:FechaHoraHusoHorarioGenRegistro>
           <sum:Huella>${hashHuella}</sum:Huella>
           <sum:TipoHuella>01</sum:TipoHuella>
-          </sum:RegistroAlta>
+        </sum:RegistroAlta>
       </sum:RegistroFactura>
     </sum:RegFactuSistemaFacturacion>
   </soapenv:Body>
