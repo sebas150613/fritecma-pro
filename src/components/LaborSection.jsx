@@ -23,6 +23,8 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
   const [endTime, setEndTime] = useState("");
   const [mode, setMode] = useState("1_oficial");
   const [customCount, setCustomCount] = useState(2);
+  const [helperEmail, setHelperEmail] = useState("");
+  const [extraOperators, setExtraOperators] = useState([]);
 
   // Derived operator count based on mode
   const operatorCount = mode === "1_oficial" ? 1 : mode === "oficial_ayudante" ? 2 : customCount;
@@ -32,10 +34,6 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
     if (newMode === "1_oficial") setCustomCount(1);
     else if (newMode === "oficial_ayudante") setCustomCount(2);
   };
-  // helper for oficial_ayudante mode
-  const [helperEmail, setHelperEmail] = useState("");
-  // additional operators for custom mode (array of emails, length = customCount - 1)
-  const [extraOperators, setExtraOperators] = useState([]);
 
   const moMaterials = materials.filter(m => m.category === "mano_de_obra");
   const defaultPrice = moMaterials[0]?.sell_price || 45;
@@ -67,8 +65,6 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
 
   const hours = calcHours(startTime, endTime);
   const principalName = currentUser?.full_name || "Técnico Principal";
-
-  // Helpers
   const otherUsers = allUsers.filter(u => u.email !== currentUser?.email);
   const getUserName = (email) => allUsers.find(u => u.email === email)?.full_name || email;
 
@@ -101,14 +97,12 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
         },
       ];
     } else if (mode === "custom") {
-      // Principal line
       lines = [{
         material_id: defaultId, material_name: defaultName, unit: defaultUnit, iva_percent: defaultIva,
         quantity: hours, unit_price: oficialPrice, total: hours * oficialPrice,
         observation: `${principalName} · ${startTime} - ${endTime}`,
         _isLabor: true,
       }];
-      // Additional operators
       extraOperators.forEach((email, i) => {
         const name = email ? getUserName(email) : `Operario ${i + 2}`;
         lines.push({
@@ -172,7 +166,7 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
         </Select>
       </div>
 
-      {/* Nº Operarios — siempre visible, editable solo en modo custom */}
+      {/* Nº Operarios — solo lectura excepto en custom */}
       <div>
         <Label>Nº de Operarios</Label>
         <Input
@@ -187,7 +181,7 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
       {/* Oficial + Ayudante: selector de ayudante */}
       {mode === "oficial_ayudante" && (
         <div>
-          <Label>Ayudante / Segundo Técnico *</Label>
+          <Label>Ayudante / Segundo Técnico</Label>
           <Select value={helperEmail} onValueChange={setHelperEmail}>
             <SelectTrigger className="mt-1 rounded-xl">
               <SelectValue placeholder="Seleccionar ayudante..." />
@@ -226,7 +220,21 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
         </div>
       )}
 
-      {/* Prices — admin only */}
+      {/* Total MO — visible para todos, sin € para técnico */}
+      {hours > 0 && (
+        <div className="bg-primary/5 rounded-xl px-4 py-2.5 text-sm font-medium">
+          {isAdmin
+            ? (mode === "oficial_ayudante"
+                ? `Total MO: ${(hours * oficialPrice + hours * ayudanteCustomPrice).toFixed(2)} €`
+                : mode === "custom"
+                  ? `Total MO (${customCount} × ${hours}h): ${(hours * customCount * oficialPrice).toFixed(2)} €`
+                  : `Total MO: ${(hours * oficialPrice).toFixed(2)} €`)
+            : `${hours.toFixed(2)} h × ${operatorCount} operario${operatorCount !== 1 ? "s" : ""} = ${(hours * operatorCount).toFixed(2)} unidades de trabajo`
+          }
+        </div>
+      )}
+
+      {/* Tarifas — solo admin/oficina */}
       {isAdmin && hours > 0 && (
         <div className="space-y-3 pt-2 border-t border-border">
           <p className="text-xs text-muted-foreground font-medium">Tarifas (€/h)</p>
@@ -245,14 +253,6 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
                   className="mt-1 rounded-xl w-28" />
               </div>
             )}
-          </div>
-          <div className="bg-primary/5 rounded-xl px-4 py-2.5 text-sm font-medium">
-            {mode === "oficial_ayudante"
-              ? `Total MO: ${(hours * oficialPrice + hours * ayudanteCustomPrice).toFixed(2)} €`
-              : mode === "custom"
-                ? `Total MO (${customCount} × ${hours}h): ${(hours * customCount * oficialPrice).toFixed(2)} €`
-                : `Total MO: ${(hours * oficialPrice).toFixed(2)} €`
-            }
           </div>
         </div>
       )}
