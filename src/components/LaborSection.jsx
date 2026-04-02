@@ -23,6 +23,15 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
   const [endTime, setEndTime] = useState("");
   const [mode, setMode] = useState("1_oficial");
   const [customCount, setCustomCount] = useState(2);
+
+  // Derived operator count based on mode
+  const operatorCount = mode === "1_oficial" ? 1 : mode === "oficial_ayudante" ? 2 : customCount;
+
+  const handleModeChange = (newMode) => {
+    setMode(newMode);
+    if (newMode === "1_oficial") setCustomCount(1);
+    else if (newMode === "oficial_ayudante") setCustomCount(2);
+  };
   // helper for oficial_ayudante mode
   const [helperEmail, setHelperEmail] = useState("");
   // additional operators for custom mode (array of emails, length = customCount - 1)
@@ -153,7 +162,7 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
       {/* Operator mode */}
       <div>
         <Label className="flex items-center gap-2"><Users className="h-3.5 w-3.5" /> Tipo de Operarios</Label>
-        <Select value={mode} onValueChange={setMode}>
+        <Select value={mode} onValueChange={handleModeChange}>
           <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
           <SelectContent>
             {OPERATOR_MODES.map(m => (
@@ -161,6 +170,18 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      {/* Nº Operarios — siempre visible, editable solo en modo custom */}
+      <div>
+        <Label>Nº de Operarios</Label>
+        <Input
+          type="number" min="1"
+          value={operatorCount}
+          disabled={mode !== "custom"}
+          onChange={e => mode === "custom" && setCustomCount(Math.max(1, parseInt(e.target.value) || 1))}
+          className={`mt-1 rounded-xl w-32 ${mode !== "custom" ? "bg-muted/50 cursor-not-allowed" : ""}`}
+        />
       </div>
 
       {/* Oficial + Ayudante: selector de ayudante */}
@@ -180,17 +201,9 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
         </div>
       )}
 
-      {/* Custom: nº operarios + selectores adicionales */}
+      {/* Custom: selectores adicionales */}
       {mode === "custom" && (
         <div className="space-y-3">
-          <div>
-            <Label>Nº Total de Operarios (incluido principal)</Label>
-            <Input
-              type="number" min="1" value={customCount}
-              onChange={e => setCustomCount(Math.max(1, parseInt(e.target.value) || 1))}
-              className="mt-1 rounded-xl w-32"
-            />
-          </div>
           {extraOperators.map((email, i) => (
             <div key={i}>
               <Label>Operario {i + 2}</Label>
