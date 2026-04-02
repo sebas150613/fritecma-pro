@@ -101,10 +101,12 @@ Deno.serve(async (req) => {
     const hashHuella = await sha256(hashInput);
 
     // 6. Generar URL QR verificación AEAT (sandbox o producción según flag)
+    // La AEAT exige fecha en formato DD-MM-YYYY en el QR
+    const fechaQR = now.slice(0, 10).split('-').reverse().join('-');
     const qrParams = new URLSearchParams({
       nif: emisorNif,
       numserie: invoiceNumber,
-      fecha: now.slice(0, 10),
+      fecha: fechaQR,
       importe: (intervention.total || 0).toFixed(2),
     });
     const qrUrl = `${AEAT_QR_BASE}?${qrParams.toString()}`;
