@@ -406,6 +406,8 @@ Deno.serve(async (req) => {
         timestampAeat = timestampMatch ? timestampMatch[2] : '';
         const codigoMatch = responseText.match(/<CodigoErrorRegistro>([^<]+)<\/CodigoErrorRegistro>/);
         const codigoError = codigoMatch ? codigoMatch[1] : '';
+        const descMatch = responseText.match(/<DescripcionErrorRegistro>([^<]+)<\/DescripcionErrorRegistro>/);
+        const descripcionError = descMatch ? descMatch[1] : '';
         const estadoMatch = responseText.match(/<EstadoEnvio>([^<]+)<\/EstadoEnvio>/);
         const estadoEnvio = estadoMatch ? estadoMatch[1] : '';
         const estadoRegistroMatch = responseText.match(/<EstadoRegistro>([^<]+)<\/EstadoRegistro>/);
@@ -419,7 +421,7 @@ Deno.serve(async (req) => {
           console.log(JSON.stringify({ evento: 'aceptado', csv: csvCode, idRegistro, timestamp: timestampAeat }));
         } else if (codigoError) {
           verifactuStatus = esDuplicado ? 'duplicado' : 'rechazado';
-          verifactuResponse = `Error AEAT: ${codigoError} — ${verifactuResponse}`;
+          verifactuResponse = `Error AEAT: ${codigoError}${descripcionError ? ' - ' + descripcionError : ''}`;
           console.warn(JSON.stringify({ evento: 'rechazado', codigo: codigoError, esDuplicado }));
         } else {
           verifactuStatus = 'error';
