@@ -863,14 +863,29 @@ Deno.serve(async (req) => {
 
     const invoice = await base44.asServiceRole.entities.Invoice.create(invoiceData);
 
-    // 11. Marcar el parte como facturado e inalterable
-    await base44.asServiceRole.entities.Intervention.update(intervention_id, {
-      status: 'facturado',
-      validated_by: user.email,
-      validated_at: now,
-    });
+    // 11. Si el envío no fue aceptado inmediatamente, agregarlo a la cola de reintentos
+    if (verifactuStatus !== 'aceptado' && verifactuStatus !== 'duplicado') {
+      try {
+        await base44.asServiceRole.entities.InvoiceRetryQueue.create({
+          invoice_id: invoice.id,
+          invoice_number: invoiceNumber,
+          retry_count: 0,
+          max_retries: 5,
+          next_retry_at: new Date(Date.now() + 30000).toISOString(), // reintenta en 30s
+          last_attempt_at: now,
+          last_error: verifactuResponse,
+          status: 'pending',
+          xml_payload: xmlPayload,
+          tipo_factura: 'F1',
+        });
+        console.log(JSON.stringify({ evento: 'factura_agregada_cola_reintentos', invoice_id: invoice.id, status: verifactuStatus }));
+      } catch (queueErr) {
+        console.warn(JSON.stringify({ evento: 'error_agregar_a_cola_reintentos', error: queueErr.message }));
+      }
+    }
 
-    return Response.json({
+    // 12. Marcar el parte como facturado e inalterable
+    await base44.asServiceRole.entities.Intervention.update(intervention_id, {
       success: true,
       mode: 'facturar',
       invoice_number: invoiceNumber,
