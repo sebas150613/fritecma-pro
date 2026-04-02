@@ -101,6 +101,7 @@
         "enviado",
         "aceptado",
         "rechazado",
+        "error",
         "sin_envio"
       ],
       "default": "pendiente"
@@ -108,6 +109,15 @@
     "verifactu_csv": {
       "type": "string",
       "title": "CSV AEAT (C\u00f3digo Seguro Verificaci\u00f3n)"
+    },
+    "verifactu_idregistro": {
+      "type": "string",
+      "title": "ID Registro AEAT"
+    },
+    "verifactu_timestamp": {
+      "type": "string",
+      "title": "Fecha/Hora Recepci\u00f3n AEAT",
+      "format": "date-time"
     },
     "verifactu_response": {
       "type": "string",

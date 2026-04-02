@@ -299,6 +299,8 @@ Deno.serve(async (req) => {
     let verifactuStatus = 'pendiente';
     let verifactuResponse = '';
     let csvCode = '';
+    let idRegistro = '';
+    let timestampAeat = '';
 
     try {
       console.log(`[Verifactu] Iniciando envío mTLS a AEAT (${IS_PRODUCCION ? 'PROD' : 'SANDBOX'}): ${AEAT_ENDPOINT}`);
@@ -387,14 +389,16 @@ Deno.serve(async (req) => {
 
         const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
         const idRegistroMatch = responseText.match(/<IDRegistro>([^<]+)<\/IDRegistro>/);
-        const idRegistro = idRegistroMatch ? idRegistroMatch[1] : '';
+        idRegistro = idRegistroMatch ? idRegistroMatch[1] : '';
+        const timestampMatch = responseText.match(/<FechaHoraRecepcion>([^<]+)<\/FechaHoraRecepcion>/);
+        timestampAeat = timestampMatch ? timestampMatch[1] : '';
         const codigoMatch = responseText.match(/<CodigoErrorRegistro>([^<]+)<\/CodigoErrorRegistro>/);
 
         // Producción: requiere AMBOS CSV e IDRegistro
         if (csvMatch && idRegistro) {
           csvCode = csvMatch[1];
           verifactuStatus = 'aceptado';
-          console.log(`[Verifactu] ACEPTADO - CSV: ${csvCode}, IDRegistro: ${idRegistro}`);
+          console.log(`[Verifactu] ACEPTADO - CSV: ${csvCode}, IDRegistro: ${idRegistro}, Timestamp: ${timestampAeat}`);
         } else if (codigoMatch) {
           verifactuStatus = 'rechazado';
           verifactuResponse = `Error AEAT: ${codigoMatch[1]} — ${verifactuResponse}`;
@@ -442,6 +446,8 @@ Deno.serve(async (req) => {
       retention_until: retentionUntil,
       verifactu_status: verifactuStatus,
       verifactu_csv: csvCode,
+      verifactu_idregistro: verifactuStatus === 'aceptado' ? idRegistro : '',
+      verifactu_timestamp: verifactuStatus === 'aceptado' ? timestampAeat : '',
       verifactu_response: verifactuResponse,
       qr_url: qrUrl,
       is_locked: true,
