@@ -290,7 +290,7 @@ ${verifactuBlock}
   const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
   const isOficina = user?.role === "oficina";
   const canEdit = isAdmin || isOficina;
-  const isLocked = intervention?.status === "facturado" || intervention?.status === "completado";
+  const isLocked = intervention?.status === "completado"; // TEMPORAL: facturado no bloquea para pruebas
   const materials = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
 
   const handleDelete = async () => {
