@@ -385,11 +385,15 @@ Deno.serve(async (req) => {
         req.end();
       });
 
-      // En SANDBOX: aceptar respuestas sin error HTTP y sin SOAP Fault
-      if (!IS_PRODUCCION && httpStatus >= 200 && httpStatus < 400 && !responseText.includes('<Fault>')) {
+      // En SANDBOX: aceptar respuestas sin error HTTP y sin SOAP Fault. En PROD: solo 200 exacto
+      if ((!IS_PRODUCCION && httpStatus < 400 || IS_PRODUCCION && httpStatus === 200) && !responseText.includes('<Fault>')) {
         console.log(JSON.stringify({ evento: 'sandbox_aceptado', httpStatus, modo: 'testing' }));
         verifactuStatus = 'aceptado';
         verifactuResponse = `Testing SANDBOX - HTTP ${httpStatus}. En producción requiere CSV válido de AEAT.`;
+      } else if (IS_PRODUCCION && httpStatus !== 200) {
+        console.warn(JSON.stringify({ evento: 'error_http_status_produccion', httpStatus, causa: 'solo_200_valido_en_produccion' }));
+        verifactuStatus = 'error';
+        verifactuResponse = `HTTP ${httpStatus}: En producción solo se acepta status 200 de la AEAT.`;
       } else if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
         console.warn(JSON.stringify({ evento: 'error_html_response', causa: 'certificado_rechazado_o_endpoint_incorrecto', respuesta_primeros_500: responseText.slice(0, 500) }));
         verifactuStatus = 'sin_envio';
