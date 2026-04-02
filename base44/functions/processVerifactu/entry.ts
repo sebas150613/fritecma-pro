@@ -243,7 +243,7 @@ Deno.serve(async (req) => {
         const { httpStatus, responseText } = await sendToAEAT(rectXmlPayload, base44, adminUser, emisorNif);
         rectResponse = responseText.slice(0, 2000);
         
-        if ((!IS_PRODUCCION && httpStatus < 400 || IS_PRODUCCION && httpStatus === 200) && !responseText.includes('<Fault>')) {
+        if ((!IS_PRODUCCION && httpStatus >= 200 && httpStatus < 300 || IS_PRODUCCION && httpStatus === 200) && !responseText.includes('<Fault>')) {
           rectStatus = 'aceptado';
           const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
           if (csvMatch) rectCsv = csvMatch[1];
@@ -482,8 +482,8 @@ Deno.serve(async (req) => {
 
       const { httpStatus, responseText } = await sendToAEAT(xmlPayload, base44, adminUser, emisorNif);
 
-      // En SANDBOX: aceptar respuestas sin error HTTP y sin SOAP Fault. En PROD: solo 200 exacto
-      if ((!IS_PRODUCCION && httpStatus < 400 || IS_PRODUCCION && httpStatus === 200) && !responseText.includes('<Fault>')) {
+      // En SANDBOX: aceptar respuestas 2xx sin SOAP Fault. En PROD: solo 200 exacto
+      if ((!IS_PRODUCCION && httpStatus >= 200 && httpStatus < 300 || IS_PRODUCCION && httpStatus === 200) && !responseText.includes('<Fault>')) {
         console.log(JSON.stringify({ evento: 'sandbox_aceptado', httpStatus, modo: 'testing' }));
         verifactuStatus = 'aceptado';
         verifactuResponse = `Testing SANDBOX - HTTP ${httpStatus}. En producción requiere CSV válido de AEAT.`;
