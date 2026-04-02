@@ -346,7 +346,7 @@ Deno.serve(async (req) => {
           },
           pfx: certBuffer,
           passphrase: certPassword,
-          rejectUnauthorized: false, // sandbox usa cert autofirmado
+          rejectUnauthorized: IS_PRODUCCION,
         };
 
         const req = https.default.request(options, (res) => {
