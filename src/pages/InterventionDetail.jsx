@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import BackButton from "../components/BackButton";
+import RectificativaForm from "../components/RectificativaForm";
 import { ArrowLeft, FileText, Mail, Clock, MapPin, Flame, User, Loader2, Package, CheckCircle2, Pencil, Trash2, Plus, AlertTriangle, Wrench, Lock, Receipt, RotateCcw } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import MapLink from "../components/MapLink";
@@ -46,7 +47,7 @@ export default function InterventionDetail() {
   const [validateResult, setValidateResult] = useState(null);
   const [invoice, setInvoice] = useState(null);
   const [showRectModal, setShowRectModal] = useState(false);
-  const [rectMotivo, setRectMotivo] = useState('');
+  const [rectMode, setRectMode] = useState(null); // null | 'anular' | 'corregir'
   const [rectificando, setRectificando] = useState(false);
   const [rectResult, setRectResult] = useState(null);
   const [adminTipoHorario, setAdminTipoHorario] = useState('');
@@ -308,6 +309,23 @@ ${verifactuBlock}
   // PERMANENTE: parte facturado = bloqueado para siempre (Ley Antifraude)
   const invoiceAceptada = invoice?.verifactu_status === 'aceptado';
   const isLocked = intervention?.status === "facturado" || intervention?.status === "completado" || invoiceAceptada;
+
+  const handleRectificativaAnular = async () => {
+  setRectificando(true);
+  try {
+    const res = await base44.functions.invoke('processVerifactu', {
+      intervention_id: id,
+      mode: 'rectificar',
+      original_invoice_id: invoice.id,
+      rectificativa_motivo: 'Anulación completa de factura',
+    });
+    setRectResult(res.data);
+    await loadData();
+  } catch (e) {
+    alert('Error al anular: ' + e.message);
+  }
+  setRectificando(false);
+  };
   const materials = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
 
   const handleDelete = async () => {
@@ -367,8 +385,8 @@ ${verifactuBlock}
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
 
       {/* Modal Factura Rectificativa */}
-      <Dialog open={showRectModal} onOpenChange={v => { if (!rectificando) { setShowRectModal(v); if (!v) { setRectMotivo(''); setRectResult(null); } } }}>
-        <DialogContent className="max-w-md">
+      <Dialog open={showRectModal} onOpenChange={v => { if (!rectificando) { setShowRectModal(v); if (!v) { setRectMode(null); setRectResult(null); } } }}>
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><RotateCcw className="h-5 w-5 text-amber-600" /> Factura Rectificativa</DialogTitle>
           </DialogHeader>
@@ -384,37 +402,19 @@ ${verifactuBlock}
                 <p className="break-all">{rectResult.hash?.slice(0, 32)}...</p>
                 <p className="text-muted-foreground mt-2">Estado Veri*factu: <span className="font-semibold">{rectResult.verifactu_status}</span></p>
               </div>
-              <Button onClick={() => { setShowRectModal(false); setRectResult(null); setRectMotivo(''); }} className="w-full rounded-xl">Cerrar</Button>
+              <Button onClick={() => { setShowRectModal(false); setRectResult(null); setRectMode(null); }} className="w-full rounded-xl">Cerrar</Button>
             </div>
-          ) : (
-            <div className="space-y-4 mt-2">
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                <p className="text-xs text-amber-800 font-semibold">Factura original: {invoice?.invoice_number}</p>
-                <p className="text-xs text-amber-700 mt-1">Se generará una nueva factura con TipoFactura=R1 encadenada al hash original. La factura original queda referenciada pero no se anula del registro AEAT.</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Motivo de rectificación *</label>
-                <Textarea
-                  className="mt-1 rounded-xl"
-                  placeholder="Ej: Error en importe, cambio de tipo IVA, datos del cliente incorrectos..."
-                  value={rectMotivo}
-                  onChange={e => setRectMotivo(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setShowRectModal(false)} disabled={rectificando} className="flex-1 rounded-xl">Cancelar</Button>
-                <Button
-                  onClick={handleRectificativa}
-                  disabled={rectificando || !rectMotivo.trim()}
-                  className="flex-1 rounded-xl bg-amber-600 hover:bg-amber-700 text-white"
-                >
-                  {rectificando ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RotateCcw className="h-4 w-4 mr-2" />}
-                  Generar Rectificativa
-                </Button>
-              </div>
-            </div>
-          )}
+          ) : rectMode === 'corregir' ? (
+            <RectificativaForm
+              invoice={invoice}
+              intervention={intervention}
+              onComplete={(result) => {
+                setRectResult(result);
+                loadData();
+              }}
+              onCancel={() => setRectMode(null)}
+            />
+          ) : null
         </DialogContent>
       </Dialog>
 
@@ -446,6 +446,38 @@ ${verifactuBlock}
                 </div>
               )}
               <Button onClick={() => { setShowValidateModal(false); setValidateResult(null); }} className="w-full rounded-xl">Cerrar</Button>
+            </div>
+          ) : !rectMode ? (
+            <div className="space-y-4 mt-2">
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
+                <p className="text-xs font-semibold text-blue-800">Factura original: {invoice?.invoice_number}</p>
+                <p className="text-xs text-blue-700 mt-1">Elige cómo deseas proceder con esta factura.</p>
+              </div>
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  onClick={handleRectificativaAnular}
+                  disabled={rectificando}
+                  className="p-4 border-2 border-red-200 hover:border-red-400 rounded-xl text-left transition-all hover:bg-red-50"
+                >
+                  <p className="font-semibold flex items-center gap-2 text-red-700"><RotateCcw className="h-5 w-5" /> Anular completamente</p>
+                  <p className="text-xs text-red-600 mt-1">Genera una factura rectificativa R1 en negativo con todos los valores invertidos y la envía automáticamente a AEAT.</p>
+                </button>
+                <button
+                  onClick={() => setRectMode('corregir')}
+                  disabled={rectificando}
+                  className="p-4 border-2 border-blue-200 hover:border-blue-400 rounded-xl text-left transition-all hover:bg-blue-50"
+                >
+                  <p className="font-semibold flex items-center gap-2 text-blue-700"><Receipt className="h-5 w-5" /> Crear rectificativa editada</p>
+                  <p className="text-xs text-blue-600 mt-1">Abre un formulario para editar los datos (importe, descripción, etc) y genera la R1 con los valores corregidos.</p>
+                </button>
+              </div>
+              {rectificando && (
+                <div className="flex items-center justify-center gap-2 py-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-red-600" />
+                  <span className="text-sm text-muted-foreground">Anulando...</span>
+                </div>
+              )}
+              <Button variant="outline" onClick={() => setShowRectModal(false)} disabled={rectificando} className="w-full rounded-xl">Cancelar</Button>
             </div>
           ) : (
             <div className="space-y-4 mt-2">
@@ -507,7 +539,7 @@ ${verifactuBlock}
                   <span className="text-sm text-muted-foreground">Procesando...</span>
                 </div>
               )}
-              <Button variant="outline" onClick={() => setShowValidateModal(false)} disabled={validating} className="w-full rounded-xl">Cancelar</Button>
+              <Button variant="outline" onClick={() => { setShowValidateModal(false); setValidateResult(null); }} disabled={validating} className="w-full rounded-xl">Cancelar</Button>
             </div>
           )}
         </DialogContent>
@@ -573,7 +605,7 @@ ${verifactuBlock}
             )}
 
             {(invoiceAceptada || intervention?.status === 'facturado') && invoice && (
-              <Button variant="outline" onClick={() => setShowRectModal(true)} className="rounded-xl gap-2 border-amber-300 text-amber-700 hover:bg-amber-50">
+              <Button variant="outline" onClick={() => { setShowRectModal(true); setRectMode(null); }} className="rounded-xl gap-2 border-amber-300 text-amber-700 hover:bg-amber-50">
                 <RotateCcw className="h-4 w-4" /> Rectificativa
               </Button>
             )}

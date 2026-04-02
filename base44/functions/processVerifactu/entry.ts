@@ -214,7 +214,196 @@ Deno.serve(async (req) => {
       return Response.json({ success: true, mode: 'guardar', status: 'completado' });
     }
 
-    // ── MODO: RECTIFICATIVA ──
+    // ── MODO: RECTIFICATIVA CORREGIDA (editada) ──
+    if (mode === 'rectificar_corregida') {
+      if (!original_invoice_id) {
+        return Response.json({ error: 'original_invoice_id requerido para rectificar_corregida' }, { status: 400 });
+      }
+
+      const origInvoices = await base44.asServiceRole.entities.Invoice.filter({ id: original_invoice_id }, '-created_date', 1);
+      if (!origInvoices.length) {
+        return Response.json({ error: 'Factura original no encontrada' }, { status: 404 });
+      }
+      const origInvoice = origInvoices[0];
+
+      // Usar valores corregidos si se proporcionan, sino usar los originales
+      const subtotalCorregida = body.subtotal_corregida !== undefined ? body.subtotal_corregida : origInvoice.subtotal;
+      const ivaCorregida = body.iva_corregida !== undefined ? body.iva_corregida : origInvoice.iva_total;
+      const totalCorregida = body.total_corregida !== undefined ? body.total_corregida : origInvoice.total;
+      const descriptionCorregida = body.description_corregida || intervention.description || '';
+      const notesCorregida = body.technician_notes_corregida || intervention.technician_notes || '';
+
+      const allUsersRect = await base44.asServiceRole.entities.User.list('full_name', 100);
+      const adminUser = allUsersRect.find(u => u.verifactu_nif) || {};
+      const emisorNif = adminUser.verifactu_nif || Deno.env.get('VERIFACTU_NIF') || 'B00000000';
+      const emisorNombre = adminUser.verifactu_nombre || Deno.env.get('VERIFACTU_NOMBRE') || 'EMPRESA S.L.';
+      const softwareNif = Deno.env.get('FRITECMA_NIF') || 'B00000000';
+
+      const { number: rectNumber, index: rectIndex } = await getNextInvoiceNumber(base44, 'R');
+
+      // Hash encadenado al hash de la factura original
+      const fechaHoraHuella = now.replace(/[-:T.Z]/g, '').slice(0, 14);
+      const hashInput = [
+        `NIF=${emisorNif}`,
+        `NombreRazonEmisor=${emisorNombre}`,
+        `NumSerieFactura=${rectNumber}`,
+        `FechaExpedicionFactura=${now.slice(0, 10)}`,
+        `TipoFactura=R1`,
+        `CuotaTotalIVA=${ivaCorregida.toFixed(2)}`,
+        `ImporteTotal=${totalCorregida.toFixed(2)}`,
+        `Huella=${origInvoice.hash_huella}`,
+        `FechaHoraHuella=${fechaHoraHuella}`,
+      ].join('&');
+      const hashRect = await sha256(hashInput);
+
+      const retentionDate = new Date();
+      retentionDate.setFullYear(retentionDate.getFullYear() + 6);
+
+      // Generar XML rectificativa con valores CORREGIDOS
+      let rectStatus = 'pendiente';
+      let rectCsv = '';
+      let rectIdRegistro = '';
+      let rectTimestamp = '';
+      let rectResponse = '';
+
+      try {
+        const timeZoneOffsetRect = getTimeZoneOffset(new Date(now));
+        const rectXmlPayload = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sum="https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR.xsd">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <sum:RegFactuSistemaFacturacion>
+      <sum:Cabecera>
+        <sum:TipoComunicacion>A0</sum:TipoComunicacion>
+        <sum:ObligadoEmision>
+          <sum:NombreRazon>${emisorNombre}</sum:NombreRazon>
+          <sum:NIF>${emisorNif}</sum:NIF>
+        </sum:ObligadoEmision>
+      </sum:Cabecera>
+      <sum:RegistroFactura>
+        <sum:RegistroAlta>
+          <sum:IDVersion>1.0</sum:IDVersion>
+          <sum:IDFactura>
+            <sum:IDEmisorFactura><sum:NIF>${emisorNif}</sum:NIF></sum:IDEmisorFactura>
+            <sum:NumSerieFactura>${rectNumber}</sum:NumSerieFactura>
+            <sum:FechaExpedicionFactura>${now.slice(0, 10)}</sum:FechaExpedicionFactura>
+          </sum:IDFactura>
+          <sum:NombreRazonEmisor>${emisorNombre}</sum:NombreRazonEmisor>
+          <sum:TipoFactura>R1</sum:TipoFactura>
+          <sum:DescripcionOperacion>${descriptionCorregida.slice(0, 200)}</sum:DescripcionOperacion>
+          <sum:FacturaRectificada>
+            <sum:NumSerieFactura>${origInvoice.invoice_number}</sum:NumSerieFactura>
+            <sum:FechaExpedicionFactura>${origInvoice.issue_date.slice(0, 10)}</sum:FechaExpedicionFactura>
+          </sum:FacturaRectificada>
+          <sum:Destinatarios>
+            <sum:IDDestinatario>
+              <sum:NombreRazon>${intervention.client_name}</sum:NombreRazon>
+              ${origInvoice.client_nif ? `<sum:NIF>${origInvoice.client_nif}</sum:NIF>` : '<sum:IDOtro><sum:ID>NO_NIF</sum:ID></sum:IDOtro>'}
+            </sum:IDDestinatario>
+          </sum:Destinatarios>
+          <sum:Desglose>
+            <sum:DetalleIVA>
+              <sum:TipoImpositivo>21.00</sum:TipoImpositivo>
+              <sum:BaseImponibleOimporteNoSujeto>${subtotalCorregida.toFixed(2)}</sum:BaseImponibleOimporteNoSujeto>
+              <sum:CuotaRepercutida>${ivaCorregida.toFixed(2)}</sum:CuotaRepercutida>
+            </sum:DetalleIVA>
+          </sum:Desglose>
+          <sum:CuotaTotal>${ivaCorregida.toFixed(2)}</sum:CuotaTotal>
+          <sum:ImporteTotal>${totalCorregida.toFixed(2)}</sum:ImporteTotal>
+          <sum:Encadenamiento>
+            <sum:RegistroAnterior><sum:Huella>${origInvoice.hash_huella}</sum:Huella></sum:RegistroAnterior>
+          </sum:Encadenamiento>
+          <sum:SistemaInformatico>
+            <sum:NombreRazon>FRITECMA Software</sum:NombreRazon>
+            <sum:NIF>${softwareNif}</sum:NIF>
+            <sum:NombreSistemaInformatico>FRITECMA App</sum:NombreSistemaInformatico>
+            <sum:Version>1.0</sum:Version>
+          </sum:SistemaInformatico>
+          <sum:FechaHoraHusoHorarioGenRegistro>${now.slice(0, 19)}${timeZoneOffsetRect}</sum:FechaHoraHusoHorarioGenRegistro>
+          <sum:Huella>${hashRect}</sum:Huella>
+          <sum:TipoHuella>01</sum:TipoHuella>
+        </sum:RegistroAlta>
+      </sum:RegistroFactura>
+    </sum:RegFactuSistemaFacturacion>
+  </soapenv:Body>
+</soapenv:Envelope>`;
+        
+        const { httpStatus, responseText } = await sendToAEAT(rectXmlPayload, base44, adminUser, emisorNif);
+        rectResponse = responseText.slice(0, 2000);
+        
+        if ((!IS_PRODUCCION && httpStatus >= 200 && httpStatus < 300 || IS_PRODUCCION && httpStatus === 200) && !responseText.includes('<Fault>')) {
+          rectStatus = 'aceptado';
+          const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
+          if (csvMatch) rectCsv = csvMatch[1];
+          const idMatch = responseText.match(/<IDRegistro>([^<]+)<\/IDRegistro>/);
+          if (idMatch) rectIdRegistro = idMatch[1];
+          const tsMatch = responseText.match(/<FechaHora(Recepcion|Presentacion)>([^<]+)<\/FechaHora.*?>/);
+          if (tsMatch) rectTimestamp = tsMatch[2];
+          console.log(JSON.stringify({ evento: 'rectificativa_corregida_aceptada', csv: rectCsv, idRegistro: rectIdRegistro }));
+        } else if (IS_PRODUCCION && httpStatus !== 200) {
+          console.warn(JSON.stringify({ evento: 'error_rectificativa_corregida_http', httpStatus, causa: 'solo_200_valido_en_produccion' }));
+          rectStatus = 'error';
+        } else {
+          const codigoMatch = responseText.match(/<CodigoErrorRegistro>([^<]+)<\/CodigoErrorRegistro>/);
+          if (codigoMatch) {
+            rectStatus = 'rechazado';
+            console.warn(JSON.stringify({ evento: 'rectificativa_corregida_rechazada', codigo: codigoMatch[1] }));
+          } else {
+            rectStatus = 'error';
+          }
+        }
+      } catch (rectErr) {
+        console.error(JSON.stringify({ evento: 'error_envio_rectificativa_corregida', error: rectErr.message }));
+        rectStatus = 'sin_envio';
+        rectResponse = rectErr.message;
+      }
+
+      const rectData = {
+        invoice_number: rectNumber,
+        serie: 'R',
+        intervention_id: intervention_id,
+        intervention_number: intervention.number,
+        client_id: origInvoice.client_id,
+        client_name: origInvoice.client_name,
+        client_nif: origInvoice.client_nif,
+        client_address: origInvoice.client_address,
+        issue_date: now,
+        subtotal: subtotalCorregida,
+        iva_total: ivaCorregida,
+        total: totalCorregida,
+        lines_json: origInvoice.lines_json,
+        hash_huella: hashRect,
+        hash_anterior: origInvoice.hash_huella,
+        invoice_chain_index: rectIndex,
+        retention_until: retentionDate.toISOString().slice(0, 10),
+        verifactu_status: rectStatus,
+        verifactu_csv: rectCsv,
+        verifactu_idregistro: rectIdRegistro,
+        verifactu_timestamp: rectTimestamp,
+        verifactu_response: rectResponse,
+        is_locked: true,
+        issuer_nif: emisorNif,
+        issuer_name: emisorNombre,
+        created_by_email: user.email,
+        tipo_factura: 'R1',
+        factura_rectificada_id: original_invoice_id,
+        factura_rectificada_number: origInvoice.invoice_number,
+        rectificativa_motivo: body.rectificativa_motivo || 'Corrección de datos',
+      };
+
+      const rectInvoice = await base44.asServiceRole.entities.Invoice.create(rectData);
+
+      return Response.json({
+        success: true,
+        mode: 'rectificar_corregida',
+        invoice_number: rectNumber,
+        hash: hashRect,
+        verifactu_status: rectStatus,
+        invoice_id: rectInvoice.id,
+      });
+    }
+
+    // ── MODO: RECTIFICATIVA (anulación negativa directa) ──
     if (mode === 'rectificar') {
       if (!original_invoice_id) {
         return Response.json({ error: 'original_invoice_id requerido para rectificar' }, { status: 400 });
