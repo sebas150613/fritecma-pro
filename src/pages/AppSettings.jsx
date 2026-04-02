@@ -31,6 +31,8 @@ export default function AppSettings() {
   const [certPassword, setCertPassword] = useState("");
   const [emisorNif, setEmisorNif] = useState("");
   const [emisorNombre, setEmisorNombre] = useState("FRITECMA S.L.");
+  const [emisorDireccion, setEmisorDireccion] = useState("");
+  const [emisorTelefono, setEmisorTelefono] = useState("");
   const [savingCert, setSavingCert] = useState(false);
   const [certSaved, setCertSaved] = useState(false);
   const [modoProduccion, setModoProduccion] = useState(false);
@@ -46,6 +48,10 @@ export default function AppSettings() {
       const allUsers = await base44.entities.User.list("full_name", 100);
       setUsers(allUsers);
     }
+    setEmisorNif(me.verifactu_nif || "");
+    setEmisorNombre(me.verifactu_nombre || "FRITECMA S.L.");
+    setEmisorDireccion(me.emisor_direccion || "");
+    setEmisorTelefono(me.emisor_telefono || "");
     setLoading(false);
   };
 
@@ -83,7 +89,7 @@ export default function AppSettings() {
     );
   }
 
-  if (user?.role !== "admin" && user?.role !== "superadmin" && user?.role !== "encargado") {
+  if (!['admin','superadmin','encargado','oficina'].includes(user?.role)) {
     return (
       <div className="p-8 flex flex-col items-center justify-center h-full gap-4">
         <Shield className="h-12 w-12 text-muted-foreground" />
@@ -171,6 +177,40 @@ export default function AppSettings() {
       </div>
       )}
 
+      {/* Datos de Empresa — Admin, Encargado y Oficina */}
+      {['admin','superadmin','encargado','oficina'].includes(user?.role) && (
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+        <h2 className="font-semibold flex items-center gap-2">
+          <Settings className="h-4 w-4 text-muted-foreground" /> Datos de la Empresa (Cabecera PDF)
+        </h2>
+        <p className="text-xs text-muted-foreground">Estos datos aparecen en la cabecera de todos los PDF generados.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <Label>Dirección Fiscal</Label>
+            <Input value={emisorDireccion} onChange={e => setEmisorDireccion(e.target.value)} placeholder="C/ Ejemplo, 1 · 28001 Madrid" className="mt-1 rounded-xl" />
+          </div>
+          <div>
+            <Label>Teléfono</Label>
+            <Input value={emisorTelefono} onChange={e => setEmisorTelefono(e.target.value)} placeholder="+34 91 000 00 00" className="mt-1 rounded-xl" />
+          </div>
+        </div>
+        <Button
+          onClick={async () => {
+            setSavingCert(true);
+            await base44.auth.updateMe({ emisor_direccion: emisorDireccion, emisor_telefono: emisorTelefono });
+            setCertSaved(true);
+            setSavingCert(false);
+            setTimeout(() => setCertSaved(false), 3000);
+          }}
+          disabled={savingCert}
+          className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+        >
+          {savingCert ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+          {certSaved ? '✓ Guardado' : 'Guardar Datos'}
+        </Button>
+      </div>
+      )}
+
       {/* Verifactu / Certificado Digital */}
       {(user?.role === 'admin' || user?.role === 'superadmin') && (
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
@@ -187,6 +227,14 @@ export default function AppSettings() {
           <div>
             <Label>Nombre / Razón Social *</Label>
             <Input value={emisorNombre} onChange={e => setEmisorNombre(e.target.value)} placeholder="FRITECMA S.L." className="mt-1 rounded-xl" />
+          </div>
+          <div>
+            <Label>Dirección Fiscal</Label>
+            <Input value={emisorDireccion} onChange={e => setEmisorDireccion(e.target.value)} placeholder="C/ Ejemplo, 1 · 28001 Madrid" className="mt-1 rounded-xl" />
+          </div>
+          <div>
+            <Label>Teléfono</Label>
+            <Input value={emisorTelefono} onChange={e => setEmisorTelefono(e.target.value)} placeholder="+34 91 000 00 00" className="mt-1 rounded-xl" />
           </div>
         </div>
 
@@ -225,6 +273,8 @@ export default function AppSettings() {
             const updateData = { verifactu_nif: emisorNif, verifactu_nombre: emisorNombre };
             if (certUri) updateData.verifactu_cert_uri = certUri;
             if (certPassword) updateData.verifactu_cert_password = certPassword;
+            updateData.emisor_direccion = emisorDireccion;
+            updateData.emisor_telefono = emisorTelefono;
             await base44.auth.updateMe(updateData);
             setCertSaved(true);
             setSavingCert(false);

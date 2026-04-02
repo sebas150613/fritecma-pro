@@ -105,8 +105,8 @@ export default function InterventionDetail() {
     // Datos del emisor (Fritecma)
     const emisorNif = adminUser.verifactu_nif || 'B00000000';
     const emisorNombre = adminUser.verifactu_nombre || 'FRITECMA S.L.';
-    const emisorDireccion = 'C/ Ejemplo, 1 · 28001 Madrid';
-    const emisorTelefono = '+34 91 000 00 00';
+    const emisorDireccion = adminUser.emisor_direccion || '';
+    const emisorTelefono = adminUser.emisor_telefono || '';
 
     // Datos del cliente
     const clientNif = client.cif || invoice?.client_nif || '';
