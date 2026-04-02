@@ -89,6 +89,38 @@ async function sendToAEAT(xmlPayload, base44, adminUser, emisorNif) {
   return { httpStatus, responseText };
 }
 
+// Valida y normaliza NIF/NIE/CIF según formato español
+function validateAndNormalizeNIF(nif) {
+  if (!nif) return '';
+  
+  // Normalizar: quitar espacios, puntos, guiones y convertir a uppercase
+  const normalized = nif.replace(/[\s.\-]/g, '').toUpperCase().trim();
+  
+  // Validar formato básico: debe tener 8-9 caracteres
+  if (!normalized || normalized.length < 8) return '';
+  
+  // Validar que comience con letra (NIF/NIE/CIF) o número (extranjero sin NIF)
+  const firstChar = normalized[0];
+  
+  // NIF: 8 dígitos + 1 letra
+  if (/^[0-9]{8}[A-Z]$/.test(normalized)) {
+    return normalized;
+  }
+  
+  // NIE: X/Y/Z + 7 dígitos + 1 letra
+  if (/^[XYZ][0-9]{7}[A-Z]$/.test(normalized)) {
+    return normalized;
+  }
+  
+  // CIF: letra inicial + 7 dígitos + control (letra o dígito)
+  if (/^[A-Z][0-9]{7}[A-Z0-9]$/.test(normalized)) {
+    return normalized;
+  }
+  
+  // Si no coincide con patrón esperado, devolver vacío (no válido)
+  return '';
+}
+
 // Genera descripción detallada de la operación para cumplimiento fiscal
 function generateDetailedDescription(intervention) {
   const parts = ['Mantenimiento y reparación de sistemas frigoríficos'];
@@ -341,6 +373,13 @@ Deno.serve(async (req) => {
     // 1. Obtener cliente
     const clients = await base44.asServiceRole.entities.Client.filter({ id: intervention.client_id }, '-created_date', 1);
     const client = clients[0] || {};
+    
+    // Validar y normalizar NIF del cliente
+    const clientNifNormalized = validateAndNormalizeNIF(client.cif);
+    if (!clientNifNormalized && client.cif) {
+      // Si tiene CIF pero no es válido, registrar advertencia pero continuar
+      console.warn(JSON.stringify({ evento: 'nif_cliente_invalido', nif_original: client.cif, cliente: client.name }));
+    }
 
     // Si hay override de tarifa, recalcular las líneas de MO
     if (tarifa_override || tipo_horario_override) {
@@ -460,8 +499,8 @@ Deno.serve(async (req) => {
           <sum:Destinatarios>
             <sum:IDDestinatario>
               <sum:NombreRazon>${intervention.client_name}</sum:NombreRazon>
-              ${client.cif ? `<sum:NIF>${client.cif}</sum:NIF>` : '<sum:IDOtro><sum:ID>NO_NIF</sum:ID></sum:IDOtro>'}
-            </sum:IDDestinatario>
+              ${clientNifNormalized ? `<sum:NIF>${clientNifNormalized}</sum:NIF>` : '<sum:IDOtro><sum:ID>NO_NIF</sum:ID></sum:IDOtro>'}
+              </sum:IDDestinatario>
           </sum:Destinatarios>
           <sum:Desglose>
             <sum:DetalleIVA>
@@ -574,7 +613,7 @@ Deno.serve(async (req) => {
       intervention_number: intervention.number,
       client_id: intervention.client_id,
       client_name: intervention.client_name,
-      client_nif: client.cif || '',
+      client_nif: clientNifNormalized,
       client_address: client.address || '',
       issue_date: now,
       subtotal: intervention.subtotal || 0,
