@@ -33,6 +33,62 @@ function getTimeZoneOffset(date) {
   return (date >= lastSunMar && date < lastSunOct) ? '+02:00' : '+01:00';
 }
 
+// Envía XML a AEAT vía mTLS y parsea respuesta
+async function sendToAEAT(xmlPayload, base44, adminUser, emisorNif) {
+  const certUri = adminUser.verifactu_cert_uri;
+  if (!certUri) throw new Error('Certificado digital no configurado.');
+  
+  const certPassword = adminUser.verifactu_cert_password || '';
+  const { signed_url } = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
+    file_uri: certUri,
+    expires_in: 60,
+  });
+  const certResponse = await fetch(signed_url);
+  const certArrayBuffer = await certResponse.arrayBuffer();
+  const { Buffer } = await import('node:buffer');
+  const certBuffer = Buffer.from(certArrayBuffer);
+  const xmlBytes = Buffer.byteLength(xmlPayload, 'utf8');
+  
+  const https = await import('node:https');
+  const url = new URL(AEAT_ENDPOINT);
+  
+  let httpStatus = 200;
+  const responseText = await new Promise((resolve, reject) => {
+    const options = {
+      hostname: url.hostname,
+      path: url.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction': 'https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR',
+        'Content-Length': xmlBytes,
+      },
+      pfx: certBuffer,
+      passphrase: certPassword,
+      rejectUnauthorized: IS_PRODUCCION,
+    };
+    
+    const req = https.default.request(options, (res) => {
+      httpStatus = res.statusCode;
+      let data = '';
+      res.setEncoding('utf8');
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => resolve(data));
+    });
+    
+    req.on('error', reject);
+    req.setTimeout(25000, () => {
+      req.destroy();
+      reject(new Error('Timeout: AEAT no respondió en 25s'));
+    });
+    
+    req.write(xmlPayload, 'utf8');
+    req.end();
+  });
+  
+  return { httpStatus, responseText };
+}
+
 // Genera número de factura correlativo
 async function getNextInvoiceNumber(base44, serie = 'A') {
   const year = new Date().getFullYear();
@@ -94,6 +150,7 @@ Deno.serve(async (req) => {
       const adminUser = allUsersRect.find(u => u.verifactu_nif) || {};
       const emisorNif = adminUser.verifactu_nif || Deno.env.get('VERIFACTU_NIF') || 'B00000000';
       const emisorNombre = adminUser.verifactu_nombre || Deno.env.get('VERIFACTU_NOMBRE') || 'EMPRESA S.L.';
+      const softwareNif = Deno.env.get('FRITECMA_NIF') || 'B00000000';
 
       const { number: rectNumber, index: rectIndex } = await getNextInvoiceNumber(base44, 'R');
 
@@ -115,6 +172,100 @@ Deno.serve(async (req) => {
       const retentionDate = new Date();
       retentionDate.setFullYear(retentionDate.getFullYear() + 6);
 
+      // Generar XML rectificativa y enviar a AEAT
+      let rectStatus = 'pendiente';
+      let rectCsv = '';
+      let rectIdRegistro = '';
+      let rectTimestamp = '';
+      let rectResponse = '';
+
+      try {
+        const rectXmlPayload = `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sum="https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR.xsd">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <sum:RegFactuSistemaFacturacion>
+      <sum:Cabecera>
+        <sum:TipoComunicacion>A0</sum:TipoComunicacion>
+        <sum:ObligadoEmision>
+          <sum:NombreRazon>${emisorNombre}</sum:NombreRazon>
+          <sum:NIF>${emisorNif}</sum:NIF>
+        </sum:ObligadoEmision>
+      </sum:Cabecera>
+      <sum:RegistroFactura>
+        <sum:RegistroAlta>
+          <sum:IDVersion>1.0</sum:IDVersion>
+          <sum:IDFactura>
+            <sum:IDEmisorFactura><sum:NIF>${emisorNif}</sum:NIF></sum:IDEmisorFactura>
+            <sum:NumSerieFactura>${rectNumber}</sum:NumSerieFactura>
+            <sum:FechaExpedicionFactura>${now.slice(0, 10)}</sum:FechaExpedicionFactura>
+          </sum:IDFactura>
+          <sum:NombreRazonEmisor>${emisorNombre}</sum:NombreRazonEmisor>
+          <sum:TipoFactura>R1</sum:TipoFactura>
+          <sum:DescripcionOperacion>Factura Rectificativa</sum:DescripcionOperacion>
+          <sum:Destinatarios>
+            <sum:IDDestinatario>
+              <sum:NombreRazon>${intervention.client_name}</sum:NombreRazon>
+              ${origInvoice.client_nif ? `<sum:NIF>${origInvoice.client_nif}</sum:NIF>` : '<sum:IDOtro><sum:ID>NO_NIF</sum:ID></sum:IDOtro>'}
+            </sum:IDDestinatario>
+          </sum:Destinatarios>
+          <sum:Desglose>
+            <sum:DetalleIVA>
+              <sum:TipoImpositivo>21.00</sum:TipoImpositivo>
+              <sum:BaseImponibleOimporteNoSujeto>${Math.abs(origInvoice.subtotal || 0).toFixed(2)}</sum:BaseImponibleOimporteNoSujeto>
+              <sum:CuotaRepercutida>${Math.abs(origInvoice.iva_total || 0).toFixed(2)}</sum:CuotaRepercutida>
+            </sum:DetalleIVA>
+          </sum:Desglose>
+          <sum:CuotaTotal>${Math.abs(origInvoice.iva_total || 0).toFixed(2)}</sum:CuotaTotal>
+          <sum:ImporteTotal>${Math.abs(origInvoice.total || 0).toFixed(2)}</sum:ImporteTotal>
+          <sum:Encadenamiento>
+            <sum:RegistroAnterior><sum:Huella>${origInvoice.hash_huella}</sum:Huella></sum:RegistroAnterior>
+          </sum:Encadenamiento>
+          <sum:SistemaInformatico>
+            <sum:NombreRazon>FRITECMA Software</sum:NombreRazon>
+            <sum:NIF>${softwareNif}</sum:NIF>
+            <sum:NombreSistemaInformatico>FRITECMA App</sum:NombreSistemaInformatico>
+            <sum:Version>1.0</sum:Version>
+          </sum:SistemaInformatico>
+          <sum:FechaHoraHusoHorarioGenRegistro>${now.slice(0, 19)}${getTimeZoneOffset(new Date(now))}</sum:FechaHoraHusoHorarioGenRegistro>
+          <sum:Huella>${hashRect}</sum:Huella>
+          <sum:TipoHuella>01</sum:TipoHuella>
+        </sum:RegistroAlta>
+      </sum:RegistroFactura>
+    </sum:RegFactuSistemaFacturacion>
+  </soapenv:Body>
+</soapenv:Envelope>`;
+        
+        const { httpStatus, responseText } = await sendToAEAT(rectXmlPayload, base44, adminUser, emisorNif);
+        rectResponse = responseText.slice(0, 2000);
+        
+        if ((!IS_PRODUCCION && httpStatus < 400 || IS_PRODUCCION && httpStatus === 200) && !responseText.includes('<Fault>')) {
+          rectStatus = 'aceptado';
+          const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
+          if (csvMatch) rectCsv = csvMatch[1];
+          const idMatch = responseText.match(/<IDRegistro>([^<]+)<\/IDRegistro>/);
+          if (idMatch) rectIdRegistro = idMatch[1];
+          const tsMatch = responseText.match(/<FechaHora(Recepcion|Presentacion)>([^<]+)<\/FechaHora.*?>/);
+          if (tsMatch) rectTimestamp = tsMatch[2];
+          console.log(JSON.stringify({ evento: 'rectificativa_aceptada', csv: rectCsv, idRegistro: rectIdRegistro }));
+        } else if (IS_PRODUCCION && httpStatus !== 200) {
+          console.warn(JSON.stringify({ evento: 'error_rectificativa_http', httpStatus, causa: 'solo_200_valido_en_produccion' }));
+          rectStatus = 'error';
+        } else {
+          const codigoMatch = responseText.match(/<CodigoErrorRegistro>([^<]+)<\/CodigoErrorRegistro>/);
+          if (codigoMatch) {
+            rectStatus = 'rechazado';
+            console.warn(JSON.stringify({ evento: 'rectificativa_rechazada', codigo: codigoMatch[1] }));
+          } else {
+            rectStatus = 'error';
+          }
+        }
+      } catch (rectErr) {
+        console.error(JSON.stringify({ evento: 'error_envio_rectificativa', error: rectErr.message }));
+        rectStatus = 'sin_envio';
+        rectResponse = rectErr.message;
+      }
+
       const rectData = {
         invoice_number: rectNumber,
         serie: 'R',
@@ -133,12 +284,15 @@ Deno.serve(async (req) => {
         hash_anterior: origInvoice.hash_huella,
         invoice_chain_index: rectIndex,
         retention_until: retentionDate.toISOString().slice(0, 10),
-        verifactu_status: 'pendiente',
+        verifactu_status: rectStatus,
+        verifactu_csv: rectCsv,
+        verifactu_idregistro: rectIdRegistro,
+        verifactu_timestamp: rectTimestamp,
+        verifactu_response: rectResponse,
         is_locked: true,
         issuer_nif: emisorNif,
         issuer_name: emisorNombre,
         created_by_email: user.email,
-        // Campos rectificativa
         tipo_factura: 'R1',
         factura_rectificada_id: original_invoice_id,
         factura_rectificada_number: origInvoice.invoice_number,
@@ -152,7 +306,7 @@ Deno.serve(async (req) => {
         mode: 'rectificar',
         invoice_number: rectNumber,
         hash: hashRect,
-        verifactu_status: 'pendiente',
+        verifactu_status: rectStatus,
         invoice_id: rectInvoice.id,
       });
     }
@@ -322,71 +476,7 @@ Deno.serve(async (req) => {
       const logContext = { evento: 'verifactu_inicio', modo: IS_PRODUCCION ? 'PROD' : 'SANDBOX', endpoint: AEAT_ENDPOINT, nif: emisorNif, factura: invoiceNumber };
       console.log(JSON.stringify(logContext));
 
-      // Obtener certificado .p12 del almacenamiento privado
-      const certUri = adminUser.verifactu_cert_uri;
-      if (!certUri) {
-        throw new Error('Certificado digital no configurado. Ve a Configuración → Veri*factu y sube el archivo .p12.');
-      }
-
-      const certPassword = adminUser.verifactu_cert_password || '';
-      console.log(JSON.stringify({ evento: 'certificado_info', uri: certUri, con_password: !!certPassword }));
-
-      // Descargar .p12 desde almacenamiento privado
-      const { signed_url } = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
-        file_uri: certUri,
-        expires_in: 60,
-      });
-      const certResponse = await fetch(signed_url);
-      const certArrayBuffer = await certResponse.arrayBuffer();
-
-      // En Deno, Buffer no es global — importar desde node:buffer
-      const { Buffer } = await import('node:buffer');
-      const certBuffer = Buffer.from(certArrayBuffer);
-      const xmlBytes = Buffer.byteLength(xmlPayload, 'utf8');
-      console.log(JSON.stringify({ evento: 'certificado_descargado', bytes: certBuffer.length }));
-
-      // Usar node:https con pfx para mTLS real
-      const https = await import('node:https');
-      const url = new URL(AEAT_ENDPOINT);
-
-      let httpStatus = 200;
-      const responseText = await new Promise((resolve, reject) => {
-        const options = {
-          hostname: url.hostname,
-          path: url.pathname,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/xml; charset=utf-8',
-            'SOAPAction': 'https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR',
-            'Content-Length': xmlBytes,
-          },
-          pfx: certBuffer,
-          passphrase: certPassword,
-          rejectUnauthorized: IS_PRODUCCION,
-        };
-
-        const req = https.default.request(options, (res) => {
-          httpStatus = res.statusCode;
-          console.log(JSON.stringify({ evento: 'respuesta_aeat', httpStatus: res.statusCode, statusMessage: res.statusMessage }));
-          let data = '';
-          res.setEncoding('utf8');
-          res.on('data', chunk => { data += chunk; });
-          res.on('end', () => resolve(data));
-        });
-
-        req.on('error', (err) => {
-          console.error(JSON.stringify({ evento: 'error_red_mtls', error: err.message }));
-          reject(err);
-        });
-
-        req.setTimeout(25000, () => {
-          req.destroy();
-          reject(new Error('Timeout: AEAT no respondió en 25s'));
-        });
-
-        req.write(xmlPayload, 'utf8');
-        req.end();
-      });
+      const { httpStatus, responseText } = await sendToAEAT(xmlPayload, base44, adminUser, emisorNif);
 
       // En SANDBOX: aceptar respuestas sin error HTTP y sin SOAP Fault. En PROD: solo 200 exacto
       if ((!IS_PRODUCCION && httpStatus < 400 || IS_PRODUCCION && httpStatus === 200) && !responseText.includes('<Fault>')) {
