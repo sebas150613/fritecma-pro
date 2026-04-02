@@ -414,9 +414,42 @@ ${verifactuBlock}
               }}
               onCancel={() => setRectMode(null)}
             />
-          ) : null
-        </DialogContent>
-      </Dialog>
+          ) : (
+            <div className="space-y-4 mt-2">
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <p className="text-xs font-semibold text-amber-800">Factura original: {invoice?.invoice_number}</p>
+                <p className="text-xs text-amber-700 mt-1">Elige cómo deseas proceder con esta factura.</p>
+              </div>
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  onClick={handleRectificativaAnular}
+                  disabled={rectificando}
+                  className="p-4 border-2 border-red-200 hover:border-red-400 rounded-xl text-left transition-all hover:bg-red-50"
+                >
+                  <p className="font-semibold flex items-center gap-2 text-red-700"><RotateCcw className="h-5 w-5" /> Anular completamente</p>
+                  <p className="text-xs text-red-600 mt-1">Genera una factura rectificativa R1 en negativo con todos los valores invertidos y la envía automáticamente a AEAT.</p>
+                </button>
+                <button
+                  onClick={() => setRectMode('corregir')}
+                  disabled={rectificando}
+                  className="p-4 border-2 border-blue-200 hover:border-blue-400 rounded-xl text-left transition-all hover:bg-blue-50"
+                >
+                  <p className="font-semibold flex items-center gap-2 text-blue-700"><Receipt className="h-5 w-5" /> Crear rectificativa editada</p>
+                  <p className="text-xs text-blue-600 mt-1">Abre un formulario para editar los datos (importe, descripción, etc) y genera la R1 con los valores corregidos.</p>
+                </button>
+              </div>
+              {rectificando && (
+                <div className="flex items-center justify-center gap-2 py-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-red-600" />
+                  <span className="text-sm text-muted-foreground">Anulando...</span>
+                </div>
+              )}
+              <Button variant="outline" onClick={() => setShowRectModal(false)} disabled={rectificando} className="w-full rounded-xl">Cancelar</Button>
+              </div>
+              )
+              )}
+              </DialogContent>
+              </Dialog>
 
       {/* Validate Modal */}
       <Dialog open={showValidateModal} onOpenChange={v => { if (!validating) { setShowValidateModal(v); setValidateResult(null); } }}>
