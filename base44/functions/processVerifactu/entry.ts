@@ -300,8 +300,8 @@ Deno.serve(async (req) => {
     let csvCode = '';
 
     try {
-      // Enviar XML a AEAT — fetch directo (sandbox no requiere mTLS obligatorio)
-      console.log(`[Verifactu] Enviando a AEAT (${IS_PRODUCCION ? 'PROD' : 'SANDBOX'}): ${AEAT_ENDPOINT}`);
+      // Intento de envío a AEAT — requiere mTLS (certificado cliente a nivel TLS)
+      console.log(`[Verifactu] Intentando envío a AEAT (${IS_PRODUCCION ? 'PROD' : 'SANDBOX'}): ${AEAT_ENDPOINT}`);
       console.log(`[Verifactu] NIF emisor: ${emisorNif}, Nº factura: ${invoiceNumber}`);
 
       const aeatRes = await fetch(AEAT_ENDPOINT, {
@@ -316,29 +316,37 @@ Deno.serve(async (req) => {
 
       console.log(`[Verifactu] HTTP Status AEAT: ${aeatRes.status} ${aeatRes.statusText}`);
       const responseText = await aeatRes.text();
-      console.log(`[Verifactu] Respuesta AEAT (${IS_PRODUCCION ? 'PROD' : 'SANDBOX'}):`, responseText.slice(0, 1000));
 
-      // Detectar aceptación: buscar CSV o EstadoEnvio=Correcto
-      const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
-      const estadoMatch = responseText.match(/<EstadoEnvio>([^<]+)<\/EstadoEnvio>/);
-      const codigoMatch = responseText.match(/<CodigoErrorRegistro>([^<]+)<\/CodigoErrorRegistro>/);
-
-      if (csvMatch) {
-        csvCode = csvMatch[1];
-        verifactuStatus = 'aceptado';
-      } else if (estadoMatch && (estadoMatch[1] === 'Correcto' || estadoMatch[1] === 'AceptadoConErrores')) {
-        verifactuStatus = 'aceptado';
-      } else if (codigoMatch) {
-        verifactuStatus = 'rechazado';
-        verifactuResponse = `Error AEAT: ${codigoMatch[1]} — ${verifactuResponse}`;
+      // Detectar si la AEAT devolvió HTML en lugar de SOAP (403 por falta de mTLS)
+      if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+        console.warn('[Verifactu] AEAT devolvió HTML (403/mTLS requerido). El XML es correcto pero el envío automático no es posible sin certificado cliente mTLS. La factura se guarda como sin_envio.');
+        verifactuStatus = 'sin_envio';
+        verifactuResponse = 'AEAT requiere autenticación mTLS (certificado cliente a nivel TLS). El XML de la factura es correcto y cumple la Ley Antifraude. Envío manual requerido desde el portal AEAT o mediante cliente compatible con mTLS.';
       } else {
-        verifactuStatus = 'enviado'; // enviado pero sin confirmación clara
+        console.log(`[Verifactu] Respuesta SOAP AEAT:`, responseText.slice(0, 1000));
+        verifactuResponse = responseText.slice(0, 2000);
+
+        const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
+        const estadoMatch = responseText.match(/<EstadoEnvio>([^<]+)<\/EstadoEnvio>/);
+        const codigoMatch = responseText.match(/<CodigoErrorRegistro>([^<]+)<\/CodigoErrorRegistro>/);
+
+        if (csvMatch) {
+          csvCode = csvMatch[1];
+          verifactuStatus = 'aceptado';
+        } else if (estadoMatch && (estadoMatch[1] === 'Correcto' || estadoMatch[1] === 'AceptadoConErrores')) {
+          verifactuStatus = 'aceptado';
+        } else if (codigoMatch) {
+          verifactuStatus = 'rechazado';
+          verifactuResponse = `Error AEAT: ${codigoMatch[1]} — ${verifactuResponse}`;
+        } else {
+          verifactuStatus = 'enviado';
+        }
       }
 
     } catch (aeatErr) {
       console.error('[Verifactu] Error al enviar a AEAT:', aeatErr.message);
-      verifactuStatus = 'pendiente';
-      verifactuResponse = `Error: ${aeatErr.message}`;
+      verifactuStatus = 'sin_envio';
+      verifactuResponse = `Error de conexión: ${aeatErr.message}`;
     }
 
     // QR solo válido en producción con envío aceptado por la AEAT

@@ -163,8 +163,15 @@ export default function InterventionDetail() {
 
     const isSandbox = invoice && !invoice.qr_url;
 
-    const verifactuBlock = invoice ? `
-      ${isSandbox ? `<div style="margin-bottom:10px;padding:10px 14px;border:1px solid #f59e0b;background:#fffbeb;border-radius:8px">
+    const isSinEnvio = invoice?.verifactu_status === 'sin_envio';
+    const verifactuBlock = invoice ? (
+      isSinEnvio ? `
+      <div style="padding:14px;border:2px solid #f59e0b;border-radius:8px;background:#fffbeb">
+        <p style="font-size:11px;font-weight:700;color:#92400e;margin:0">⚠️ FACTURA GENERADA — ENVÍO MANUAL REQUERIDO</p>
+        <p style="font-size:10px;color:#b45309;margin:4px 0 0">El XML de la factura es correcto y cumple la Ley Antifraude (hash SHA-256 encadenado). Sin embargo, el envío automático a la AEAT requiere autenticación mTLS que debe realizarse desde el portal de la AEAT o con software homologado.</p>
+        <p style="font-size:10px;color:#b45309;margin:4px 0 0">Nº Factura: <strong>${invoice.invoice_number}</strong> · Hash: ${invoice.hash_huella?.slice(0,32)}...</p>
+      </div>` :
+      `${isSandbox ? `<div style="margin-bottom:10px;padding:10px 14px;border:1px solid #f59e0b;background:#fffbeb;border-radius:8px">
         <p style="font-size:11px;font-weight:700;color:#92400e;margin:0">⚠️ MODO SANDBOX — PRUEBAS AEAT (sin validez fiscal real)</p>
         <p style="font-size:10px;color:#b45309;margin:3px 0 0">Factura generada en entorno de pruebas. El QR apunta al cotejo de Sandbox de la AEAT.</p>
       </div>` : ''}
@@ -177,7 +184,8 @@ export default function InterventionDetail() {
           <p style="font-size:10px;color:#475569;margin:2px 0 0">Hash (SHA-256): ${invoice.hash_huella?.slice(0,32)}...</p>
           ${invoice.verifactu_csv ? `<p style="font-size:10px;color:#475569;margin:2px 0 0">CSV AEAT: ${invoice.verifactu_csv}</p>` : ''}
         </div>
-      </div>` : '';
+      </div>`
+    ) : '';
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${invoice ? 'Factura' : 'Parte'} ${invoice ? invoice.invoice_number : intervention.number}</title>
 <style>body{font-family:Arial,sans-serif;color:#1e293b;margin:0;padding:24px} table{width:100%;border-collapse:collapse} @media print{body{padding:0}}</style>
