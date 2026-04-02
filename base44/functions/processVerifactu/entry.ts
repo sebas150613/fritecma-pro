@@ -113,8 +113,8 @@ Deno.serve(async (req) => {
       fecha: fechaQR,
       importe: (intervention.total || 0).toFixed(2),
     });
-    // En sandbox no hay registro en AEAT, qrUrl queda vacío hasta producción
-    const qrUrl = IS_PRODUCCION ? `${AEAT_QR_BASE}?${qrParams.toString()}` : '';
+    // La URL final del QR se asigna tras confirmar estado 'aceptado' de la AEAT
+    const qrUrlBase = `${AEAT_QR_BASE}?${qrParams.toString()}`;
 
     // 7. Construir XML Veri*factu (estructura básica RegFactuSistemaFacturacion)
     const xmlPayload = `<?xml version="1.0" encoding="UTF-8"?>
@@ -171,43 +171,89 @@ Deno.serve(async (req) => {
   </soapenv:Body>
 </soapenv:Envelope>`;
 
-    // 8. Enviar a AEAT — sandbox o producción según flag VERIFACTU_PRODUCCION
+    // 8. Enviar a AEAT con certificado digital (mTLS) — sandbox o producción
     let verifactuStatus = 'pendiente';
     let verifactuResponse = '';
     let csvCode = '';
 
-    if (!IS_PRODUCCION) {
-      // ── MODO SANDBOX: simula respuesta OK de la AEAT para pruebas ──
-      // En producción se usará el endpoint real con certificado .p12
-      csvCode = `SANDBOX-${hashHuella.slice(0, 16)}`;
-      verifactuStatus = 'aceptado';
-      verifactuResponse = `[SANDBOX] Simulación OK. Hash: ${hashHuella}. Endpoint que se usará en producción: ${AEAT_ENDPOINT}`;
-    } else {
-      // ── MODO PRODUCCIÓN: envío real a la AEAT ──
-      try {
-        const aeatRes = await fetch(AEAT_ENDPOINT, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'text/xml; charset=utf-8',
-            'SOAPAction': 'https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR',
-          },
-          body: xmlPayload,
-          signal: AbortSignal.timeout(15000),
-        });
-        const responseText = await aeatRes.text();
-        verifactuResponse = responseText.slice(0, 1000);
-        const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
-        if (csvMatch) {
-          csvCode = csvMatch[1];
-          verifactuStatus = 'aceptado';
-        } else {
-          verifactuStatus = 'enviado';
-        }
-      } catch (aeatErr) {
-        verifactuStatus = 'pendiente';
-        verifactuResponse = `Error conexión AEAT: ${aeatErr.message}`;
+    try {
+      // Obtener certificado digital del administrador
+      const certUri = adminUser.verifactu_cert_uri;
+      if (!certUri) {
+        throw new Error('Certificado digital no configurado. Ve a Configuración → Veri*factu y sube el archivo .p12.');
       }
+
+      // Descargar cert desde almacenamiento privado
+      const { signed_url } = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
+        file_uri: certUri,
+        expires_in: 60,
+      });
+      const certResponse = await fetch(signed_url);
+      const certArrayBuffer = await certResponse.arrayBuffer();
+
+      // Parsear .p12 con node-forge
+      const forge = (await import('npm:node-forge@1.3.1')).default;
+      const certBytes = new Uint8Array(certArrayBuffer);
+      const certBinaryStr = Array.from(certBytes).map(b => String.fromCharCode(b)).join('');
+      const p12Der = forge.util.createBuffer(certBinaryStr, 'raw');
+      const p12Asn1 = forge.asn1.fromDer(p12Der);
+      const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, adminUser.verifactu_cert_password || '');
+
+      const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
+      const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
+
+      if (!certBags[forge.pki.oids.certBag]?.length || !keyBags[forge.pki.oids.pkcs8ShroudedKeyBag]?.length) {
+        throw new Error('No se pudo extraer el certificado o la clave privada del archivo .p12. Verifica la contraseña.');
+      }
+
+      const certPem = forge.pki.certificateToPem(certBags[forge.pki.oids.certBag][0].cert);
+      const keyPem = forge.pki.privateKeyToPem(keyBags[forge.pki.oids.pkcs8ShroudedKeyBag][0].key);
+
+      // Crear cliente HTTP con certificado cliente (mTLS)
+      const httpClient = Deno.createHttpClient({ certChain: certPem, privateKey: keyPem });
+
+      const aeatRes = await fetch(AEAT_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/xml; charset=utf-8',
+          'SOAPAction': 'https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR',
+        },
+        body: xmlPayload,
+        signal: AbortSignal.timeout(20000),
+        client: httpClient,
+      });
+
+      httpClient.close();
+
+      const responseText = await aeatRes.text();
+      verifactuResponse = responseText.slice(0, 2000);
+      console.log(`[Verifactu] Respuesta AEAT (${IS_PRODUCCION ? 'PROD' : 'SANDBOX'}):`, verifactuResponse.slice(0, 500));
+
+      // Detectar aceptación: buscar CSV o EstadoEnvio=Correcto
+      const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
+      const estadoMatch = responseText.match(/<EstadoEnvio>([^<]+)<\/EstadoEnvio>/);
+      const codigoMatch = responseText.match(/<CodigoErrorRegistro>([^<]+)<\/CodigoErrorRegistro>/);
+
+      if (csvMatch) {
+        csvCode = csvMatch[1];
+        verifactuStatus = 'aceptado';
+      } else if (estadoMatch && (estadoMatch[1] === 'Correcto' || estadoMatch[1] === 'AceptadoConErrores')) {
+        verifactuStatus = 'aceptado';
+      } else if (codigoMatch) {
+        verifactuStatus = 'rechazado';
+        verifactuResponse = `Error AEAT: ${codigoMatch[1]} — ${verifactuResponse}`;
+      } else {
+        verifactuStatus = 'enviado'; // enviado pero sin confirmación clara
+      }
+
+    } catch (aeatErr) {
+      console.error('[Verifactu] Error al enviar a AEAT:', aeatErr.message);
+      verifactuStatus = 'pendiente';
+      verifactuResponse = `Error: ${aeatErr.message}`;
     }
+
+    // QR solo válido en producción con envío aceptado por la AEAT
+    const qrUrl = (verifactuStatus === 'aceptado' && IS_PRODUCCION) ? qrUrlBase : '';
 
     // 9. Calcular fecha de retención legal (6 años desde emisión)
     const retentionDate = new Date();
