@@ -217,9 +217,15 @@ export default function AppSettings() {
         <Button
           onClick={async () => {
             setSavingCert(true);
-            // Aquí se subiría el certificado al backend de forma segura
-            // Por ahora guardamos los datos de texto en el perfil del admin
-            await base44.auth.updateMe({ verifactu_nif: emisorNif, verifactu_nombre: emisorNombre });
+            let certUri = null;
+            if (certFile) {
+              const { file_uri } = await base44.integrations.Core.UploadPrivateFile({ file: certFile });
+              certUri = file_uri;
+            }
+            const updateData = { verifactu_nif: emisorNif, verifactu_nombre: emisorNombre };
+            if (certUri) updateData.verifactu_cert_uri = certUri;
+            if (certPassword) updateData.verifactu_cert_password = certPassword;
+            await base44.auth.updateMe(updateData);
             setCertSaved(true);
             setSavingCert(false);
             setTimeout(() => setCertSaved(false), 3000);
