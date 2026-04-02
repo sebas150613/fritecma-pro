@@ -79,8 +79,8 @@ Deno.serve(async (req) => {
       }
       const origInvoice = origInvoices[0];
 
-      const adminUsers = await base44.asServiceRole.entities.User.filter({ role: 'admin' }, '-created_date', 1);
-      const adminUser = adminUsers[0] || {};
+      const allUsersRect = await base44.asServiceRole.entities.User.list('full_name', 100);
+      const adminUser = allUsersRect.find(u => u.verifactu_nif) || {};
       const emisorNif = adminUser.verifactu_nif || Deno.env.get('VERIFACTU_NIF') || 'B00000000';
       const emisorNombre = adminUser.verifactu_nombre || Deno.env.get('VERIFACTU_NOMBRE') || 'EMPRESA S.L.';
 
@@ -203,9 +203,9 @@ Deno.serve(async (req) => {
     const prevInvoices = await base44.asServiceRole.entities.Invoice.list('-invoice_chain_index', 1);
     const hashAnterior = prevInvoices.length > 0 ? (prevInvoices[0].hash_huella || '') : '';
 
-    // 4. NIF y nombre: primero del perfil del admin (guardado desde Ajustes), luego secrets como fallback
-    const adminUsers = await base44.asServiceRole.entities.User.filter({ role: 'admin' }, '-created_date', 1);
-    const adminUser = adminUsers[0] || {};
+    // 4. NIF y nombre: buscar el usuario que tenga verifactu_nif configurado (puede ser admin o superadmin)
+    const allUsers = await base44.asServiceRole.entities.User.list('full_name', 100);
+    const adminUser = allUsers.find(u => u.verifactu_nif) || {};
     const emisorNif = adminUser.verifactu_nif || Deno.env.get('VERIFACTU_NIF') || 'B00000000';
     const emisorNombre = adminUser.verifactu_nombre || Deno.env.get('VERIFACTU_NOMBRE') || 'EMPRESA S.L.';
 

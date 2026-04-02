@@ -35,6 +35,7 @@ export default function AppSettings() {
   const [emisorTelefono, setEmisorTelefono] = useState("");
   const [savingCert, setSavingCert] = useState(false);
   const [certSaved, setCertSaved] = useState(false);
+  const [certUri, setCertUri] = useState("");
   const [modoProduccion, setModoProduccion] = useState(false);
 
   useEffect(() => {
@@ -52,6 +53,7 @@ export default function AppSettings() {
     setEmisorNombre(me.verifactu_nombre || "FRITECMA S.L.");
     setEmisorDireccion(me.emisor_direccion || "");
     setEmisorTelefono(me.emisor_telefono || "");
+    setCertUri(me.verifactu_cert_uri || "");
     setLoading(false);
   };
 
@@ -206,6 +208,12 @@ export default function AppSettings() {
 
         <div>
           <Label className="flex items-center gap-2"><Key className="h-3.5 w-3.5" /> Certificado Digital (.p12 / .pfx)</Label>
+          {certUri && !certFile && (
+            <div className="mt-1 mb-2 flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <span className="text-emerald-700 text-sm font-medium">✓ Certificado cargado</span>
+              <span className="text-xs text-emerald-600">— Sube un nuevo archivo para reemplazarlo</span>
+            </div>
+          )}
           <div className="mt-1 flex items-center gap-3">
             <label className="flex-1 cursor-pointer">
               <div className="border-2 border-dashed border-border rounded-xl p-4 text-center hover:border-accent transition-colors">
@@ -214,7 +222,7 @@ export default function AppSettings() {
                 ) : (
                   <>
                     <Upload className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Subir archivo .p12 / .pfx</p>
+                    <p className="text-sm text-muted-foreground">{certUri ? 'Subir nuevo certificado' : 'Subir archivo .p12 / .pfx'}</p>
                   </>
                 )}
               </div>
@@ -228,29 +236,36 @@ export default function AppSettings() {
           <Input type="password" value={certPassword} onChange={e => setCertPassword(e.target.value)} placeholder="Contraseña del certificado" className="mt-1 rounded-xl" />
         </div>
 
+        {certSaved && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+            <span className="text-emerald-700 font-semibold text-sm">✓ Configuración guardada con éxito</span>
+          </div>
+        )}
         <Button
           onClick={async () => {
             setSavingCert(true);
-            let certUri = null;
+            let newCertUri = certUri;
             if (certFile) {
               const { file_uri } = await base44.integrations.Core.UploadPrivateFile({ file: certFile });
-              certUri = file_uri;
+              newCertUri = file_uri;
             }
             const updateData = { verifactu_nif: emisorNif, verifactu_nombre: emisorNombre };
-            if (certUri) updateData.verifactu_cert_uri = certUri;
+            if (newCertUri) updateData.verifactu_cert_uri = newCertUri;
             if (certPassword) updateData.verifactu_cert_password = certPassword;
             updateData.emisor_direccion = emisorDireccion;
             updateData.emisor_telefono = emisorTelefono;
             await base44.auth.updateMe(updateData);
+            if (newCertUri) setCertUri(newCertUri);
+            setCertFile(null);
             setCertSaved(true);
             setSavingCert(false);
-            setTimeout(() => setCertSaved(false), 3000);
+            setTimeout(() => setCertSaved(false), 5000);
           }}
           disabled={savingCert || !emisorNif}
           className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
         >
           {savingCert ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-          {certSaved ? '✓ Guardado' : 'Guardar Configuración'}
+          Guardar Configuración
         </Button>
         {/* Toggle sandbox / producción */}
         <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/30">

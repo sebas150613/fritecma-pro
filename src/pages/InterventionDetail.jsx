@@ -102,12 +102,12 @@ export default function InterventionDetail() {
     setGeneratingPdf(true);
 
     // Cargar datos del cliente y del emisor
-    const [clientList, adminList] = await Promise.all([
+    const [clientList, allUserList] = await Promise.all([
       base44.entities.Client.filter({ id: intervention.client_id }, '-created_date', 1).catch(() => []),
-      base44.entities.User.filter({ role: 'admin' }, '-created_date', 1).catch(() => []),
+      base44.entities.User.list('full_name', 100).catch(() => []),
     ]);
     const client = clientList[0] || {};
-    const adminUser = adminList[0] || {};
+    const adminUser = allUserList.find(u => u.verifactu_nif) || {};
 
     // Datos del emisor (Fritecma)
     const emisorNif = adminUser.verifactu_nif || 'B00000000';
