@@ -386,7 +386,7 @@ Deno.serve(async (req) => {
       });
 
       // En SANDBOX: aceptar respuestas sin error HTTP y sin SOAP Fault
-      if (!IS_PRODUCCION && httpStatus >= 200 && httpStatus < 400 && !responseText.includes('Fault')) {
+      if (!IS_PRODUCCION && httpStatus >= 200 && httpStatus < 400 && !responseText.includes('<Fault>')) {
         console.log(`[Verifactu] SANDBOX MODE - Aceptando respuesta HTTP ${httpStatus} como válida para testing`);
         verifactuStatus = 'aceptado';
         verifactuResponse = `Testing SANDBOX - HTTP ${httpStatus}. En producción requiere CSV válido de AEAT.`;
