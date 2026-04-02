@@ -203,6 +203,10 @@ Deno.serve(async (req) => {
           <sum:NombreRazonEmisor>${emisorNombre}</sum:NombreRazonEmisor>
           <sum:TipoFactura>R1</sum:TipoFactura>
           <sum:DescripcionOperacion>Factura Rectificativa</sum:DescripcionOperacion>
+          <sum:FacturaRectificada>
+            <sum:NumSerieFactura>${origInvoice.invoice_number}</sum:NumSerieFactura>
+            <sum:FechaExpedicionFactura>${origInvoice.issue_date.slice(0, 10)}</sum:FechaExpedicionFactura>
+          </sum:FacturaRectificada>
           <sum:Destinatarios>
             <sum:IDDestinatario>
               <sum:NombreRazon>${intervention.client_name}</sum:NombreRazon>
