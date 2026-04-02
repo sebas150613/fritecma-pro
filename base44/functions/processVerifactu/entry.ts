@@ -219,6 +219,9 @@ Deno.serve(async (req) => {
     const adminUser = allUsers.find(u => u.verifactu_nif) || {};
     const emisorNif = adminUser.verifactu_nif || Deno.env.get('VERIFACTU_NIF') || 'B00000000';
     const emisorNombre = adminUser.verifactu_nombre || Deno.env.get('VERIFACTU_NOMBRE') || 'EMPRESA S.L.';
+    
+    // NIF del software desarrollador (FRITECMA)
+    const softwareNif = Deno.env.get('FRITECMA_NIF') || 'B00000000';
 
     // 5. Construir string para hash (según spec Veri*factu: NIF+NombreEmisor+NumFactura+FechaExpedicion+TipoFactura+CuotaTotal+ImporteTotal+Huella Anterior+FechaHoraHuella)
     const fechaHoraHuella = now.replace(/[-:T.Z]/g, '').slice(0, 14);
@@ -295,7 +298,7 @@ Deno.serve(async (req) => {
           </sum:Encadenamiento>
           <sum:SistemaInformatico>
             <sum:NombreRazon>FRITECMA Software</sum:NombreRazon>
-            <sum:NIF>${emisorNif}</sum:NIF>
+            <sum:NIF>${softwareNif}</sum:NIF>
             <sum:NombreSistemaInformatico>FRITECMA App</sum:NombreSistemaInformatico>
             <sum:Version>1.0</sum:Version>
           </sum:SistemaInformatico>
