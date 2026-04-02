@@ -294,36 +294,83 @@ Deno.serve(async (req) => {
   </soapenv:Body>
 </soapenv:Envelope>`;
 
-    // 8. Enviar a AEAT con certificado digital (mTLS) — sandbox o producción
+    // 8. Enviar a AEAT con mTLS usando node:https (Deno Node compatibility)
     let verifactuStatus = 'pendiente';
     let verifactuResponse = '';
     let csvCode = '';
 
     try {
-      // Intento de envío a AEAT — requiere mTLS (certificado cliente a nivel TLS)
-      console.log(`[Verifactu] Intentando envío a AEAT (${IS_PRODUCCION ? 'PROD' : 'SANDBOX'}): ${AEAT_ENDPOINT}`);
+      console.log(`[Verifactu] Iniciando envío mTLS a AEAT (${IS_PRODUCCION ? 'PROD' : 'SANDBOX'}): ${AEAT_ENDPOINT}`);
       console.log(`[Verifactu] NIF emisor: ${emisorNif}, Nº factura: ${invoiceNumber}`);
 
-      const aeatRes = await fetch(AEAT_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/xml; charset=utf-8',
-          'SOAPAction': 'https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR',
-        },
-        body: xmlPayload,
-        signal: AbortSignal.timeout(25000),
+      // Obtener certificado .p12 del almacenamiento privado
+      const certUri = adminUser.verifactu_cert_uri;
+      if (!certUri) {
+        throw new Error('Certificado digital no configurado. Ve a Configuración → Veri*factu y sube el archivo .p12.');
+      }
+
+      const certPassword = adminUser.verifactu_cert_password || '';
+      console.log(`[Verifactu] Certificado URI: ${certUri}, contraseña configurada: ${certPassword ? 'Sí' : 'No (vacía)'}`);
+
+      // Descargar .p12 desde almacenamiento privado
+      const { signed_url } = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
+        file_uri: certUri,
+        expires_in: 60,
+      });
+      const certResponse = await fetch(signed_url);
+      const certArrayBuffer = await certResponse.arrayBuffer();
+      const certBuffer = Buffer.from(certArrayBuffer);
+      console.log(`[Verifactu] Certificado descargado: ${certBuffer.length} bytes`);
+
+      // Usar node:https con pfx para mTLS real
+      const https = await import('node:https');
+      const url = new URL(AEAT_ENDPOINT);
+
+      const responseText = await new Promise((resolve, reject) => {
+        const options = {
+          hostname: url.hostname,
+          path: url.pathname,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/xml; charset=utf-8',
+            'SOAPAction': 'https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR',
+            'Content-Length': Buffer.byteLength(xmlPayload, 'utf8'),
+          },
+          pfx: certBuffer,
+          passphrase: certPassword,
+          rejectUnauthorized: false, // sandbox usa cert autofirmado
+        };
+
+        const req = https.default.request(options, (res) => {
+          console.log(`[Verifactu] HTTP Status AEAT: ${res.statusCode} ${res.statusMessage}`);
+          let data = '';
+          res.setEncoding('utf8');
+          res.on('data', chunk => { data += chunk; });
+          res.on('end', () => resolve(data));
+        });
+
+        req.on('error', (err) => {
+          console.error('[Verifactu] Error de red mTLS:', err.message);
+          reject(err);
+        });
+
+        req.setTimeout(25000, () => {
+          req.destroy();
+          reject(new Error('Timeout: AEAT no respondió en 25s'));
+        });
+
+        req.write(xmlPayload, 'utf8');
+        req.end();
       });
 
-      console.log(`[Verifactu] HTTP Status AEAT: ${aeatRes.status} ${aeatRes.statusText}`);
-      const responseText = await aeatRes.text();
-
-      // Detectar si la AEAT devolvió HTML en lugar de SOAP (403 por falta de mTLS)
+      // Detectar si la AEAT devolvió HTML en lugar de SOAP (aún sin mTLS válido)
       if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
-        console.warn('[Verifactu] AEAT devolvió HTML (403/mTLS requerido). El XML es correcto pero el envío automático no es posible sin certificado cliente mTLS. La factura se guarda como sin_envio.');
+        console.warn('[Verifactu] AEAT devolvió HTML en lugar de SOAP. Certificado rechazado o endpoint incorrecto.');
+        console.log('[Verifactu] Respuesta HTML (primeros 500):', responseText.slice(0, 500));
         verifactuStatus = 'sin_envio';
-        verifactuResponse = 'AEAT requiere autenticación mTLS (certificado cliente a nivel TLS). El XML de la factura es correcto y cumple la Ley Antifraude. Envío manual requerido desde el portal AEAT o mediante cliente compatible con mTLS.';
+        verifactuResponse = 'AEAT rechazó el certificado cliente (respuesta HTML). Verifica que el .p12 sea el certificado homologado para Veri*factu y que la contraseña sea correcta.';
       } else {
-        console.log(`[Verifactu] Respuesta SOAP AEAT:`, responseText.slice(0, 1000));
+        console.log(`[Verifactu] Respuesta SOAP AEAT:`, responseText.slice(0, 1500));
         verifactuResponse = responseText.slice(0, 2000);
 
         const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
@@ -333,20 +380,24 @@ Deno.serve(async (req) => {
         if (csvMatch) {
           csvCode = csvMatch[1];
           verifactuStatus = 'aceptado';
+          console.log(`[Verifactu] ACEPTADO - CSV: ${csvCode}`);
         } else if (estadoMatch && (estadoMatch[1] === 'Correcto' || estadoMatch[1] === 'AceptadoConErrores')) {
           verifactuStatus = 'aceptado';
+          console.log(`[Verifactu] ACEPTADO - EstadoEnvio: ${estadoMatch[1]}`);
         } else if (codigoMatch) {
           verifactuStatus = 'rechazado';
           verifactuResponse = `Error AEAT: ${codigoMatch[1]} — ${verifactuResponse}`;
+          console.warn(`[Verifactu] RECHAZADO - Código: ${codigoMatch[1]}`);
         } else {
           verifactuStatus = 'enviado';
+          console.log('[Verifactu] Enviado - respuesta sin CSV ni error claro');
         }
       }
 
     } catch (aeatErr) {
       console.error('[Verifactu] Error al enviar a AEAT:', aeatErr.message);
       verifactuStatus = 'sin_envio';
-      verifactuResponse = `Error de conexión: ${aeatErr.message}`;
+      verifactuResponse = `Error: ${aeatErr.message}`;
     }
 
     // QR solo válido en producción con envío aceptado por la AEAT
