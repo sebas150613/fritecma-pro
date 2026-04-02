@@ -183,7 +183,6 @@ export default function InterventionDetail() {
     if (win) win.print();
     setGeneratingPdf(false);
   };
-  const materials = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -261,6 +260,8 @@ export default function InterventionDetail() {
       </div>
     );
   }
+
+  const materials = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
