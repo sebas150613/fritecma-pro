@@ -93,27 +93,63 @@ export default function InterventionDetail() {
 
   const generatePDF = async () => {
     setGeneratingPdf(true);
+
+    // Cargar datos del cliente y del emisor
+    const [clientList, adminList] = await Promise.all([
+      base44.entities.Client.filter({ id: intervention.client_id }, '-created_date', 1).catch(() => []),
+      base44.entities.User.filter({ role: 'admin' }, '-created_date', 1).catch(() => []),
+    ]);
+    const client = clientList[0] || {};
+    const adminUser = adminList[0] || {};
+
+    // Datos del emisor (Fritecma)
+    const emisorNif = adminUser.verifactu_nif || 'B00000000';
+    const emisorNombre = adminUser.verifactu_nombre || 'FRITECMA S.L.';
+    const emisorDireccion = 'C/ Ejemplo, 1 · 28001 Madrid';
+    const emisorTelefono = '+34 91 000 00 00';
+
+    // Datos del cliente
+    const clientNif = client.cif || invoice?.client_nif || '';
+    const clientAddress = client.address ? `${client.address}${client.postal_code ? ', ' + client.postal_code : ''}${client.city ? ' ' + client.city : ''}` : '';
+
     const mats = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
     const materialsRows = mats.map((m, i) =>
       `<tr style="border-bottom:1px solid #e2e8f0">
-        <td style="padding:8px 4px">${i+1}. ${m.material_name || 'Material'}</td>
+        <td style="padding:8px 4px">${i+1}. ${m.material_name || 'Material'}${m.observation ? '<br><span style="font-size:11px;color:#64748b">' + m.observation + '</span>' : ''}</td>
         <td style="padding:8px 4px;text-align:center">${m.quantity} ${m.unit || 'ud'}</td>
         <td style="padding:8px 4px;text-align:right">${(m.unit_price||0).toFixed(2)} €</td>
+        <td style="padding:8px 4px;text-align:center">${m.iva_percent || 21}%</td>
         <td style="padding:8px 4px;text-align:right"><strong>${(m.total||0).toFixed(2)} €</strong></td>
       </tr>`
     ).join('');
 
-    // QR legal Veri*factu (si existe factura asociada)
-    // Solo se muestra si hay QR real (modo producción con envio aceptado)
+    // Desglose IVA por tipo
+    const ivaByRate = {};
+    mats.forEach(m => {
+      const rate = m.iva_percent || 21;
+      const lineBase = (m.total || 0) * (1 - (intervention.discount_percent || 0) / 100);
+      if (!ivaByRate[rate]) ivaByRate[rate] = { base: 0, cuota: 0 };
+      ivaByRate[rate].base += lineBase;
+      ivaByRate[rate].cuota += lineBase * (rate / 100);
+    });
+    const ivaRows = Object.entries(ivaByRate).sort(([a],[b]) => Number(a)-Number(b)).map(([rate, vals]) =>
+      `<tr>
+        <td style="padding:6px 8px;font-size:12px">IVA ${rate}%</td>
+        <td style="padding:6px 8px;text-align:right;font-size:12px">${vals.base.toFixed(2)} €</td>
+        <td style="padding:6px 8px;text-align:right;font-size:12px">${vals.cuota.toFixed(2)} €</td>
+      </tr>`
+    ).join('');
+
+    // Sección QR / Sandbox
     const qrSection = invoice?.qr_url
       ? `<div style="margin-top:24px;padding:16px;border:2px solid #1e3a5f;border-radius:8px;display:flex;align-items:flex-start;gap:16px">
           <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(invoice.qr_url)}" width="100" height="100" alt="QR AEAT" />
           <div>
             <p style="font-size:11px;font-weight:700;color:#1e3a5f;margin:0">FACTURA VERIFICABLE EN LA SEDE ELECTRÓNICA DE LA AEAT</p>
-            <p style="font-size:10px;color:#475569;margin:4px 0 0">Nº Factura: ${invoice.invoice_number}</p>
-            <p style="font-size:10px;color:#475569;margin:2px 0 0">Hash: ${invoice.hash_huella?.slice(0,32)}...</p>
-            ${invoice.verifactu_csv ? `<p style="font-size:10px;color:#475569;margin:2px 0 0">CSV: ${invoice.verifactu_csv}</p>` : ''}
-            <p style="font-size:9px;color:#94a3b8;margin:4px 0 0">Puede verificar esta factura en: www.agenciatributaria.es</p>
+            <p style="font-size:10px;color:#475569;margin:4px 0 0">Factura generada por FRIGEST. Verificable en la sede electrónica de la AEAT (www.agenciatributaria.es).</p>
+            <p style="font-size:10px;color:#475569;margin:4px 0 0">Nº Factura: ${invoice.invoice_number} · Fecha: ${moment(invoice.issue_date).format('DD/MM/YYYY')}</p>
+            <p style="font-size:10px;color:#475569;margin:2px 0 0">Hash (SHA-256): ${invoice.hash_huella?.slice(0,32)}...</p>
+            ${invoice.verifactu_csv ? `<p style="font-size:10px;color:#475569;margin:2px 0 0">CSV AEAT: ${invoice.verifactu_csv}</p>` : ''}
           </div>
         </div>`
       : '';
@@ -122,38 +158,102 @@ export default function InterventionDetail() {
       ? `<div style="margin-top:24px;padding:12px 16px;border:1px solid #f59e0b;background:#fffbeb;border-radius:8px">
           <p style="font-size:11px;font-weight:700;color:#92400e;margin:0">MODO SANDBOX — FACTURA NO ENVIADA A LA AEAT</p>
           <p style="font-size:10px;color:#b45309;margin:4px 0 0">Esta factura ha sido generada en modo pruebas. No tiene validez fiscal. El QR se activará en modo producción.</p>
-          <p style="font-size:10px;color:#b45309;margin:2px 0 0">Nº Factura: ${invoice.invoice_number} · Hash: ${invoice.hash_huella?.slice(0,32)}...</p>
+          <p style="font-size:10px;color:#b45309;margin:2px 0 0">Factura generada por FRIGEST · Nº: ${invoice.invoice_number} · Hash: ${invoice.hash_huella?.slice(0,32)}...</p>
         </div>`
       : '';
 
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Parte ${intervention.number}</title>
+    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${invoice ? 'Factura' : 'Parte'} ${invoice ? invoice.invoice_number : intervention.number}</title>
 <style>body{font-family:Arial,sans-serif;color:#1e293b;margin:0;padding:24px} table{width:100%;border-collapse:collapse} @media print{body{padding:0}}</style>
 </head><body>
-<div style="background:#1e3a5f;color:white;padding:20px 24px;border-radius:8px;display:flex;justify-content:space-between;align-items:center">
-  <div><h1 style="margin:0;font-size:22px">FRITECMA</h1><p style="margin:4px 0 0;font-size:12px;opacity:.8">Servicios Técnicos de Refrigeración</p></div>
-  <div style="text-align:right"><p style="margin:0;font-size:18px;font-weight:700">${invoice ? 'FACTURA' : 'PARTE DE TRABAJO'}</p><p style="margin:4px 0 0;font-size:13px">${invoice ? invoice.invoice_number : intervention.number}</p></div>
+
+<!-- CABECERA -->
+<div style="background:#1e3a5f;color:white;padding:20px 24px;border-radius:8px;display:flex;justify-content:space-between;align-items:flex-start">
+  <div>
+    <h1 style="margin:0;font-size:22px">${emisorNombre}</h1>
+    <p style="margin:4px 0 0;font-size:11px;opacity:.8">NIF: ${emisorNif}</p>
+    <p style="margin:2px 0 0;font-size:11px;opacity:.8">${emisorDireccion}</p>
+    <p style="margin:2px 0 0;font-size:11px;opacity:.8">Tel: ${emisorTelefono}</p>
+  </div>
+  <div style="text-align:right">
+    <p style="margin:0;font-size:20px;font-weight:700">${invoice ? 'FACTURA' : 'PARTE DE TRABAJO'}</p>
+    <p style="margin:4px 0 0;font-size:15px">${invoice ? invoice.invoice_number : intervention.number}</p>
+    <p style="margin:4px 0 0;font-size:11px;opacity:.8">Fecha: ${moment(intervention.date).format('DD/MM/YYYY')}</p>
+  </div>
 </div>
+
+<!-- EMISOR Y CLIENTE -->
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:20px">
-  <div style="padding:16px;background:#f8fafc;border-radius:8px">
-    <p style="font-size:11px;color:#64748b;margin:0 0 4px">CLIENTE</p>
-    <p style="font-weight:700;margin:0">${intervention.client_name}</p>
-    ${intervention.work_center_name ? `<p style="margin:2px 0 0;font-size:13px">${intervention.work_center_name}</p>` : ''}
+  <div style="padding:14px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+    <p style="font-size:10px;color:#64748b;margin:0 0 6px;font-weight:700;text-transform:uppercase">Emisor</p>
+    <p style="font-weight:700;margin:0;font-size:13px">${emisorNombre}</p>
+    <p style="margin:2px 0 0;font-size:12px">NIF: ${emisorNif}</p>
+    <p style="margin:2px 0 0;font-size:12px">${emisorDireccion}</p>
+    <p style="margin:2px 0 0;font-size:12px">Tel: ${emisorTelefono}</p>
   </div>
-  <div style="padding:16px;background:#f8fafc;border-radius:8px">
-    <p style="font-size:11px;color:#64748b;margin:0 0 4px">DATOS DEL PARTE</p>
-    <p style="margin:0;font-size:13px">Nº Parte: <strong>${intervention.number}</strong></p>
-    <p style="margin:2px 0 0;font-size:13px">Fecha: <strong>${moment(intervention.date).format('DD/MM/YYYY HH:mm')}</strong></p>
-    <p style="margin:2px 0 0;font-size:13px">Técnico: <strong>${intervention.technician_name}</strong></p>
-    ${intervention.helper_name ? `<p style="margin:2px 0 0;font-size:13px">Ayudante: <strong>${intervention.helper_name}</strong></p>` : ''}
+  <div style="padding:14px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
+    <p style="font-size:10px;color:#64748b;margin:0 0 6px;font-weight:700;text-transform:uppercase">Cliente / Destinatario</p>
+    <p style="font-weight:700;margin:0;font-size:13px">${intervention.client_name}</p>
+    ${clientNif ? `<p style="margin:2px 0 0;font-size:12px">NIF/CIF: ${clientNif}</p>` : ''}
+    ${clientAddress ? `<p style="margin:2px 0 0;font-size:12px">${clientAddress}</p>` : ''}
+    ${intervention.work_center_name ? `<p style="margin:4px 0 0;font-size:12px;color:#64748b">Centro: ${intervention.work_center_name}</p>` : ''}
+    ${client.email ? `<p style="margin:2px 0 0;font-size:12px">${client.email}</p>` : ''}
   </div>
 </div>
-${intervention.description ? `<div style="margin-top:16px;padding:16px;background:#f8fafc;border-radius:8px"><p style="font-size:11px;color:#64748b;margin:0 0 4px">DESCRIPCIÓN DEL TRABAJO</p><p style="margin:0;font-size:13px">${intervention.description}</p></div>` : ''}
-${mats.length > 0 ? `<div style="margin-top:20px"><p style="font-size:11px;color:#64748b;margin:0 0 8px">MATERIALES Y SERVICIOS</p><table><thead><tr style="background:#1e3a5f;color:white"><th style="padding:8px;text-align:left">Descripción</th><th style="padding:8px;text-align:center">Cant.</th><th style="padding:8px;text-align:right">Precio Ud.</th><th style="padding:8px;text-align:right">Total</th></tr></thead><tbody>${materialsRows}</tbody></table><div style="text-align:right;margin-top:12px"><p style="margin:4px 0;font-size:13px">Base Imponible: <strong>${(intervention.subtotal||0).toFixed(2)} €</strong></p><p style="margin:4px 0;font-size:13px">IVA (21%): <strong>${(intervention.iva_total||0).toFixed(2)} €</strong></p><p style="margin:4px 0;font-size:18px;color:#1e3a5f">TOTAL: <strong>${(intervention.total||0).toFixed(2)} €</strong></p></div></div>` : ''}
-<div style="margin-top:20px;padding:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
-  <p style="font-size:11px;color:#64748b;margin:0 0 4px">CONFORMIDAD DEL CLIENTE</p>
-  <p style="margin:0;font-size:13px">Receptor: <strong>${intervention.receptor_name || '-'}</strong> — DNI: <strong>${intervention.receptor_dni || '-'}</strong></p>
-  <p style="margin:4px 0 0;font-size:13px">Fecha/Hora: ${intervention.saved_at ? moment(intervention.saved_at).format('DD/MM/YYYY HH:mm:ss') : '-'} — Conformidad: <strong style="color:#16a34a">${intervention.client_conformidad ? '✓ Confirmada' : 'Pendiente'}</strong></p>
+
+<!-- DATOS PARTE -->
+<div style="margin-top:14px;padding:12px 16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;display:flex;gap:24px;flex-wrap:wrap">
+  <span style="font-size:12px">Nº Parte: <strong>${intervention.number}</strong></span>
+  <span style="font-size:12px">Técnico: <strong>${intervention.technician_name}</strong></span>
+  ${intervention.helper_name ? `<span style="font-size:12px">Ayudante: <strong>${intervention.helper_name}</strong></span>` : ''}
+  <span style="font-size:12px">Fecha: <strong>${moment(intervention.date).format('DD/MM/YYYY HH:mm')}</strong></span>
 </div>
+
+${intervention.description ? `<div style="margin-top:14px;padding:14px;background:#f8fafc;border-radius:8px"><p style="font-size:10px;color:#64748b;margin:0 0 4px;text-transform:uppercase;font-weight:700">Descripción del Trabajo</p><p style="margin:0;font-size:13px">${intervention.description}</p></div>` : ''}
+
+<!-- TABLA MATERIALES -->
+${mats.length > 0 ? `<div style="margin-top:20px">
+  <p style="font-size:10px;color:#64748b;margin:0 0 8px;text-transform:uppercase;font-weight:700">Materiales y Servicios</p>
+  <table>
+    <thead>
+      <tr style="background:#1e3a5f;color:white">
+        <th style="padding:8px;text-align:left">Descripción</th>
+        <th style="padding:8px;text-align:center">Cant.</th>
+        <th style="padding:8px;text-align:right">Precio Ud.</th>
+        <th style="padding:8px;text-align:center">IVA</th>
+        <th style="padding:8px;text-align:right">Total</th>
+      </tr>
+    </thead>
+    <tbody>${materialsRows}</tbody>
+  </table>
+
+  <!-- DESGLOSE IVA -->
+  <div style="display:flex;justify-content:flex-end;margin-top:16px">
+    <div style="min-width:340px">
+      <table style="width:100%;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+        <thead><tr style="background:#f1f5f9">
+          <th style="padding:6px 8px;text-align:left;font-size:11px;color:#64748b">Tipo IVA</th>
+          <th style="padding:6px 8px;text-align:right;font-size:11px;color:#64748b">Base Imponible</th>
+          <th style="padding:6px 8px;text-align:right;font-size:11px;color:#64748b">Cuota IVA</th>
+        </tr></thead>
+        <tbody>${ivaRows}</tbody>
+      </table>
+      <div style="margin-top:8px;text-align:right">
+        <p style="margin:4px 0;font-size:12px">Base Imponible Total: <strong>${(intervention.subtotal||0).toFixed(2)} €</strong></p>
+        ${(intervention.discount_percent||0)>0 ? `<p style="margin:4px 0;font-size:12px;color:#dc2626">Descuento (${intervention.discount_percent}%): <strong>-${(intervention.subtotal*intervention.discount_percent/100).toFixed(2)} €</strong></p>` : ''}
+        <p style="margin:4px 0;font-size:12px">Total IVA: <strong>${(intervention.iva_total||0).toFixed(2)} €</strong></p>
+        <p style="margin:8px 0 0;font-size:20px;color:#1e3a5f;font-weight:700;border-top:2px solid #1e3a5f;padding-top:6px">TOTAL: ${(intervention.total||0).toFixed(2)} €</p>
+      </div>
+    </div>
+  </div>
+</div>` : ''}
+
+<!-- CONFORMIDAD -->
+<div style="margin-top:20px;padding:14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
+  <p style="font-size:10px;color:#64748b;margin:0 0 4px;text-transform:uppercase;font-weight:700">Conformidad del Cliente</p>
+  <p style="margin:0;font-size:13px">Receptor: <strong>${intervention.receptor_name || '-'}</strong> &nbsp;·&nbsp; DNI: <strong>${intervention.receptor_dni || '-'}</strong></p>
+  <p style="margin:4px 0 0;font-size:12px">Fecha/Hora: ${intervention.saved_at ? moment(intervention.saved_at).format('DD/MM/YYYY HH:mm:ss') : '-'} &nbsp;·&nbsp; Conformidad: <strong style="color:#16a34a">${intervention.client_conformidad ? '✓ Confirmada' : 'Pendiente'}</strong></p>
+</div>
+
 ${qrSection}
 ${sandboxNotice}
 </body></html>`;
