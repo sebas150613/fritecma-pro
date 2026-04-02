@@ -363,23 +363,7 @@ ${verifactuBlock}
     setValidating(false);
   };
 
-  const handleRectificativa = async () => {
-    if (!rectMotivo.trim()) return;
-    setRectificando(true);
-    try {
-      const res = await base44.functions.invoke('processVerifactu', {
-        intervention_id: id,
-        mode: 'rectificar',
-        original_invoice_id: invoice.id,
-        rectificativa_motivo: rectMotivo,
-      });
-      setRectResult(res.data);
-      await loadData();
-    } catch (e) {
-      alert('Error al rectificar: ' + e.message);
-    }
-    setRectificando(false);
-  };
+
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
@@ -447,7 +431,7 @@ ${verifactuBlock}
               <Button variant="outline" onClick={() => setShowRectModal(false)} disabled={rectificando} className="w-full rounded-xl">Cancelar</Button>
               </div>
               )
-              )}
+              }
               </DialogContent>
               </Dialog>
 
