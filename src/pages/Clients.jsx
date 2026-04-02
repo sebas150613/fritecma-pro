@@ -13,6 +13,13 @@ import { Badge } from "@/components/ui/badge";
 
 const TIERS = { standard: "Estándar", preferente: "Preferente", especial: "Especial" };
 
+const TARIFA_FIELDS = [
+  { key: "tarifa_normal",   label: "Normal (horario laboral)",  default: 45 },
+  { key: "tarifa_extra",    label: "Extra (horas extra)",       default: 60 },
+  { key: "tarifa_nocturna", label: "Nocturno",                  default: 70 },
+  { key: "tarifa_festiva",  label: "Festivo / Fin de semana",   default: 80 },
+];
+
 const emptyClient = {
   name: "", cif: "", address: "", city: "", postal_code: "",
   phone: "", email: "", contact_person: "", discount_percent: 0,
@@ -44,6 +51,7 @@ export default function Clients() {
   };
 
   const isTecnico = user?.role === "user" || user?.role === "tecnico" || user?.role === "ayudante";
+  const canEditTarifas = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
 
   const openNew = () => {
     setEditingClient(null);
@@ -242,6 +250,29 @@ export default function Clients() {
               <Label>Notas</Label>
               <Textarea value={form.notes || ""} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} rows={2} className="mt-1" />
             </div>
+
+            {/* Matriz de tarifas MO */}
+            <div className="border-t border-border pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-sm">Tarifas Mano de Obra (€/h)</h3>
+                {!canEditTarifas && <span className="text-xs text-muted-foreground">Solo Admin/Encargado</span>}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {TARIFA_FIELDS.map(tf => (
+                  <div key={tf.key}>
+                    <Label className="text-xs">{tf.label}</Label>
+                    <Input
+                      type="number" step="0.5" min="0"
+                      value={form[tf.key] ?? tf.default}
+                      onChange={e => canEditTarifas && setForm(f => ({ ...f, [tf.key]: parseFloat(e.target.value) || 0 }))}
+                      disabled={!canEditTarifas}
+                      className="mt-1 rounded-xl"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <Button onClick={handleSave} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl">
               {editingClient ? "Actualizar" : "Crear Cliente"}
             </Button>

@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { intervention_id, mode, original_invoice_id, rectificativa_motivo } = body; // mode: 'guardar' | 'facturar' | 'rectificar'
+    const { intervention_id, mode, original_invoice_id, rectificativa_motivo, tipo_horario_override, tarifa_override } = body; // mode: 'guardar' | 'facturar' | 'rectificar'
 
     if (!intervention_id) {
       return Response.json({ error: 'intervention_id requerido' }, { status: 400 });
@@ -151,6 +151,50 @@ Deno.serve(async (req) => {
     // 1. Obtener cliente
     const clients = await base44.asServiceRole.entities.Client.filter({ id: intervention.client_id }, '-created_date', 1);
     const client = clients[0] || {};
+
+    // Si hay override de tarifa, recalcular las líneas de MO
+    if (tarifa_override || tipo_horario_override) {
+      const tarifaMap = {
+        normal:   client.tarifa_normal   ?? 45,
+        extra:    client.tarifa_extra    ?? 60,
+        nocturno: client.tarifa_nocturna ?? 70,
+        festivo:  client.tarifa_festiva  ?? 80,
+      };
+      const tipoFinal = tipo_horario_override || intervention.tipo_horario || 'normal';
+      const tarifaFinal = tarifa_override || tarifaMap[tipoFinal] || 45;
+
+      let lines = [];
+      try { lines = JSON.parse(intervention.materials_json || '[]'); } catch(_) {}
+      let changed = false;
+      lines = lines.map(l => {
+        if (l._isLabor) {
+          changed = true;
+          const newTotal = (l.quantity || 0) * tarifaFinal;
+          return { ...l, unit_price: tarifaFinal, total: newTotal, _tipoHorario: tipoFinal };
+        }
+        return l;
+      });
+      if (changed) {
+        const sub = lines.reduce((s, l) => s + (l.total || 0), 0);
+        const disc = sub * ((intervention.discount_percent || 0) / 100);
+        const base = sub - disc;
+        const ivaT = lines.reduce((s, l) => {
+          const lineBase = (l.total || 0) * (1 - (intervention.discount_percent || 0) / 100);
+          return s + lineBase * ((l.iva_percent || 21) / 100);
+        }, 0);
+        await base44.asServiceRole.entities.Intervention.update(intervention_id, {
+          materials_json: JSON.stringify(lines),
+          subtotal: sub - disc,
+          iva_total: ivaT,
+          total: base + ivaT,
+          tipo_horario: tipoFinal,
+          tarifa_aplicada: tarifaFinal,
+        });
+        // Recargar intervention actualizada
+        const fresh = await base44.asServiceRole.entities.Intervention.filter({ id: intervention_id }, '-created_date', 1);
+        Object.assign(intervention, fresh[0] || {});
+      }
+    }
 
     // 2. Obtener número de factura correlativo
     const { number: invoiceNumber, index: chainIndex } = await getNextInvoiceNumber(base44);

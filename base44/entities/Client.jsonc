@@ -49,6 +49,26 @@
       ],
       "default": "standard"
     },
+    "tarifa_normal": {
+      "type": "number",
+      "title": "Tarifa Normal (\u20ac/h)",
+      "default": 45
+    },
+    "tarifa_extra": {
+      "type": "number",
+      "title": "Tarifa Extra (\u20ac/h)",
+      "default": 60
+    },
+    "tarifa_nocturna": {
+      "type": "number",
+      "title": "Tarifa Nocturna (\u20ac/h)",
+      "default": 70
+    },
+    "tarifa_festiva": {
+      "type": "number",
+      "title": "Tarifa Festiva (\u20ac/h)",
+      "default": 80
+    },
     "notes": {
       "type": "string",
       "title": "Notas"

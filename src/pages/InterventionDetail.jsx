@@ -49,6 +49,8 @@ export default function InterventionDetail() {
   const [rectMotivo, setRectMotivo] = useState('');
   const [rectificando, setRectificando] = useState(false);
   const [rectResult, setRectResult] = useState(null);
+  const [adminTipoHorario, setAdminTipoHorario] = useState('');
+  const [adminTarifaOverride, setAdminTarifaOverride] = useState('');
 
   useEffect(() => {
     loadData();
@@ -320,7 +322,12 @@ ${verifactuBlock}
   const handleValidateOption = async (mode) => {
     setValidating(true);
     try {
-      const res = await base44.functions.invoke('processVerifactu', { intervention_id: id, mode });
+      const payload = { intervention_id: id, mode };
+      if (mode === 'facturar') {
+        if (adminTipoHorario) payload.tipo_horario_override = adminTipoHorario;
+        if (adminTarifaOverride) payload.tarifa_override = parseFloat(adminTarifaOverride);
+      }
+      const res = await base44.functions.invoke('processVerifactu', payload);
       const data = res.data;
       setValidateResult(data);
       await loadData();
@@ -434,10 +441,43 @@ ${verifactuBlock}
             </div>
           ) : (
             <div className="space-y-4 mt-2">
+
+              {/* Revisión de tarifa MO antes de facturar */}
+              {intervention.tipo_horario && (
+                <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl space-y-3">
+                  <p className="text-xs font-semibold text-blue-800">Revisar Mano de Obra</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground">Tipo de Horario</label>
+                      <select
+                        value={adminTipoHorario || intervention.tipo_horario || 'normal'}
+                        onChange={e => setAdminTipoHorario(e.target.value)}
+                        className="mt-1 w-full flex h-9 rounded-xl border border-input bg-white px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      >
+                        <option value="normal">Normal</option>
+                        <option value="extra">Extra</option>
+                        <option value="nocturno">Nocturno</option>
+                        <option value="festivo">Festivo</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Tarifa €/h (editable)</label>
+                      <input
+                        type="number" step="0.5"
+                        placeholder={String(intervention.tarifa_aplicada || '')}
+                        value={adminTarifaOverride}
+                        onChange={e => setAdminTarifaOverride(e.target.value)}
+                        className="mt-1 w-full flex h-9 rounded-xl border border-input bg-white px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <p className="text-sm text-muted-foreground">Selecciona cómo deseas cerrar este parte:</p>
               <div className="grid grid-cols-1 gap-3">
-                <button
-                  onClick={() => handleValidateOption('guardar')}
+              <button
+                onClick={() => handleValidateOption('guardar')}
                   disabled={validating}
                   className="p-4 border-2 border-border hover:border-primary rounded-xl text-left transition-all hover:bg-primary/5"
                 >

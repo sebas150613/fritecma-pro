@@ -34,6 +34,8 @@ export default function NewIntervention() {
   const [sinFichaje, setSinFichaje] = useState(false);
   const [availableGasTypes, setAvailableGasTypes] = useState([]);
 
+  const [clientTarifas, setClientTarifas] = useState(null);
+
   const [form, setForm] = useState({
     client_id: "",
     client_name: "",
@@ -56,6 +58,7 @@ export default function NewIntervention() {
     incident_status: "finalizado",
     helper_email: "",
     helper_name: "",
+    tipo_horario: "normal",
   });
 
   const [lines, setLines] = useState([]);
@@ -149,30 +152,19 @@ export default function NewIntervention() {
     if (!client) return;
     const centers = await base44.entities.WorkCenter.filter({ client_id: clientId }, "name", 100);
     setWorkCenters(centers);
-
-    // Geofencing: sugerir centro más cercano (radio 500m)
-    let suggestedCenterId = "";
-    let suggestedCenterName = "";
-    if (form.location_lat && form.location_lng && centers.length > 0) {
-      const toRad = d => d * Math.PI / 180;
-      const haversine = (lat1, lng1, lat2, lng2) => {
-        const R = 6371000;
-        const dLat = toRad(lat2 - lat1);
-        const dLng = toRad(lng2 - lng1);
-        const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      };
-      // Geocodificar dirección del centro para comparar (solo si tiene lat/lng guardados, si no omitir)
-      // Usamos la dirección del centro contra la posición actual — comparación simple por ahora
-      // Si el centro tiene coordenadas propias en el futuro, aquí se pueden usar directamente
-    }
-
+    // Store client tarifas for LaborSection
+    setClientTarifas({
+      tarifa_normal:   client.tarifa_normal   ?? 45,
+      tarifa_extra:    client.tarifa_extra    ?? 60,
+      tarifa_nocturna: client.tarifa_nocturna ?? 70,
+      tarifa_festiva:  client.tarifa_festiva  ?? 80,
+    });
     setForm(f => ({
       ...f,
       client_id: client.id,
       client_name: client.name,
-      work_center_id: suggestedCenterId,
-      work_center_name: suggestedCenterName,
+      work_center_id: "",
+      work_center_name: "",
       discount_percent: client.discount_percent || 0,
     }));
   };
@@ -254,6 +246,8 @@ export default function NewIntervention() {
       iva_total: totals.ivaTotal,
       total: totals.total,
       discount_percent: form.discount_percent,
+      tipo_horario: form.tipo_horario || "normal",
+      tarifa_aplicada: form.tarifa_aplicada || null,
       receptor_name: form.receptor_name || undefined,
       receptor_dni: form.receptor_dni || undefined,
       client_conformidad: form.client_conformidad,
@@ -549,9 +543,15 @@ export default function NewIntervention() {
       <LaborSection
         materials={materials}
         isAdmin={isAdmin}
-        onLaborLines={setLaborLines}
+        onLaborLines={(lines) => {
+          setLaborLines(lines);
+          if (lines.length > 0 && lines[0]._tipoHorario) {
+            setForm(f => ({ ...f, tipo_horario: lines[0]._tipoHorario, tarifa_aplicada: lines[0].unit_price }));
+          }
+        }}
         currentUser={user}
         allUsers={users}
+        clientTarifas={clientTarifas}
       />
 
       {/* Material Lines */}

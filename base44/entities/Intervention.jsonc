@@ -148,6 +148,21 @@
       "type": "string",
       "title": "Materiales (JSON)"
     },
+    "tipo_horario": {
+      "type": "string",
+      "title": "Tipo de Horario MO",
+      "enum": [
+        "normal",
+        "extra",
+        "nocturno",
+        "festivo"
+      ],
+      "default": "normal"
+    },
+    "tarifa_aplicada": {
+      "type": "number",
+      "title": "Tarifa MO aplicada (\u20ac/h)"
+    },
     "subtotal": {
       "type": "number",
       "title": "Subtotal (\u20ac)",
