@@ -214,7 +214,8 @@
     "rectified_by_info": {
       "type": "string",
       "title": "Informaci\u00f3n de Rectificaci\u00f3n",
-      "description": "Log de usuario y fecha de la rectificaci\u00f3n"
+      "description": "Log de usuario y fecha de la rectificaci\u00f3n (Solo lectura - escrito por el sistema)",
+      "readOnly": true
     }
   },
   "required": [

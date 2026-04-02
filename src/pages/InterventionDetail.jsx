@@ -299,7 +299,7 @@ export default function InterventionDetail() {
       entity_reference: intervention.number,
       user_email: user.email,
       user_name: user.full_name,
-      changes_summary: `Parte anulado - Rectificativa generada: ${res.data.invoice_number}`,
+      changes_summary: 'Parte anulado - Rectificativa generada: ' + res.data.invoice_number,
       timestamp: new Date().toISOString(),
     });
     await loadData();
