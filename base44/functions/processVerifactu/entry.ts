@@ -102,8 +102,10 @@ Deno.serve(async (req) => {
 
     const hashHuella = await sha256(hashInput);
 
-    // 6. Generar URL QR verificación AEAT (sandbox o producción según flag)
-    // La AEAT exige fecha en formato DD-MM-YYYY en el QR
+    // 6. Generar URL QR verificación AEAT
+    // La AEAT exige fecha en formato DD-MM-YYYY en el parámetro
+    // IMPORTANTE: en Sandbox no existe registro real en la AEAT, el QR dará 404.
+    // Solo se genera QR real en producción tras respuesta aceptada.
     const fechaQR = now.slice(0, 10).split('-').reverse().join('-');
     const qrParams = new URLSearchParams({
       nif: emisorNif,
@@ -111,7 +113,8 @@ Deno.serve(async (req) => {
       fecha: fechaQR,
       importe: (intervention.total || 0).toFixed(2),
     });
-    const qrUrl = `${AEAT_QR_BASE}?${qrParams.toString()}`;
+    // En sandbox no hay registro en AEAT, qrUrl queda vacío hasta producción
+    const qrUrl = IS_PRODUCCION ? `${AEAT_QR_BASE}?${qrParams.toString()}` : '';
 
     // 7. Construir XML Veri*factu (estructura básica RegFactuSistemaFacturacion)
     const xmlPayload = `<?xml version="1.0" encoding="UTF-8"?>

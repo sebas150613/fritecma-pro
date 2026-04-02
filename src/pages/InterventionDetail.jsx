@@ -104,6 +104,7 @@ export default function InterventionDetail() {
     ).join('');
 
     // QR legal Veri*factu (si existe factura asociada)
+    // Solo se muestra si hay QR real (modo producción con envio aceptado)
     const qrSection = invoice?.qr_url
       ? `<div style="margin-top:24px;padding:16px;border:2px solid #1e3a5f;border-radius:8px;display:flex;align-items:flex-start;gap:16px">
           <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(invoice.qr_url)}" width="100" height="100" alt="QR AEAT" />
@@ -114,6 +115,14 @@ export default function InterventionDetail() {
             ${invoice.verifactu_csv ? `<p style="font-size:10px;color:#475569;margin:2px 0 0">CSV: ${invoice.verifactu_csv}</p>` : ''}
             <p style="font-size:9px;color:#94a3b8;margin:4px 0 0">Puede verificar esta factura en: www.agenciatributaria.es</p>
           </div>
+        </div>`
+      : '';
+
+    const sandboxNotice = invoice && !invoice.qr_url
+      ? `<div style="margin-top:24px;padding:12px 16px;border:1px solid #f59e0b;background:#fffbeb;border-radius:8px">
+          <p style="font-size:11px;font-weight:700;color:#92400e;margin:0">MODO SANDBOX — FACTURA NO ENVIADA A LA AEAT</p>
+          <p style="font-size:10px;color:#b45309;margin:4px 0 0">Esta factura ha sido generada en modo pruebas. No tiene validez fiscal. El QR se activará en modo producción.</p>
+          <p style="font-size:10px;color:#b45309;margin:2px 0 0">Nº Factura: ${invoice.invoice_number} · Hash: ${invoice.hash_huella?.slice(0,32)}...</p>
         </div>`
       : '';
 
@@ -146,6 +155,7 @@ ${mats.length > 0 ? `<div style="margin-top:20px"><p style="font-size:11px;color
   <p style="margin:4px 0 0;font-size:13px">Fecha/Hora: ${intervention.saved_at ? moment(intervention.saved_at).format('DD/MM/YYYY HH:mm:ss') : '-'} — Conformidad: <strong style="color:#16a34a">${intervention.client_conformidad ? '✓ Confirmada' : 'Pendiente'}</strong></p>
 </div>
 ${qrSection}
+${sandboxNotice}
 </body></html>`;
 
     const blob = new Blob([html], { type: 'text/html' });
