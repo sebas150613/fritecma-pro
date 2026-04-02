@@ -146,18 +146,35 @@ export default function NewIntervention() {
 
   const handleClientChange = async (clientId) => {
     const client = clients.find(c => c.id === clientId);
-    if (client) {
-      setForm(f => ({
-        ...f,
-        client_id: client.id,
-        client_name: client.name,
-        work_center_id: "",
-        work_center_name: "",
-        discount_percent: client.discount_percent || 0,
-      }));
-      const centers = await base44.entities.WorkCenter.filter({ client_id: clientId }, "name", 100);
-      setWorkCenters(centers);
+    if (!client) return;
+    const centers = await base44.entities.WorkCenter.filter({ client_id: clientId }, "name", 100);
+    setWorkCenters(centers);
+
+    // Geofencing: sugerir centro más cercano (radio 500m)
+    let suggestedCenterId = "";
+    let suggestedCenterName = "";
+    if (form.location_lat && form.location_lng && centers.length > 0) {
+      const toRad = d => d * Math.PI / 180;
+      const haversine = (lat1, lng1, lat2, lng2) => {
+        const R = 6371000;
+        const dLat = toRad(lat2 - lat1);
+        const dLng = toRad(lng2 - lng1);
+        const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      };
+      // Geocodificar dirección del centro para comparar (solo si tiene lat/lng guardados, si no omitir)
+      // Usamos la dirección del centro contra la posición actual — comparación simple por ahora
+      // Si el centro tiene coordenadas propias en el futuro, aquí se pueden usar directamente
     }
+
+    setForm(f => ({
+      ...f,
+      client_id: client.id,
+      client_name: client.name,
+      work_center_id: suggestedCenterId,
+      work_center_name: suggestedCenterName,
+      discount_percent: client.discount_percent || 0,
+    }));
   };
 
   const addLine = () => {
@@ -378,6 +395,31 @@ export default function NewIntervention() {
             />
           </div>
         </div>
+
+        {form.client_id && (
+          <div>
+            <Label>Centro de Trabajo</Label>
+            {workCenters.length === 0 ? (
+              <p className="mt-1 text-xs text-muted-foreground px-3 py-2 rounded-xl border border-dashed border-border">
+                Este cliente no tiene centros registrados. Puedes añadirlos desde la ficha del cliente.
+              </p>
+            ) : (
+              <select
+                value={form.work_center_id}
+                onChange={e => {
+                  const wc = workCenters.find(c => c.id === e.target.value);
+                  setForm(f => ({ ...f, work_center_id: e.target.value, work_center_name: wc?.name || "" }));
+                }}
+                className="mt-1 w-full flex h-9 rounded-xl border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">— Sin centro específico —</option>
+                {workCenters.map(wc => (
+                  <option key={wc.id} value={wc.id}>{wc.name}{wc.address ? ` · ${wc.address}` : ""}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>

@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Phone, Mail, Pencil, Trash2, Building } from "lucide-react";
+import { Plus, Phone, Mail, Pencil, Trash2, Building, History } from "lucide-react";
+import WorkCenterHistory from "./WorkCenterHistory";
 import MapLink from "./MapLink";
 
 const emptyCenter = {
@@ -19,6 +20,7 @@ export default function WorkCentersInline({ client, readOnly = false }) {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ ...emptyCenter });
   const [saving, setSaving] = useState(false);
+  const [historyCenter, setHistoryCenter] = useState(null);
 
   useEffect(() => {
     if (client?.id) loadCenters();
@@ -99,20 +101,31 @@ export default function WorkCentersInline({ client, readOnly = false }) {
                   </a>
                 )}
               </div>
-              {!readOnly && (
-                <div className="flex gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => openEdit(c)}>
-                    <Pencil className="h-3 w-3" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:text-destructive" onClick={() => handleDelete(c.id)}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              )}
+              <div className="flex gap-1 shrink-0">
+                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-accent" onClick={() => setHistoryCenter(c)} title="Ver historial">
+                  <History className="h-3 w-3" />
+                </Button>
+                {!readOnly && (
+                  <>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => openEdit(c)}>
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:text-destructive" onClick={() => handleDelete(c.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>
       )}
+
+      <WorkCenterHistory
+        center={historyCenter}
+        open={!!historyCenter}
+        onClose={() => setHistoryCenter(null)}
+      />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
