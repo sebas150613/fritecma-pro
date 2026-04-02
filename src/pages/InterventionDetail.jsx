@@ -140,27 +140,37 @@ export default function InterventionDetail() {
       </tr>`
     ).join('');
 
-    // Sección QR / Sandbox
-    const qrSection = invoice?.qr_url
-      ? `<div style="margin-top:24px;padding:16px;border:2px solid #1e3a5f;border-radius:8px;display:flex;align-items:flex-start;gap:16px">
-          <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(invoice.qr_url)}" width="100" height="100" alt="QR AEAT" />
-          <div>
-            <p style="font-size:11px;font-weight:700;color:#1e3a5f;margin:0">FACTURA VERIFICABLE EN LA SEDE ELECTRÓNICA DE LA AEAT</p>
-            <p style="font-size:10px;color:#475569;margin:4px 0 0">Factura generada por FRIGEST. Verificable en la sede electrónica de la AEAT (www.agenciatributaria.es).</p>
-            <p style="font-size:10px;color:#475569;margin:4px 0 0">Nº Factura: ${invoice.invoice_number} · Fecha: ${moment(invoice.issue_date).format('DD/MM/YYYY')}</p>
-            <p style="font-size:10px;color:#475569;margin:2px 0 0">Hash (SHA-256): ${invoice.hash_huella?.slice(0,32)}...</p>
-            ${invoice.verifactu_csv ? `<p style="font-size:10px;color:#475569;margin:2px 0 0">CSV AEAT: ${invoice.verifactu_csv}</p>` : ''}
-          </div>
-        </div>`
-      : '';
+    // QR: siempre presente. En producción usa qr_url de la AEAT; en sandbox construye la URL de cotejo de pruebas.
+    const AEAT_QR_BASE_SANDBOX = 'https://prewww2.aeat.es/wlpl/TIKE-CONT/ValidarQR';
+    const qrTargetUrl = invoice?.qr_url || (() => {
+      if (!invoice) return '';
+      const fechaQR = invoice.issue_date?.slice(0,10).split('-').reverse().join('-') || '';
+      const params = new URLSearchParams({
+        nif: invoice.issuer_nif || '',
+        numserie: invoice.invoice_number || '',
+        fecha: fechaQR,
+        importe: (invoice.total || 0).toFixed(2),
+      });
+      return `${AEAT_QR_BASE_SANDBOX}?${params.toString()}`;
+    })();
 
-    const sandboxNotice = invoice && !invoice.qr_url
-      ? `<div style="margin-top:24px;padding:12px 16px;border:1px solid #f59e0b;background:#fffbeb;border-radius:8px">
-          <p style="font-size:11px;font-weight:700;color:#92400e;margin:0">MODO SANDBOX — FACTURA NO ENVIADA A LA AEAT</p>
-          <p style="font-size:10px;color:#b45309;margin:4px 0 0">Esta factura ha sido generada en modo pruebas. No tiene validez fiscal. El QR se activará en modo producción.</p>
-          <p style="font-size:10px;color:#b45309;margin:2px 0 0">Factura generada por FRIGEST · Nº: ${invoice.invoice_number} · Hash: ${invoice.hash_huella?.slice(0,32)}...</p>
-        </div>`
-      : '';
+    const isSandbox = invoice && !invoice.qr_url;
+
+    const verifactuBlock = invoice ? `
+      ${isSandbox ? `<div style="margin-bottom:10px;padding:10px 14px;border:1px solid #f59e0b;background:#fffbeb;border-radius:8px">
+        <p style="font-size:11px;font-weight:700;color:#92400e;margin:0">⚠️ MODO SANDBOX — PRUEBAS AEAT (sin validez fiscal real)</p>
+        <p style="font-size:10px;color:#b45309;margin:3px 0 0">Factura generada en entorno de pruebas. El QR apunta al cotejo de Sandbox de la AEAT.</p>
+      </div>` : ''}
+      <div style="padding:16px;border:2px solid #1e3a5f;border-radius:8px;display:flex;align-items:flex-start;gap:16px">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(qrTargetUrl)}" width="100" height="100" alt="QR AEAT" />
+        <div>
+          <p style="font-size:11px;font-weight:700;color:#1e3a5f;margin:0">FACTURA VERIFICABLE EN LA SEDE ELECTRÓNICA DE LA AEAT</p>
+          <p style="font-size:10px;color:#475569;margin:4px 0 0">Verificable en www.agenciatributaria.es · ${isSandbox ? 'Entorno Sandbox' : 'Producción'}</p>
+          <p style="font-size:10px;color:#475569;margin:4px 0 0">Nº Factura: ${invoice.invoice_number} · Fecha: ${moment(invoice.issue_date).format('DD/MM/YYYY')}</p>
+          <p style="font-size:10px;color:#475569;margin:2px 0 0">Hash (SHA-256): ${invoice.hash_huella?.slice(0,32)}...</p>
+          ${invoice.verifactu_csv ? `<p style="font-size:10px;color:#475569;margin:2px 0 0">CSV AEAT: ${invoice.verifactu_csv}</p>` : ''}
+        </div>
+      </div>` : '';
 
     const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${invoice ? 'Factura' : 'Parte'} ${invoice ? invoice.invoice_number : intervention.number}</title>
 <style>body{font-family:Arial,sans-serif;color:#1e293b;margin:0;padding:24px} table{width:100%;border-collapse:collapse} @media print{body{padding:0}}</style>
@@ -170,9 +180,6 @@ export default function InterventionDetail() {
 <div style="background:#1e3a5f;color:white;padding:20px 24px;border-radius:8px;display:flex;justify-content:space-between;align-items:flex-start">
   <div>
     <h1 style="margin:0;font-size:22px">${emisorNombre}</h1>
-    <p style="margin:4px 0 0;font-size:11px;opacity:.8">NIF: ${emisorNif}</p>
-    <p style="margin:2px 0 0;font-size:11px;opacity:.8">${emisorDireccion}</p>
-    <p style="margin:2px 0 0;font-size:11px;opacity:.8">Tel: ${emisorTelefono}</p>
   </div>
   <div style="text-align:right">
     <p style="margin:0;font-size:20px;font-weight:700">${invoice ? 'FACTURA' : 'PARTE DE TRABAJO'}</p>
@@ -254,8 +261,7 @@ ${mats.length > 0 ? `<div style="margin-top:20px">
   <p style="margin:4px 0 0;font-size:12px">Fecha/Hora: ${intervention.saved_at ? moment(intervention.saved_at).format('DD/MM/YYYY HH:mm:ss') : '-'} &nbsp;·&nbsp; Conformidad: <strong style="color:#16a34a">${intervention.client_conformidad ? '✓ Confirmada' : 'Pendiente'}</strong></p>
 </div>
 
-${qrSection}
-${sandboxNotice}
+${verifactuBlock}
 </body></html>`;
 
     const blob = new Blob([html], { type: 'text/html' });
