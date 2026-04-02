@@ -132,35 +132,49 @@ export default function InterventionDetail() {
         ivaByRate[rate].cuota += (m.total || 0) * (rate / 100);
       });
       
-      return `<div style="page-break-after: always; padding: 40px; font-family: Arial, sans-serif;">
-        <h2 style="font-size: 20px; color: #1e3a5f; border-bottom: 2px solid #1e3a5f; padding-bottom: 10px; margin: 0 0 20px;">${titulo}</h2>
-        <p style="font-size: 12px; margin: 5px 0;"><strong>Nº Factura:</strong> ${inv.invoice_number}</p>
-        <p style="font-size: 12px; margin: 5px 0;"><strong>Fecha:</strong> ${moment(inv.issue_date).format('DD/MM/YYYY')}</p>
-        ${hasRectificativa && inv.serie === 'R' ? '<p style="font-size: 12px; color: red; margin: 10px 0; font-weight: bold;">⚠️ Esta factura ANULA la factura original</p>' : ''}
-        <table style="width: 100%; margin-top: 20px; border-collapse: collapse; font-size: 11px;">
-          <thead style="background: #1e3a5f; color: white;">
-            <tr>
-              <th style="padding: 8px; text-align: left;">Descripción</th>
-              <th style="padding: 8px; text-align: center;">Cantidad</th>
-              <th style="padding: 8px; text-align: right;">Precio</th>
-              <th style="padding: 8px; text-align: center;">IVA%</th>
-              <th style="padding: 8px; text-align: right;">Total</th>
+      return `<div style="page-break-after: always; padding: 30px; font-family: Arial, sans-serif; line-height: 1.5;">
+        <h1 style="font-size: 18px; color: #1e3a5f; border-bottom: 3px solid #1e3a5f; padding-bottom: 8px; margin: 0 0 15px; font-weight: bold;">${titulo}</h1>
+        <div style="margin-bottom: 15px; font-size: 13px;">
+          <p style="margin: 3px 0;"><strong>Nº Factura:</strong> ${inv.invoice_number}</p>
+          <p style="margin: 3px 0;"><strong>Fecha Emisión:</strong> ${moment(inv.issue_date).format('DD/MM/YYYY')}</p>
+          ${hasRectificativa && inv.serie === 'R' ? '<p style="margin: 3px 0; color: #dc2626; font-weight: bold;">⚠️ FACTURA RECTIFICATIVA - ANULA LA ORIGINAL</p>' : ''}
+        </div>
+        <table style="width: 100%; margin: 15px 0; border-collapse: collapse; font-size: 12px;">
+          <thead>
+            <tr style="background-color: #1e3a5f; color: white;">
+              <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Descripción</th>
+              <th style="padding: 10px; text-align: center; border: 1px solid #ddd; width: 80px;">Cantidad</th>
+              <th style="padding: 10px; text-align: right; border: 1px solid #ddd; width: 100px;">P. Unitario</th>
+              <th style="padding: 10px; text-align: center; border: 1px solid #ddd; width: 60px;">IVA%</th>
+              <th style="padding: 10px; text-align: right; border: 1px solid #ddd; width: 100px;">Total</th>
             </tr>
           </thead>
           <tbody>
-            ${mats.map((m, i) => `<tr style="border-bottom: 1px solid #e2e8f0;">
-              <td style="padding: 8px;">${m.material_name || 'Material'}</td>
-              <td style="padding: 8px; text-align: center;">${m.quantity} ${m.unit || 'ud'}</td>
-              <td style="padding: 8px; text-align: right;">${(m.unit_price || 0).toFixed(2)}€</td>
-              <td style="padding: 8px; text-align: center;">${m.iva_percent || 21}%</td>
-              <td style="padding: 8px; text-align: right;"><strong>${(m.total || 0).toFixed(2)}€</strong></td>
+            ${mats.map((m, i) => `<tr style="border: 1px solid #ddd;">
+              <td style="padding: 8px; border: 1px solid #ddd;">${m.material_name || 'Material'}</td>
+              <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${m.quantity} ${m.unit || 'ud'}</td>
+              <td style="padding: 8px; text-align: right; border: 1px solid #ddd;">${(m.unit_price || 0).toFixed(2)}€</td>
+              <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${m.iva_percent || 21}%</td>
+              <td style="padding: 8px; text-align: right; border: 1px solid #ddd; font-weight: bold;">${(m.total || 0).toFixed(2)}€</td>
             </tr>`).join('')}
           </tbody>
         </table>
         <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
-          <div style="min-width: 300px; border: 1px solid #ddd; border-radius: 4px; padding: 12px;">
-            ${Object.entries(ivaByRate).map(([rate, vals]) => `<p style="margin: 4px 0; font-size: 11px;">IVA ${rate}%: ${vals.base.toFixed(2)}€ + ${vals.cuota.toFixed(2)}€</p>`).join('')}
-            <p style="margin: 8px 0 0; padding-top: 8px; border-top: 1px solid #ddd; font-size: 12px;"><strong>TOTAL: ${inv.total.toFixed(2)}€</strong></p>
+          <div style="width: 320px; border: 2px solid #1e3a5f; border-radius: 6px; padding: 15px; background-color: #f8f9fa;">
+            <div style="font-size: 12px;">
+              ${Object.entries(ivaByRate).map(([rate, vals]) => `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                <span>Base IVA ${rate}%:</span>
+                <span>${vals.base.toFixed(2)}€</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #ddd;">
+                <span>IVA ${rate}%:</span>
+                <span>${vals.cuota.toFixed(2)}€</span>
+              </div>`).join('')}
+              <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; color: #1e3a5f;">
+                <span>TOTAL:</span>
+                <span>${inv.total.toFixed(2)}€</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>`;
