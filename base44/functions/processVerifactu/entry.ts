@@ -825,39 +825,35 @@ Deno.serve(async (req) => {
         codigoErrorAeat = faultCode ? `SOAP_FAULT:${faultCode}` : 'SOAP_FAULT';
         descripcionErrorAeat = faultMsg;
         console.warn(JSON.stringify({ evento: 'soap_fault', faultcode: faultCode, faultstring: faultMsg }));
-      } else if (!IS_PRODUCCION && httpStatus >= 200 && httpStatus < 400) {
-        // SANDBOX: si no hay fault ni HTML y HTTP 2xx/3xx → validado_sandbox
-        if (csvMatch && idRegistro) {
+      } else if (!IS_PRODUCCION) {
+        // SANDBOX: lógica simple según indicaciones AEAT
+        if (httpStatus >= 200 && httpStatus < 400 && !hasFault) {
+          verifactuStatus = 'validado_sandbox';
+          verifactuDiagnostico = 'respuesta_valida_sin_csv';
+          if (csvMatch) csvCode = csvMatch[1];
+          if (idRegistro) {}
+          console.log(JSON.stringify({ evento: 'validado_sandbox', httpStatus, csv: csvCode || '(sin csv)', nota: 'sandbox OK' }));
+        } else {
+          verifactuStatus = 'error';
+          verifactuDiagnostico = 'soap_fault';
+          console.warn(JSON.stringify({ evento: 'sandbox_error', httpStatus }));
+        }
+      } else {
+        // PRODUCCIÓN (estricto): requiere CSV + IDRegistro + estados correctos
+        const esDuplicado = ['30002', '30003', '21000055'].includes(codigoErrorAeat);
+        if (httpStatus !== 200) {
+          verifactuStatus = 'error';
+          codigoErrorAeat = `HTTP_${httpStatus}`;
+          descripcionErrorAeat = `Error HTTP ${httpStatus}: AEAT solo acepta status 200 en producción.`;
+          console.warn(JSON.stringify({ evento: 'error_http_produccion', httpStatus }));
+        } else if (csvMatch && idRegistro && (estadoEnvio === 'Correcto' || estadoRegistro === 'Correcto')) {
           csvCode = csvMatch[1];
           verifactuStatus = 'aceptado';
           verifactuDiagnostico = 'aceptado_ok';
-          console.log(JSON.stringify({ evento: 'sandbox_aceptado_con_csv', csv: csvCode, idRegistro }));
-        } else if (codigoErrorAeat) {
-          verifactuStatus = 'rechazado';
-          verifactuDiagnostico = 'rechazado_aeat';
-          descripcionErrorAeat = descripcionErrorAeat || `Código AEAT: ${codigoErrorAeat}`;
-          console.warn(JSON.stringify({ evento: 'sandbox_rechazado', codigo: codigoErrorAeat }));
-        } else {
-          // Sandbox sin CSV ni error: XML técnicamente válido
-          verifactuStatus = 'validado_sandbox';
-          verifactuDiagnostico = 'respuesta_valida_sin_csv';
-          descripcionErrorAeat = `Sandbox HTTP ${httpStatus}: XML aceptado técnicamente, sin CSV (normal en sandbox). Listo para producción.`;
-          console.log(JSON.stringify({ evento: 'validado_sandbox', httpStatus, nota: 'XML valido sin CSV es normal en sandbox' }));
-        }
-      } else if (IS_PRODUCCION && httpStatus !== 200) {
-        verifactuStatus = 'error';
-        codigoErrorAeat = `HTTP_${httpStatus}`;
-        descripcionErrorAeat = `Error HTTP ${httpStatus}: AEAT solo acepta status 200 en producción.`;
-        console.warn(JSON.stringify({ evento: 'error_http_produccion', httpStatus }));
-      } else {
-        // Producción con 200 OK: validar CSV + IDRegistro + estados
-        const esDuplicado = ['30002', '30003', '21000055'].includes(codigoErrorAeat);
-        if (csvMatch && idRegistro && (estadoEnvio === 'Correcto' || estadoRegistro === 'Correcto')) {
-          csvCode = csvMatch[1];
-          verifactuStatus = 'aceptado';
           console.log(JSON.stringify({ evento: 'aceptado', csv: csvCode, idRegistro, estadoEnvio, estadoRegistro }));
         } else if (codigoErrorAeat) {
           verifactuStatus = esDuplicado ? 'duplicado' : 'rechazado';
+          verifactuDiagnostico = 'rechazado_aeat';
           descripcionErrorAeat = descripcionErrorAeat || `Código AEAT: ${codigoErrorAeat}`;
           console.warn(JSON.stringify({ evento: 'rechazado', codigo: codigoErrorAeat, descripcion: descripcionErrorAeat, esDuplicado }));
         } else {
@@ -879,7 +875,7 @@ Deno.serve(async (req) => {
 
     // QR solo válido en producción con envío aceptado por la AEAT
     const qrUrl = (verifactuStatus === 'aceptado' && IS_PRODUCCION) ? qrUrlBase : '';
-    const pendingSubmission = !['aceptado', 'duplicado'].includes(verifactuStatus);
+    const pendingSubmission = !['aceptado', 'duplicado', 'validado_sandbox'].includes(verifactuStatus);
 
     // 9. Calcular fecha de retención legal (6 años desde emisión)
     const retentionDate = new Date();
