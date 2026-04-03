@@ -181,7 +181,8 @@ export default function InterventionDetail() {
   const isOficina = user?.role === "oficina";
   const canEdit = isAdmin || isOficina;
   const invoiceAceptada = invoice?.verifactu_status === 'aceptado';
-  const isLocked = intervention?.status === "facturado" || intervention?.status === "completado" || invoiceAceptada;
+  const isAnulado = intervention?.status === 'anulado';
+  const isLocked = intervention?.status === "facturado" || intervention?.status === "completado" || invoiceAceptada || isAnulado;
 
   if (loading || !intervention) {
     return (
