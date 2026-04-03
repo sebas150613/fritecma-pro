@@ -1,16 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
 
 // ── CONFIGURACIÓN DE ENTORNO ──────────────────────────────────────────────────
-// Cambia VERIFACTU_PRODUCCION a 'true' en secrets para activar producción real.
-const IS_PRODUCCION = Deno.env.get('VERIFACTU_PRODUCCION') === 'true';
-
-const AEAT_ENDPOINT = IS_PRODUCCION
-  ? 'https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP'
-  : 'https://prewww1.aeat.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP';
-
-const AEAT_QR_BASE = IS_PRODUCCION
-  ? 'https://www2.aeat.es/wlpl/TIKE-CONT/ValidarQR'
-  : 'https://prewww2.aeat.es/wlpl/TIKE-CONT/ValidarQR';
+// IS_PRODUCCION se resuelve dinámicamente desde el campo verifactu_produccion del usuario
+// (toggle en UI de Configuración), con fallback al secret VERIFACTU_PRODUCCION.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // SHA-256 hash usando Web Crypto API (async)
@@ -61,7 +53,7 @@ function getTimeZoneOffset(date) {
 }
 
 // Envía XML a AEAT vía mTLS y parsea respuesta
-async function sendToAEAT(xmlPayload, base44, adminUser, emisorNif) {
+async function sendToAEAT(xmlPayload, base44, adminUser, emisorNif, aeatEndpoint, isProduccion) {
   const certUri = adminUser.verifactu_cert_uri;
   if (!certUri) throw new Error('Certificado digital no configurado.');
   
@@ -77,7 +69,7 @@ async function sendToAEAT(xmlPayload, base44, adminUser, emisorNif) {
   const xmlBytes = Buffer.byteLength(xmlPayload, 'utf8');
   
   const https = await import('node:https');
-  const url = new URL(AEAT_ENDPOINT);
+  const url = new URL(aeatEndpoint);
   
   let httpStatus = 200;
   const responseText = await new Promise((resolve, reject) => {
@@ -92,7 +84,7 @@ async function sendToAEAT(xmlPayload, base44, adminUser, emisorNif) {
       },
       pfx: certBuffer,
       passphrase: certPassword,
-      rejectUnauthorized: IS_PRODUCCION,
+      rejectUnauthorized: isProduccion,
     };
     
     const req = https.default.request(options, (res) => {
@@ -238,6 +230,10 @@ Deno.serve(async (req) => {
       const emisorNif = adminUser.verifactu_nif || Deno.env.get('VERIFACTU_NIF') || 'B00000000';
       const emisorNombre = adminUser.verifactu_nombre || Deno.env.get('VERIFACTU_NOMBRE') || 'EMPRESA S.L.';
       const softwareNif = Deno.env.get('FRITECMA_NIF') || 'B00000000';
+      const isProduccionRect = adminUser.verifactu_produccion === true || Deno.env.get('VERIFACTU_PRODUCCION') === 'true';
+      const aeatEndpointRect = isProduccionRect
+        ? 'https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP'
+        : 'https://prewww1.aeat.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP';
 
       const { number: rectNumber, index: rectIndex } = await getNextInvoiceNumber(base44, 'R');
 
@@ -328,10 +324,10 @@ Deno.serve(async (req) => {
   </soapenv:Body>
 </soapenv:Envelope>`;
         
-        const { httpStatus, responseText } = await sendToAEAT(rectXmlPayload, base44, adminUser, emisorNif);
+        const { httpStatus, responseText } = await sendToAEAT(rectXmlPayload, base44, adminUser, emisorNif, aeatEndpointRect, isProduccionRect);
         rectResponse = responseText.slice(0, 2000);
         
-        if ((!IS_PRODUCCION && httpStatus >= 200 && httpStatus < 300 || IS_PRODUCCION && httpStatus === 200) && !responseText.includes('<Fault>')) {
+        if ((!isProduccionRect && httpStatus >= 200 && httpStatus < 300 || isProduccionRect && httpStatus === 200) && !responseText.includes('<Fault>')) {
           rectStatus = 'aceptado';
           const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
           if (csvMatch) rectCsv = csvMatch[1];
@@ -340,7 +336,7 @@ Deno.serve(async (req) => {
           const tsMatch = responseText.match(/<FechaHora(Recepcion|Presentacion)>([^<]+)<\/FechaHora.*?>/);
           if (tsMatch) rectTimestamp = tsMatch[2];
           console.log(JSON.stringify({ evento: 'rectificativa_corregida_aceptada', csv: rectCsv, idRegistro: rectIdRegistro }));
-        } else if (IS_PRODUCCION && httpStatus !== 200) {
+        } else if (isProduccionRect && httpStatus !== 200) {
           console.warn(JSON.stringify({ evento: 'error_rectificativa_corregida_http', httpStatus, causa: 'solo_200_valido_en_produccion' }));
           rectStatus = 'error';
         } else {
@@ -420,6 +416,10 @@ Deno.serve(async (req) => {
       const emisorNif = adminUser.verifactu_nif || Deno.env.get('VERIFACTU_NIF') || 'B00000000';
       const emisorNombre = adminUser.verifactu_nombre || Deno.env.get('VERIFACTU_NOMBRE') || 'EMPRESA S.L.';
       const softwareNif = Deno.env.get('FRITECMA_NIF') || 'B00000000';
+      const isProduccionRect = adminUser.verifactu_produccion === true || Deno.env.get('VERIFACTU_PRODUCCION') === 'true';
+      const aeatEndpointRect = isProduccionRect
+        ? 'https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP'
+        : 'https://prewww1.aeat.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP';
 
       const { number: rectNumber, index: rectIndex } = await getNextInvoiceNumber(base44, 'R');
 
@@ -509,10 +509,10 @@ Deno.serve(async (req) => {
   </soapenv:Body>
 </soapenv:Envelope>`;
         
-        const { httpStatus, responseText } = await sendToAEAT(rectXmlPayload, base44, adminUser, emisorNif);
+        const { httpStatus, responseText } = await sendToAEAT(rectXmlPayload, base44, adminUser, emisorNif, aeatEndpointRect, isProduccionRect);
         rectResponse = responseText.slice(0, 2000);
         
-        if ((!IS_PRODUCCION && httpStatus >= 200 && httpStatus < 300 || IS_PRODUCCION && httpStatus === 200) && !responseText.includes('<Fault>')) {
+        if ((!isProduccionRect && httpStatus >= 200 && httpStatus < 300 || isProduccionRect && httpStatus === 200) && !responseText.includes('<Fault>')) {
           rectStatus = 'aceptado';
           const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
           if (csvMatch) rectCsv = csvMatch[1];
@@ -521,7 +521,7 @@ Deno.serve(async (req) => {
           const tsMatch = responseText.match(/<FechaHora(Recepcion|Presentacion)>([^<]+)<\/FechaHora.*?>/);
           if (tsMatch) rectTimestamp = tsMatch[2];
           console.log(JSON.stringify({ evento: 'rectificativa_aceptada', csv: rectCsv, idRegistro: rectIdRegistro }));
-        } else if (IS_PRODUCCION && httpStatus !== 200) {
+        } else if (isProduccionRect && httpStatus !== 200) {
           console.warn(JSON.stringify({ evento: 'error_rectificativa_http', httpStatus, causa: 'solo_200_valido_en_produccion' }));
           rectStatus = 'error';
         } else {
@@ -653,6 +653,14 @@ Deno.serve(async (req) => {
     const adminUser = allUsers.find(u => u.verifactu_nif) || {};
     const emisorNif = adminUser.verifactu_nif || Deno.env.get('VERIFACTU_NIF') || '';
     const emisorNombre = adminUser.verifactu_nombre || Deno.env.get('VERIFACTU_NOMBRE') || 'EMPRESA S.L.';
+    // Resolver modo producción: campo de usuario tiene prioridad sobre secret
+    const IS_PRODUCCION = adminUser.verifactu_produccion === true || Deno.env.get('VERIFACTU_PRODUCCION') === 'true';
+    const AEAT_ENDPOINT = IS_PRODUCCION
+      ? 'https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP'
+      : 'https://prewww1.aeat.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP';
+    const AEAT_QR_BASE = IS_PRODUCCION
+      ? 'https://www2.aeat.es/wlpl/TIKE-CONT/ValidarQR'
+      : 'https://prewww2.aeat.es/wlpl/TIKE-CONT/ValidarQR';
 
     console.log(JSON.stringify({ evento: 'datos_cargados', intervention_id, client_id: intervention.client_id, client_name: intervention.client_name, emisorNif, emisorNombre, tiene_cert: !!adminUser.verifactu_cert_uri, adminUser_email: adminUser.email }));
 
@@ -779,7 +787,7 @@ Deno.serve(async (req) => {
     try {
       console.log(JSON.stringify({ evento: 'enviando_a_aeat', modo: IS_PRODUCCION ? 'PROD' : 'SANDBOX', endpoint: AEAT_ENDPOINT, nif: emisorNif, factura: invoiceNumber }));
 
-      const { httpStatus, responseText } = await sendToAEAT(xmlPayload, base44, adminUser, emisorNif);
+      const { httpStatus, responseText } = await sendToAEAT(xmlPayload, base44, adminUser, emisorNif, AEAT_ENDPOINT, IS_PRODUCCION);
       verifactuHttpStatus = httpStatus;
       verifactuResponse = responseText; // guardar respuesta COMPLETA
 

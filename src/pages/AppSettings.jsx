@@ -57,6 +57,7 @@ export default function AppSettings() {
     setEmisorTelefono(me.emisor_telefono || "");
     setEmisorLogo(me.emisor_logo_url || "");
     setCertUri(me.verifactu_cert_uri || "");
+    setModoProduccion(me.verifactu_produccion === true);
     setLoading(false);
   };
 
@@ -306,16 +307,19 @@ export default function AppSettings() {
                 : '🟢 SANDBOX — Modo de pruebas. Los envíos son simulados.'}
             </p>
           </div>
-          <Switch checked={modoProduccion} onCheckedChange={setModoProduccion} />
+          <Switch checked={modoProduccion} onCheckedChange={async (val) => {
+            setModoProduccion(val);
+            await base44.auth.updateMe({ verifactu_produccion: val });
+          }} />
         </div>
         {modoProduccion && (
           <p className="text-xs text-red-600 bg-red-50 border border-red-200 p-3 rounded-xl">
-            ⚠️ <strong>Modo Producción activo.</strong> Asegúrate de tener el certificado .p12 real configurado y el NIF/CIF correcto antes de facturar. Activa este modo en el secret <code>VERIFACTU_PRODUCCION = true</code>.
+            ⚠️ <strong>Modo Producción activo.</strong> Asegúrate de tener el certificado .p12 real configurado y el NIF/CIF correcto antes de facturar.
           </p>
         )}
         {!modoProduccion && (
           <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-3 rounded-xl">
-            🧪 <strong>Modo Sandbox activo.</strong> Los envíos a la AEAT son simulados. El hash se genera correctamente para poder verificar el flujo. Para activar producción, pon <code>VERIFACTU_PRODUCCION = true</code> en los secrets.
+            🧪 <strong>Modo Sandbox activo.</strong> Los envíos a la AEAT son simulados. El hash se genera correctamente para poder verificar el flujo. Activa el toggle para pasar a producción real.
           </p>
         )}
       </div>
