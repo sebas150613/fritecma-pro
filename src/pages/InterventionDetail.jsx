@@ -53,6 +53,7 @@ export default function InterventionDetail() {
   const [rectMode, setRectMode] = useState(null); // null | 'anular' | 'corregir'
   const [rectificando, setRectificando] = useState(false);
   const [rectResult, setRectResult] = useState(null);
+  const [rectMotivoAnular, setRectMotivoAnular] = useState("");
   const [adminTipoHorario, setAdminTipoHorario] = useState('');
   const [adminTarifaOverride, setAdminTarifaOverride] = useState('');
 
@@ -148,13 +149,14 @@ export default function InterventionDetail() {
   };
 
   const handleRectificativaAnular = async () => {
+    if (!rectMotivoAnular.trim()) return;
     setRectificando(true);
     try {
       const res = await base44.functions.invoke('processVerifactu', {
         intervention_id: id,
         mode: 'rectificar',
         original_invoice_id: invoice.id,
-        rectificativa_motivo: 'Anulación completa de factura',
+        rectificativa_motivo: rectMotivoAnular,
       });
       setRectResult(res.data);
       await base44.entities.Intervention.update(id, { status: 'anulado' });
@@ -231,10 +233,20 @@ export default function InterventionDetail() {
                 <p className="text-xs text-amber-700 mt-1">Elige cómo deseas proceder con esta factura.</p>
               </div>
               <div className="grid grid-cols-1 gap-3">
-                <button
+                <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground">Motivo de anulación *</label>
+                <textarea
+                  value={rectMotivoAnular}
+                  onChange={e => setRectMotivoAnular(e.target.value)}
+                  placeholder="Ej: Error en facturación, duplicado, datos incorrectos..."
+                  rows={2}
+                  className="w-full rounded-xl border border-input bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                />
+              </div>
+              <button
                   onClick={handleRectificativaAnular}
-                  disabled={rectificando}
-                  className="p-4 border-2 border-red-200 hover:border-red-400 rounded-xl text-left transition-all hover:bg-red-50"
+                  disabled={rectificando || !rectMotivoAnular.trim()}
+                  className="p-4 border-2 border-red-200 hover:border-red-400 rounded-xl text-left transition-all hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <p className="font-semibold flex items-center gap-2 text-red-700"><RotateCcw className="h-5 w-5" /> Anular completamente</p>
                   <p className="text-xs text-red-600 mt-1">Genera una factura rectificativa R1 en negativo con todos los valores invertidos y la envía automáticamente a AEAT.</p>
