@@ -12,6 +12,7 @@ import MapLink from "../components/MapLink";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import moment from "moment";
+import { generateInvoicePdf } from "../utils/generateInvoicePdf";
 
 const statusColors = {
 en_curso: "bg-blue-100 text-blue-700",
@@ -103,97 +104,11 @@ export default function InterventionDetail() {
 
   const generatePDF = async () => {
     setGeneratingPdf(true);
-
-    if (!invoice) {
-      alert('No hay factura generada para este parte.');
-      setGeneratingPdf(false);
-      return;
+    try {
+      await generateInvoicePdf(invoice, intervention);
+    } catch (e) {
+      alert("Error generando PDF: " + e.message);
     }
-
-    // Cargar datos del cliente, emisor y rectificativas
-    const [clientList, allUserList, rectInvoices] = await Promise.all([
-      base44.entities.Client.filter({ id: intervention.client_id }, '-created_date', 1).catch(() => []),
-      base44.entities.User.list('full_name', 100).catch(() => []),
-      base44.entities.Invoice.filter({ factura_rectificada_id: invoice.id }, '-created_date', 10).catch(() => []),
-    ]);
-    const hasRectificativa = rectInvoices.length > 0 || intervention.status === 'anulado';
-    
-    const client = clientList[0] || {};
-    const adminUser = allUserList.find(u => u.verifactu_nif) || {};
-    
-    // Función auxiliar para generar bloque de factura HTML
-    const generateInvoiceBlock = (inv, titulo) => {
-      const mats = inv.lines_json ? JSON.parse(inv.lines_json) : [];
-      const ivaByRate = {};
-      mats.forEach(m => {
-        const rate = m.iva_percent || 21;
-        if (!ivaByRate[rate]) ivaByRate[rate] = { base: 0, cuota: 0 };
-        ivaByRate[rate].base += m.total || 0;
-        ivaByRate[rate].cuota += (m.total || 0) * (rate / 100);
-      });
-      
-      return `<div style="page-break-after: always; padding: 30px; font-family: Arial, sans-serif; line-height: 1.5;">
-        <h1 style="font-size: 18px; color: #1e3a5f; border-bottom: 3px solid #1e3a5f; padding-bottom: 8px; margin: 0 0 15px; font-weight: bold;">${titulo}</h1>
-        <div style="margin-bottom: 15px; font-size: 13px;">
-          <p style="margin: 3px 0;"><strong>Nº Factura:</strong> ${inv.invoice_number}</p>
-          <p style="margin: 3px 0;"><strong>Fecha Emisión:</strong> ${moment(inv.issue_date).format('DD/MM/YYYY')}</p>
-          ${hasRectificativa && inv.serie === 'R' ? '<p style="margin: 3px 0; color: #dc2626; font-weight: bold;">⚠️ FACTURA RECTIFICATIVA - ANULA LA ORIGINAL</p>' : ''}
-        </div>
-        <table style="width: 100%; margin: 15px 0; border-collapse: collapse; font-size: 12px;">
-          <thead>
-            <tr style="background-color: #1e3a5f; color: white;">
-              <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Descripción</th>
-              <th style="padding: 10px; text-align: center; border: 1px solid #ddd; width: 80px;">Cantidad</th>
-              <th style="padding: 10px; text-align: right; border: 1px solid #ddd; width: 100px;">P. Unitario</th>
-              <th style="padding: 10px; text-align: center; border: 1px solid #ddd; width: 60px;">IVA%</th>
-              <th style="padding: 10px; text-align: right; border: 1px solid #ddd; width: 100px;">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${mats.map((m, i) => `<tr style="border: 1px solid #ddd;">
-              <td style="padding: 8px; border: 1px solid #ddd;">${m.material_name || 'Material'}</td>
-              <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${m.quantity} ${m.unit || 'ud'}</td>
-              <td style="padding: 8px; text-align: right; border: 1px solid #ddd;">${(m.unit_price || 0).toFixed(2)}€</td>
-              <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${m.iva_percent || 21}%</td>
-              <td style="padding: 8px; text-align: right; border: 1px solid #ddd; font-weight: bold;">${(m.total || 0).toFixed(2)}€</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-        <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
-          <div style="width: 320px; border: 2px solid #1e3a5f; border-radius: 6px; padding: 15px; background-color: #f8f9fa;">
-            <div style="font-size: 12px;">
-              ${Object.entries(ivaByRate).map(([rate, vals]) => `<div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-                <span>Base IVA ${rate}%:</span>
-                <span>${vals.base.toFixed(2)}€</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid #ddd;">
-                <span>IVA ${rate}%:</span>
-                <span>${vals.cuota.toFixed(2)}€</span>
-              </div>`).join('')}
-              <div style="display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; color: #1e3a5f;">
-                <span>TOTAL:</span>
-                <span>${inv.total.toFixed(2)}€</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>`;
-    };
-    
-    // Generar PDF: original + rectificativas si existen
-    let pdfContent = generateInvoiceBlock(invoice, `Factura Original ${invoice.invoice_number}`);
-    if (hasRectificativa && rectInvoices.length > 0) {
-      rectInvoices.forEach(rect => {
-        pdfContent += generateInvoiceBlock(rect, `Factura Rectificativa ${rect.invoice_number}`);
-      });
-    }
-    
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Factura ${invoice.invoice_number}</title></head><body>${pdfContent}</body></html>`;
-    
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const win = window.open(url, '_blank');
-    if (win) win.print();
     setGeneratingPdf(false);
   };
 
