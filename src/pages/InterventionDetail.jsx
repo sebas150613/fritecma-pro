@@ -389,7 +389,8 @@ export default function InterventionDetail() {
               <Button variant="outline" onClick={() => { setShowValidateModal(false); setValidateResult(null); }} disabled={validating} className="w-full rounded-xl">Cancelar</Button>
             </div>
           )}
-          </div>
+        </div>
+      ) : null}
         </DialogContent>
       </Dialog>
 
