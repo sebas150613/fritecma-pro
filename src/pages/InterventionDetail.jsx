@@ -51,13 +51,14 @@ export default function InterventionDetail() {
   const [invoice, setInvoice] = useState(null);
 
   const getVerifactuLabel = (status) => ({
-    aceptado:   { label: 'Aceptado por AEAT', color: 'text-emerald-700' },
-    sandbox_ok: { label: 'Sandbox OK (sin acuse definitivo)', color: 'text-blue-600' },
-    pendiente:  { label: 'Pendiente de envío', color: 'text-amber-600' },
-    sin_envio:  { label: 'No enviado (error conexión/certificado)', color: 'text-red-600' },
-    rechazado:  { label: 'Rechazado por AEAT', color: 'text-red-700' },
-    error:      { label: 'Error en respuesta AEAT', color: 'text-red-700' },
-    duplicado:  { label: 'Duplicado (ya registrado)', color: 'text-amber-600' },
+    aceptado:         { label: 'Aceptado por AEAT', color: 'text-emerald-700' },
+    validado_sandbox: { label: 'Validado en entorno de pruebas (AEAT sandbox)', color: 'text-blue-600' },
+    sandbox_ok:       { label: 'Sandbox OK (sin acuse definitivo)', color: 'text-blue-600' },
+    pendiente:        { label: 'Pendiente de envío', color: 'text-amber-600' },
+    sin_envio:        { label: 'No enviado (error conexión/certificado)', color: 'text-red-600' },
+    rechazado:        { label: 'Rechazado por AEAT', color: 'text-red-700' },
+    error:            { label: 'Error en respuesta AEAT', color: 'text-red-700' },
+    duplicado:        { label: 'Duplicado (ya registrado)', color: 'text-amber-600' },
   }[status] || { label: status, color: 'text-muted-foreground' });
   const [showRectModal, setShowRectModal] = useState(false);
   const [rectMode, setRectMode] = useState(null); // null | 'anular' | 'corregir'
@@ -296,7 +297,7 @@ export default function InterventionDetail() {
                 <div className="space-y-3">
                   {(() => {
                     const vs = validateResult.verifactu_status;
-                    const isOk = vs === 'aceptado' || vs === 'sandbox_ok';
+                    const isOk = vs === 'aceptado' || vs === 'sandbox_ok' || vs === 'validado_sandbox';
                     const vInfo = getVerifactuLabel(vs);
                     return (
                       <>
