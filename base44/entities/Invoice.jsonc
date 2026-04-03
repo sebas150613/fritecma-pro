@@ -104,7 +104,8 @@
         "error",
         "sin_envio",
         "duplicado",
-        "sandbox_ok"
+        "sandbox_ok",
+        "validado_sandbox"
       ],
       "default": "pendiente"
     },
@@ -128,7 +129,24 @@
     },
     "verifactu_response": {
       "type": "string",
-      "title": "Respuesta AEAT (JSON)"
+      "title": "Respuesta AEAT completa"
+    },
+    "verifactu_http_status": {
+      "type": "number",
+      "title": "HTTP Status AEAT"
+    },
+    "verifactu_diagnostico": {
+      "type": "string",
+      "title": "Diagn\u00f3stico T\u00e9cnico",
+      "enum": [
+        "certificado_rechazado",
+        "soap_fault",
+        "respuesta_valida_sin_csv",
+        "timeout",
+        "error_red",
+        "aceptado_ok",
+        "rechazado_aeat"
+      ]
     },
     "codigo_error_aeat": {
       "type": "string",

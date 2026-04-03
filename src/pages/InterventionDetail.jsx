@@ -704,10 +704,22 @@ export default function InterventionDetail() {
                 {invoice.descripcion_error_aeat && <p className="text-xs text-red-700"><span className="font-medium">Detalle: </span>{invoice.descripcion_error_aeat}</p>}
               </div>
             )}
-            {invoice.verifactu_response && !invoice.verifactu_csv && (
+            {invoice.verifactu_http_status > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">HTTP Status</span>
+                <span className="font-mono text-xs">{invoice.verifactu_http_status}</span>
+              </div>
+            )}
+            {invoice.verifactu_diagnostico && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Diagnóstico</span>
+                <span className="font-mono text-xs text-amber-700">{invoice.verifactu_diagnostico}</span>
+              </div>
+            )}
+            {invoice.verifactu_response && (
               <details className="mt-2">
-                <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">Ver respuesta técnica AEAT</summary>
-                <pre className="mt-2 text-xs bg-muted/60 p-2 rounded-lg overflow-auto max-h-40 whitespace-pre-wrap break-all">{invoice.verifactu_response}</pre>
+                <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">Ver respuesta completa AEAT ({invoice.verifactu_response?.length} chars)</summary>
+                <pre className="mt-2 text-xs bg-muted/60 p-2 rounded-lg overflow-auto max-h-60 whitespace-pre-wrap break-all">{invoice.verifactu_response}</pre>
               </details>
             )}
           </div>
