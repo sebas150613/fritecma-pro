@@ -1,6 +1,8 @@
 import { base44 } from "@/api/base44Client";
 import moment from "moment";
+import { jsPDF } from "jspdf";
 
+// Genera y descarga el PDF de factura sin usar window.print() ni capturas de pantalla
 export async function generateInvoicePdf(invoice, intervention) {
   if (!invoice) {
     alert("No hay factura generada para este parte.");
@@ -28,188 +30,183 @@ export async function generateInvoicePdf(invoice, intervention) {
 
   const allInvoices = [invoice, ...rectInvoices];
 
-  const pages = allInvoices
-    .map((inv) => buildPage(inv, intervention, client, emisor))
-    .join("\n");
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
 
-  const html = `<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8"/>
-<title>Factura ${invoice.invoice_number}</title>
-<style>
-  @page { size: A4; margin: 12mm 14mm; }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 9pt;
-    color: #1a1a1a;
-    background: #fff;
-  }
-  .page { page-break-after: always; }
-  .page:last-child { page-break-after: avoid; }
-
-  /* CABECERA */
-  .hdr {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    border-bottom: 3px solid #1e3a5f;
-    padding-bottom: 9px;
-    margin-bottom: 10px;
-  }
-  .co-name {
-    font-size: 14pt;
-    font-weight: bold;
-    color: #1e3a5f;
-    margin-bottom: 3px;
-  }
-  .co-detail { font-size: 7.5pt; color: #555; line-height: 1.6; }
-  .inv-meta { text-align: right; }
-  .inv-tipo {
-    font-size: 13pt;
-    font-weight: bold;
-    color: #1e3a5f;
-    margin-bottom: 4px;
-  }
-  .inv-data { font-size: 8pt; color: #333; line-height: 1.7; }
-  .inv-data strong { color: #111; }
-  .rect-alert {
-    display: inline-block;
-    margin-top: 5px;
-    background: #fef2f2;
-    border: 1px solid #fca5a5;
-    color: #b91c1c;
-    font-weight: bold;
-    font-size: 7pt;
-    padding: 2px 6px;
-    border-radius: 3px;
+  for (let i = 0; i < allInvoices.length; i++) {
+    if (i > 0) doc.addPage();
+    await renderInvoicePage(doc, allInvoices[i], intervention, client, emisor);
   }
 
-  /* PARTES */
-  .parties { display: flex; gap: 8px; margin-bottom: 9px; }
-  .party {
-    flex: 1;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    padding: 6px 9px;
-  }
-  .party-lbl {
-    font-size: 6.5pt;
-    font-weight: bold;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-    border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 2px;
-    margin-bottom: 4px;
-  }
-  .party-name { font-size: 9pt; font-weight: bold; margin-bottom: 2px; }
-  .party-detail { font-size: 7.5pt; color: #444; line-height: 1.5; }
-
-  /* REF BAR */
-  .ref-bar {
-    background: #f3f4f6;
-    border-radius: 3px;
-    padding: 4px 9px;
-    font-size: 7.5pt;
-    color: #374151;
-    margin-bottom: 9px;
-  }
-
-  /* TABLA */
-  table { width: 100%; border-collapse: collapse; margin-bottom: 9px; font-size: 8pt; }
-  thead tr { background: #1e3a5f; color: #fff; }
-  thead th { padding: 5px 7px; font-size: 7.5pt; font-weight: 600; }
-  thead th.r { text-align: right; }
-  thead th.c { text-align: center; }
-  tbody tr { border-bottom: 1px solid #e5e7eb; }
-  tbody tr:nth-child(even) { background: #f9fafb; }
-  tbody td { padding: 4px 7px; }
-  tbody td.r { text-align: right; }
-  tbody td.c { text-align: center; }
-
-  /* TOTALES */
-  .totals-wrap { display: flex; justify-content: flex-end; margin-bottom: 9px; }
-  .totals-box {
-    width: 230px;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    overflow: hidden;
-    font-size: 8pt;
-  }
-  .t-line { display: flex; justify-content: space-between; padding: 3px 9px; border-bottom: 1px solid #e5e7eb; }
-  .t-line:last-child { border-bottom: none; }
-  .t-grand {
-    background: #1e3a5f;
-    color: #fff;
-    font-weight: bold;
-    font-size: 10pt;
-    padding: 5px 9px;
-  }
-
-  /* VERIFACTU - solo si aceptado */
-  .vf-block {
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    padding: 7px 10px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: #f9fafb;
-    margin-bottom: 8px;
-  }
-  .vf-info { flex: 1; }
-  .vf-title { font-size: 7pt; font-weight: bold; color: #374151; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
-  .vf-data { font-size: 7.5pt; color: #111; line-height: 1.6; word-break: break-all; }
-  .qr-img { width: 68px; height: 68px; flex-shrink: 0; }
-
-  /* PIE */
-  .footer {
-    font-size: 6.5pt;
-    color: #9ca3af;
-    text-align: center;
-    border-top: 1px solid #e5e7eb;
-    padding-top: 4px;
-    margin-top: 4px;
-  }
-
-  @media print {
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  }
-</style>
-</head>
-<body>
-${pages}
-<script>window.onload = function(){ window.print(); };</script>
-</body>
-</html>`;
-
-  const blob = new Blob([html], { type: "text/html" });
-  window.open(URL.createObjectURL(blob), "_blank");
+  const filename = `Factura_${invoice.invoice_number.replace(/\//g, "-")}.pdf`;
+  doc.save(filename);
 }
 
-function buildPage(inv, intervention, client, emisor) {
+// ─── Colores ─────────────────────────────────────────────────────────────────
+const BLUE  = [30, 58, 95];   // #1e3a5f
+const GRAY  = [107, 114, 128];
+const LGRAY = [243, 244, 246];
+const BLACK = [26, 26, 26];
+const WHITE = [255, 255, 255];
+const RED   = [185, 28, 28];
+
+// Ancho útil A4 (210mm - 2*14mm margen)
+const W = 182;
+const L = 14; // margen izquierdo
+const TOP = 14; // margen superior
+
+function setFont(doc, size, style = "normal", color = BLACK) {
+  doc.setFontSize(size);
+  doc.setFont("helvetica", style);
+  doc.setTextColor(...color);
+}
+
+async function renderInvoicePage(doc, inv, intervention, client, emisor) {
+  let y = TOP;
   const lines = (() => { try { return JSON.parse(inv.lines_json || "[]"); } catch { return []; } })();
   const isRect = inv.tipo_factura && inv.tipo_factura !== "F1";
   const isAceptado = inv.verifactu_status === "aceptado";
+  const tipoLabel = isRect ? "FACTURA RECTIFICATIVA" : "FACTURA";
 
-  // Título del documento
-  const tipoLabel = isRect ? "Factura Rectificativa" : "Factura";
+  // ── CABECERA ───────────────────────────────────────────────────────────────
+  // Empresa (izquierda)
+  setFont(doc, 14, "bold", BLUE);
+  doc.text(emisor.nombre, L, y);
+  y += 5;
 
-  // Filas de líneas
-  const lineRows = lines.length > 0
-    ? lines.map((m) => `
-      <tr>
-        <td>${m.material_name || "—"}</td>
-        <td class="c">${m.quantity} ${m.unit || "ud"}</td>
-        <td class="r">${(m.unit_price || 0).toFixed(2)} €</td>
-        <td class="c">${m.iva_percent || 21}%</td>
-        <td class="r"><strong>${(m.total || 0).toFixed(2)} €</strong></td>
-      </tr>`).join("")
-    : `<tr><td colspan="5" style="padding:8px;color:#9ca3af;text-align:center;">Sin líneas de detalle</td></tr>`;
+  setFont(doc, 8, "normal", GRAY);
+  if (emisor.nif) { doc.text(`NIF: ${emisor.nif}`, L, y); y += 4; }
+  if (emisor.direccion) { doc.text(emisor.direccion, L, y); y += 4; }
+  if (emisor.cp || emisor.ciudad) { doc.text(`${emisor.cp} ${emisor.ciudad}`.trim(), L, y); y += 4; }
+  const contactLine = [emisor.telefono ? `Tel: ${emisor.telefono}` : "", emisor.email].filter(Boolean).join("  ·  ");
+  if (contactLine) { doc.text(contactLine, L, y); y += 4; }
 
-  // Agrupación IVA
+  // Datos factura (derecha)
+  const rightX = L + W;
+  let ry = TOP;
+  setFont(doc, 13, "bold", BLUE);
+  doc.text(tipoLabel, rightX, ry, { align: "right" });
+  ry += 5;
+
+  setFont(doc, 8, "normal", BLACK);
+  doc.text(`Nº: ${inv.invoice_number}`, rightX, ry, { align: "right" }); ry += 4;
+  doc.text(`Fecha: ${moment(inv.issue_date).format("DD/MM/YYYY")}`, rightX, ry, { align: "right" }); ry += 4;
+  doc.text(`Serie: ${inv.serie || "A"}`, rightX, ry, { align: "right" }); ry += 4;
+
+  if (isRect) {
+    setFont(doc, 7, "bold", RED);
+    doc.text(`⚠ ANULA FACTURA: ${inv.factura_rectificada_number || ""}`, rightX, ry, { align: "right" });
+    ry += 4;
+  }
+
+  y = Math.max(y, ry) + 4;
+
+  // Línea divisora
+  doc.setDrawColor(...BLUE);
+  doc.setLineWidth(0.6);
+  doc.line(L, y, L + W, y);
+  y += 6;
+
+  // ── EMISOR / CLIENTE ───────────────────────────────────────────────────────
+  const halfW = (W - 4) / 2;
+
+  // Caja emisor
+  doc.setFillColor(...LGRAY);
+  doc.setDrawColor(209, 213, 219);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(L, y, halfW, 26, 2, 2, "FD");
+  // Caja cliente
+  doc.roundedRect(L + halfW + 4, y, halfW, 26, 2, 2, "FD");
+
+  setFont(doc, 6.5, "bold", GRAY);
+  doc.text("EMISOR", L + 3, y + 4);
+  doc.text("CLIENTE / DESTINATARIO", L + halfW + 7, y + 4);
+
+  doc.setDrawColor(229, 231, 235);
+  doc.line(L + 3, y + 5, L + halfW - 3, y + 5);
+  doc.line(L + halfW + 7, y + 5, L + W - 3, y + 5);
+
+  setFont(doc, 8.5, "bold", BLACK);
+  doc.text(emisor.nombre, L + 3, y + 10);
+  doc.text(inv.client_name || intervention.client_name, L + halfW + 7, y + 10);
+
+  setFont(doc, 7.5, "normal", [68, 68, 68]);
+  let eyOffset = 14;
+  if (emisor.nif) { doc.text(`NIF: ${emisor.nif}`, L + 3, y + eyOffset); eyOffset += 4; }
+  if (emisor.direccion) { doc.text(emisor.direccion, L + 3, y + eyOffset); eyOffset += 4; }
+
+  let cyOffset = 14;
+  if (inv.client_nif) { doc.text(`NIF/CIF: ${inv.client_nif}`, L + halfW + 7, y + cyOffset); cyOffset += 4; }
+  const clientAddr = inv.client_address || client.address || "";
+  const clientCity = [client.postal_code, client.city].filter(Boolean).join(" ");
+  if (clientAddr) { doc.text(clientAddr, L + halfW + 7, y + cyOffset); cyOffset += 4; }
+  if (clientCity) { doc.text(clientCity, L + halfW + 7, y + cyOffset); }
+
+  y += 32;
+
+  // ── REF PARTE ─────────────────────────────────────────────────────────────
+  doc.setFillColor(...LGRAY);
+  doc.setDrawColor(209, 213, 219);
+  doc.roundedRect(L, y, W, 7, 1.5, 1.5, "FD");
+  setFont(doc, 7.5, "normal", [55, 65, 81]);
+  const refText = [
+    `Parte: ${intervention.number || "—"}`,
+    `Técnico: ${intervention.technician_name || "—"}`,
+    `Fecha: ${moment(intervention.date).format("DD/MM/YYYY")}`,
+    inv.rectificativa_motivo ? `Motivo: ${inv.rectificativa_motivo}` : "",
+  ].filter(Boolean).join("   ·   ");
+  doc.text(refText, L + 3, y + 4.5);
+  y += 12;
+
+  // ── TABLA LÍNEAS ──────────────────────────────────────────────────────────
+  const cols = { desc: L, qty: L + 90, price: L + 116, iva: L + 144, total: L + 162 };
+  const rowH = 6;
+
+  // Cabecera tabla
+  doc.setFillColor(...BLUE);
+  doc.rect(L, y, W, 7, "F");
+  setFont(doc, 7.5, "bold", WHITE);
+  doc.text("Descripción", cols.desc + 2, y + 4.5);
+  doc.text("Cant.", cols.qty, y + 4.5, { align: "center" });
+  doc.text("P. Unit.", cols.price + 10, y + 4.5, { align: "right" });
+  doc.text("IVA%", cols.iva + 9, y + 4.5, { align: "right" });
+  doc.text("Total", cols.total + 16, y + 4.5, { align: "right" });
+  y += 7;
+
+  // Filas
+  if (lines.length === 0) {
+    doc.setFillColor(249, 250, 251);
+    doc.rect(L, y, W, rowH, "F");
+    setFont(doc, 8, "normal", GRAY);
+    doc.text("Sin líneas de detalle", L + W / 2, y + 4, { align: "center" });
+    y += rowH;
+  } else {
+    lines.forEach((m, idx) => {
+      if (idx % 2 === 0) {
+        doc.setFillColor(249, 250, 251);
+        doc.rect(L, y, W, rowH, "F");
+      }
+      doc.setDrawColor(229, 231, 235);
+      doc.line(L, y + rowH, L + W, y + rowH);
+
+      setFont(doc, 8, "normal", BLACK);
+      const descText = doc.splitTextToSize(m.material_name || "—", 84);
+      doc.text(descText[0], cols.desc + 2, y + 4);
+
+      doc.text(`${m.quantity} ${m.unit || "ud"}`, cols.qty, y + 4, { align: "center" });
+      doc.text(`${(m.unit_price || 0).toFixed(2)} €`, cols.price + 10, y + 4, { align: "right" });
+      doc.text(`${m.iva_percent || 21}%`, cols.iva + 9, y + 4, { align: "right" });
+      setFont(doc, 8, "bold", BLACK);
+      doc.text(`${(m.total || 0).toFixed(2)} €`, cols.total + 16, y + 4, { align: "right" });
+      y += rowH;
+    });
+  }
+  y += 4;
+
+  // ── TOTALES ───────────────────────────────────────────────────────────────
+  const totW = 70;
+  const totX = L + W - totW;
+
+  // Agrupar IVA
   const ivaByRate = {};
   lines.forEach((m) => {
     const r = m.iva_percent || 21;
@@ -217,109 +214,88 @@ function buildPage(inv, intervention, client, emisor) {
     ivaByRate[r].base += m.total || 0;
     ivaByRate[r].cuota += (m.total || 0) * (r / 100);
   });
-  const ivaRows = Object.entries(ivaByRate).map(([rate, v]) => `
-    <div class="t-line"><span>Base imponible ${rate}%</span><span>${v.base.toFixed(2)} €</span></div>
-    <div class="t-line"><span>IVA ${rate}%</span><span>${v.cuota.toFixed(2)} €</span></div>
-  `).join("");
 
-  // Bloque Veri*factu — solo si aceptado
-  const vfBlock = isAceptado ? `
-    <div class="vf-block">
-      ${inv.qr_url ? `<img class="qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=68x68&data=${encodeURIComponent(inv.qr_url)}" alt="QR AEAT"/>` : ""}
-      <div class="vf-info">
-        <div class="vf-title">Factura registrada en la Agencia Tributaria (Veri*factu)</div>
-        <div class="vf-data">
-          ${inv.verifactu_csv ? `<strong>CSV:</strong> ${inv.verifactu_csv}<br/>` : ""}
-          ${inv.verifactu_idregistro ? `<strong>ID Registro:</strong> ${inv.verifactu_idregistro}<br/>` : ""}
-          ${inv.verifactu_timestamp ? `<strong>Fecha recepción AEAT:</strong> ${moment(inv.verifactu_timestamp).format("DD/MM/YYYY HH:mm")}<br/>` : ""}
-        </div>
-      </div>
-    </div>` : "";
+  doc.setDrawColor(209, 213, 219);
+  doc.setLineWidth(0.3);
 
-  const rectAlert = isRect
-    ? `<div class="rect-alert">⚠ RECTIFICATIVA — ANULA FACTURA ${inv.factura_rectificada_number || ""}</div>` : "";
+  let ty = y;
+  Object.entries(ivaByRate).forEach(([rate, v]) => {
+    doc.setFillColor(...LGRAY);
+    doc.rect(totX, ty, totW, 5.5, "FD");
+    setFont(doc, 7.5, "normal", BLACK);
+    doc.text(`Base imponible ${rate}%`, totX + 2, ty + 3.8);
+    doc.text(`${v.base.toFixed(2)} €`, totX + totW - 2, ty + 3.8, { align: "right" });
+    ty += 5.5;
 
-  const clientAddr = [
-    inv.client_address || client.address,
-    [client.postal_code, client.city].filter(Boolean).join(" "),
-  ].filter(Boolean).join("<br/>");
+    doc.rect(totX, ty, totW, 5.5, "FD");
+    doc.text(`IVA ${rate}%`, totX + 2, ty + 3.8);
+    doc.text(`${v.cuota.toFixed(2)} €`, totX + totW - 2, ty + 3.8, { align: "right" });
+    ty += 5.5;
+  });
 
-  return `
-<div class="page">
-  <div class="hdr">
-    <div>
-      <div class="co-name">${emisor.nombre}</div>
-      <div class="co-detail">
-        ${emisor.nif ? `NIF: ${emisor.nif}<br/>` : ""}
-        ${emisor.direccion ? `${emisor.direccion}<br/>` : ""}
-        ${(emisor.cp || emisor.ciudad) ? `${emisor.cp} ${emisor.ciudad}<br/>` : ""}
-        ${emisor.telefono ? `Tel: ${emisor.telefono}` : ""}${emisor.telefono && emisor.email ? " · " : ""}${emisor.email || ""}
-      </div>
-    </div>
-    <div class="inv-meta">
-      <div class="inv-tipo">${tipoLabel}</div>
-      <div class="inv-data">
-        <strong>Nº:</strong> ${inv.invoice_number}<br/>
-        <strong>Fecha:</strong> ${moment(inv.issue_date).format("DD/MM/YYYY")}<br/>
-        <strong>Serie:</strong> ${inv.serie || "A"}
-      </div>
-      ${rectAlert}
-    </div>
-  </div>
+  // Total final
+  doc.setFillColor(...BLUE);
+  doc.rect(totX, ty, totW, 8, "F");
+  setFont(doc, 10, "bold", WHITE);
+  doc.text("TOTAL", totX + 3, ty + 5.5);
+  doc.text(`${(inv.total || 0).toFixed(2)} €`, totX + totW - 2, ty + 5.5, { align: "right" });
+  ty += 8;
 
-  <div class="parties">
-    <div class="party">
-      <div class="party-lbl">Emisor</div>
-      <div class="party-name">${emisor.nombre}</div>
-      <div class="party-detail">
-        ${emisor.nif ? `NIF: ${emisor.nif}<br/>` : ""}
-        ${emisor.direccion || ""}
-      </div>
-    </div>
-    <div class="party">
-      <div class="party-lbl">Cliente</div>
-      <div class="party-name">${inv.client_name || intervention.client_name}</div>
-      <div class="party-detail">
-        ${inv.client_nif ? `NIF/CIF: ${inv.client_nif}<br/>` : ""}
-        ${clientAddr}
-      </div>
-    </div>
-  </div>
+  y = ty + 8;
 
-  <div class="ref-bar">
-    <strong>Parte:</strong> ${intervention.number || "—"} &nbsp;·&nbsp;
-    <strong>Técnico:</strong> ${intervention.technician_name || "—"} &nbsp;·&nbsp;
-    <strong>Fecha intervención:</strong> ${moment(intervention.date).format("DD/MM/YYYY")}
-    ${inv.rectificativa_motivo ? ` &nbsp;·&nbsp; <strong>Motivo rectificación:</strong> ${inv.rectificativa_motivo}` : ""}
-  </div>
+  // ── VERI*FACTU (solo si aceptado) ─────────────────────────────────────────
+  if (isAceptado) {
+    doc.setDrawColor(209, 213, 219);
+    doc.setFillColor(249, 250, 251);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(L, y, W, 22, 2, 2, "FD");
 
-  <table>
-    <thead>
-      <tr>
-        <th>Descripción</th>
-        <th class="c" style="width:80px">Cantidad</th>
-        <th class="r" style="width:90px">P. Unitario</th>
-        <th class="c" style="width:55px">IVA %</th>
-        <th class="r" style="width:90px">Total</th>
-      </tr>
-    </thead>
-    <tbody>${lineRows}</tbody>
-  </table>
+    setFont(doc, 6.5, "bold", [55, 65, 81]);
+    doc.text("FACTURA REGISTRADA EN LA AGENCIA TRIBUTARIA (VERI*FACTU)", L + 3, y + 5);
 
-  <div class="totals-wrap">
-    <div class="totals-box">
-      ${ivaRows}
-      <div class="t-line t-grand">
-        <span>TOTAL</span>
-        <span>${(inv.total || 0).toFixed(2)} €</span>
-      </div>
-    </div>
-  </div>
+    setFont(doc, 7.5, "normal", BLACK);
+    let vfy = y + 10;
+    if (inv.verifactu_csv) {
+      doc.text(`CSV: ${inv.verifactu_csv}`, L + 3, vfy); vfy += 4.5;
+    }
+    if (inv.verifactu_idregistro) {
+      doc.text(`ID Registro AEAT: ${inv.verifactu_idregistro}`, L + 3, vfy); vfy += 4.5;
+    }
+    if (inv.verifactu_timestamp) {
+      doc.text(`Fecha recepción: ${moment(inv.verifactu_timestamp).format("DD/MM/YYYY HH:mm")}`, L + 3, vfy);
+    }
 
-  ${vfBlock}
+    // QR como imagen externa (si hay URL)
+    if (inv.qr_url) {
+      const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(inv.qr_url)}`;
+      try {
+        const qrRes = await fetchImageAsDataUrl(qrApiUrl);
+        doc.addImage(qrRes, "PNG", L + W - 22, y + 2, 18, 18);
+      } catch (_) {
+        // QR no disponible, omitir
+      }
+    }
 
-  <div class="footer">
-    Emitido el ${moment().format("DD/MM/YYYY")} · ${emisor.nombre}${emisor.nif ? ` · NIF ${emisor.nif}` : ""}
-  </div>
-</div>`;
+    y += 26;
+  }
+
+  // ── PIE ───────────────────────────────────────────────────────────────────
+  doc.setDrawColor(229, 231, 235);
+  doc.setLineWidth(0.3);
+  doc.line(L, y, L + W, y);
+  y += 4;
+  setFont(doc, 6.5, "normal", GRAY);
+  const footerText = `Emitido el ${moment().format("DD/MM/YYYY")} · ${emisor.nombre}${emisor.nif ? ` · NIF ${emisor.nif}` : ""}`;
+  doc.text(footerText, L + W / 2, y, { align: "center" });
+}
+
+async function fetchImageAsDataUrl(url) {
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
