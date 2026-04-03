@@ -291,7 +291,68 @@ export default function InterventionDetail() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-600" /> Validar Parte</DialogTitle>
           </DialogHeader>
-          {validateResult ? (
+          {!validateResult ? (
+            <div className="space-y-4 mt-2">
+              {/* Revisión de tarifa MO antes de facturar */}
+              {intervention.tipo_horario && (
+                <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl space-y-3">
+                  <p className="text-xs font-semibold text-blue-800">Revisar Mano de Obra</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground">Tipo de Horario</label>
+                      <select
+                        value={adminTipoHorario || intervention.tipo_horario || 'normal'}
+                        onChange={e => setAdminTipoHorario(e.target.value)}
+                        className="mt-1 w-full flex h-9 rounded-xl border border-input bg-white px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      >
+                        <option value="normal">Normal</option>
+                        <option value="extra">Extra</option>
+                        <option value="nocturno">Nocturno</option>
+                        <option value="festivo">Festivo</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Tarifa €/h (editable)</label>
+                      <input
+                        type="number" step="0.5"
+                        placeholder={String(intervention.tarifa_aplicada || '')}
+                        value={adminTarifaOverride}
+                        onChange={e => setAdminTarifaOverride(e.target.value)}
+                        className="mt-1 w-full flex h-9 rounded-xl border border-input bg-white px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-sm text-muted-foreground">Selecciona cómo deseas cerrar este parte:</p>
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  onClick={() => handleValidateOption('guardar')}
+                  disabled={validating}
+                  className="p-4 border-2 border-border hover:border-primary rounded-xl text-left transition-all hover:bg-primary/5"
+                >
+                  <p className="font-semibold flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-blue-600" /> Guardar Parte (sin factura)</p>
+                  <p className="text-xs text-muted-foreground mt-1">Para garantías, mantenimientos incluidos en cuota o partes internos. Se archiva sin registro fiscal.</p>
+                </button>
+                <button
+                  onClick={() => handleValidateOption('facturar')}
+                  disabled={validating}
+                  className="p-4 border-2 border-border hover:border-accent rounded-xl text-left transition-all hover:bg-accent/5"
+                >
+                  <p className="font-semibold flex items-center gap-2"><Receipt className="h-5 w-5 text-accent" /> Facturar (Protocolo Veri*factu)</p>
+                  <p className="text-xs text-muted-foreground mt-1">Genera factura con hash encadenado, envía a la AEAT y bloquea el parte. Cumple Ley Antifraude.</p>
+                </button>
+              </div>
+              {validating && (
+                <div className="flex items-center justify-center gap-2 py-2">
+                  <Loader2 className="h-5 w-5 animate-spin text-accent" />
+                  <span className="text-sm text-muted-foreground">Procesando...</span>
+                </div>
+              )}
+              <Button variant="outline" onClick={() => { setShowValidateModal(false); setValidateResult(null); }} disabled={validating} className="w-full rounded-xl">Cancelar</Button>
+            </div>
+          ) : (
             <div className="space-y-4">
               {validateResult.mode === 'facturar' ? (
                 <div className="space-y-3">
@@ -328,70 +389,16 @@ export default function InterventionDetail() {
                   <Button onClick={() => { setShowValidateModal(false); setValidateResult(null); }} className="w-full rounded-xl">Cerrar</Button>
                 </div>
               ) : (
-            <div className="space-y-4 mt-2">
-
-              {/* Revisión de tarifa MO antes de facturar */}
-              {intervention.tipo_horario && (
-                <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl space-y-3">
-                  <p className="text-xs font-semibold text-blue-800">Revisar Mano de Obra</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground">Tipo de Horario</label>
-                      <select
-                        value={adminTipoHorario || intervention.tipo_horario || 'normal'}
-                        onChange={e => setAdminTipoHorario(e.target.value)}
-                        className="mt-1 w-full flex h-9 rounded-xl border border-input bg-white px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                      >
-                        <option value="normal">Normal</option>
-                        <option value="extra">Extra</option>
-                        <option value="nocturno">Nocturno</option>
-                        <option value="festivo">Festivo</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">Tarifa €/h (editable)</label>
-                      <input
-                        type="number" step="0.5"
-                        placeholder={String(intervention.tarifa_aplicada || '')}
-                        value={adminTarifaOverride}
-                        onChange={e => setAdminTarifaOverride(e.target.value)}
-                        className="mt-1 w-full flex h-9 rounded-xl border border-input bg-white px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
-                    </div>
+                <div className="space-y-3">
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <p className="font-semibold text-emerald-700 flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Parte guardado correctamente</p>
+                    <p className="text-xs text-emerald-600 mt-1">El parte ha sido archivado sin registro fiscal.</p>
                   </div>
+                  <Button onClick={() => { setShowValidateModal(false); setValidateResult(null); }} className="w-full rounded-xl">Cerrar</Button>
                 </div>
               )}
-
-              <p className="text-sm text-muted-foreground">Selecciona cómo deseas cerrar este parte:</p>
-              <div className="grid grid-cols-1 gap-3">
-              <button
-                onClick={() => handleValidateOption('guardar')}
-                  disabled={validating}
-                  className="p-4 border-2 border-border hover:border-primary rounded-xl text-left transition-all hover:bg-primary/5"
-                >
-                  <p className="font-semibold flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-blue-600" /> Guardar Parte (sin factura)</p>
-                  <p className="text-xs text-muted-foreground mt-1">Para garantías, mantenimientos incluidos en cuota o partes internos. Se archiva sin registro fiscal.</p>
-                </button>
-                <button
-                  onClick={() => handleValidateOption('facturar')}
-                  disabled={validating}
-                  className="p-4 border-2 border-border hover:border-accent rounded-xl text-left transition-all hover:bg-accent/5"
-                >
-                  <p className="font-semibold flex items-center gap-2"><Receipt className="h-5 w-5 text-accent" /> Facturar (Protocolo Veri*factu)</p>
-                  <p className="text-xs text-muted-foreground mt-1">Genera factura con hash encadenado, envía a la AEAT y bloquea el parte. Cumple Ley Antifraude.</p>
-                </button>
-              </div>
-              {validating && (
-                <div className="flex items-center justify-center gap-2 py-2">
-                  <Loader2 className="h-5 w-5 animate-spin text-accent" />
-                  <span className="text-sm text-muted-foreground">Procesando...</span>
-                </div>
-              )}
-              <Button variant="outline" onClick={() => { setShowValidateModal(false); setValidateResult(null); }} disabled={validating} className="w-full rounded-xl">Cancelar</Button>
             </div>
           )}
-        </div>
-      ) : null}
         </DialogContent>
       </Dialog>
 
