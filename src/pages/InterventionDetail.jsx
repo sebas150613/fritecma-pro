@@ -159,7 +159,7 @@ export default function InterventionDetail() {
         rectificativa_motivo: rectMotivoAnular,
       });
       setRectResult(res.data);
-      await base44.entities.Intervention.update(id, { status: 'anulado' });
+      await base44.entities.Intervention.update(id, { status: 'pendiente_revision' });
       await base44.entities.AuditLog.create({
         action: 'modificacion',
         entity_type: 'Intervention',
