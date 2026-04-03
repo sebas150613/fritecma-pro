@@ -406,19 +406,6 @@ export default function InterventionDetail() {
         </div>
       </div>
 
-      {/* Técnico: Enviar a revisión */}
-      {!canEdit && intervention.status === 'en_curso' && (
-        <div className="bg-card rounded-2xl border border-amber-200 p-4">
-          <p className="text-sm text-muted-foreground mb-3">¿Has finalizado el trabajo? Envía el parte a revisión para que oficina lo valide.</p>
-          <Button
-            onClick={() => updateStatus('pendiente_revision')}
-            className="w-full rounded-xl bg-amber-500 hover:bg-amber-600 text-white gap-2"
-          >
-            <CheckCircle2 className="h-4 w-4" /> Enviar a Pendiente Revisión
-          </Button>
-        </div>
-      )}
-
       {/* Admin/Oficina Actions */}
       {canEdit && (
         <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
