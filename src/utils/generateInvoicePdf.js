@@ -224,8 +224,13 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
       doc.setDrawColor(220, 222, 226); doc.setLineWidth(0.2);
       doc.line(ML, y + ROW_H, ML + PW, y + ROW_H);
       sf(doc, 8, "normal");
-      const desc = doc.splitTextToSize(m.material_name || "—", 87);
-      doc.text(desc[0],                                ML + 3,      y + 4.2);
+      const isLabor = m._isLabor || m.category === "mano_de_obra" || (m.material_name || "").toLowerCase().includes("mano de obra");
+      const rawName = m.material_name || "—";
+      const displayName = (isRectificativa && isLabor && inv.factura_rectificada_number)
+        ? `Rectificación de factura ${inv.factura_rectificada_number} – Mano de obra`
+        : rawName;
+      const desc = doc.splitTextToSize(displayName, 87);
+      doc.text(desc[0], ML + 3, y + 4.2);
       doc.text(`${m.quantity} ${m.unit || "ud"}`,     ML + 96,     y + 4.2, { align: "center" });
       doc.text(`${(m.unit_price || 0).toFixed(2)} €`, ML + 122,    y + 4.2, { align: "right" });
       doc.text(`${m.iva_percent || 21}%`,             ML + 147,    y + 4.2, { align: "right" });
