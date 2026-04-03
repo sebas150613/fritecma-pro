@@ -143,27 +143,16 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
 
   // ── AVISO "NO VIGENTE" si es original de referencia ──────────────────────
   if (isOriginalRef) {
-    fillRect(doc, ML, y, PW, 10, [255, 240, 220], [220, 160, 60]);
-    sf(doc, 8, "bold", AMBER);
-    doc.text(
-      `⚠  Esta factura ha sido rectificada y queda anulada. Documento válido: ${rectificativaNumber}`,
-      ML + PW / 2, y + 6.5, { align: "center" }
-    );
-    y += 14;
+    const warnText = `Esta factura ha sido rectificada y queda anulada. Documento válido: ${rectificativaNumber}`;
+    const warnLines = doc.splitTextToSize(warnText, PW - 10);
+    const warnBoxH = warnLines.length * 5 + 7;
+    fillRect(doc, ML, y, PW, warnBoxH, [255, 240, 220], [220, 160, 60]);
+    sf(doc, 7.5, "bold", AMBER);
+    doc.text(warnLines, ML + PW / 2, y + 5.5, { align: "center" });
+    y += warnBoxH + 4;
   }
 
-  // ── MOTIVO DE RECTIFICACIÓN (solo en la rectificativa) ───────────────────
-  if (isRectificativa && inv.rectificativa_motivo) {
-    fillRect(doc, ML, y, PW, 10, [235, 245, 255], [180, 205, 240]);
-    sf(doc, 7.5, "bold", BLUE);
-    doc.text("Motivo de rectificación:", ML + 3, y + 4.5);
-    sf(doc, 7.5, "normal", DGRAY);
-    const motivoLines = doc.splitTextToSize(inv.rectificativa_motivo, PW - 50);
-    doc.text(motivoLines[0], ML + 44, y + 4.5);
-    y += 14;
-  }
-
-  // ── BLOQUES EMISOR / CLIENTE ──────────────────────────────────────────────
+  // ── MOTIVO DE RECTIFICACIÓN ──────────────────────────────────────────────
   const colW = (PW - 6) / 2;
   const colR = ML + colW + 6;
   const boxH = 36;
