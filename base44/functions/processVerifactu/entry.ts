@@ -651,8 +651,17 @@ Deno.serve(async (req) => {
     // 4. NIF y nombre: buscar el usuario que tenga verifactu_nif configurado (puede ser admin o superadmin)
     const allUsers = await base44.asServiceRole.entities.User.list('full_name', 100);
     const adminUser = allUsers.find(u => u.verifactu_nif) || {};
-    const emisorNif = adminUser.verifactu_nif || Deno.env.get('VERIFACTU_NIF') || 'B00000000';
+    const emisorNif = adminUser.verifactu_nif || Deno.env.get('VERIFACTU_NIF') || '';
     const emisorNombre = adminUser.verifactu_nombre || Deno.env.get('VERIFACTU_NOMBRE') || 'EMPRESA S.L.';
+
+    console.log(JSON.stringify({ evento: 'datos_cargados', intervention_id, client_id: intervention.client_id, client_name: intervention.client_name, emisorNif, emisorNombre, tiene_cert: !!adminUser.verifactu_cert_uri, adminUser_email: adminUser.email }));
+
+    if (!emisorNif) {
+      return Response.json({ error: 'NIF emisor no configurado. Ve a Ajustes y rellena el NIF fiscal.' }, { status: 400 });
+    }
+    if (!adminUser.verifactu_cert_uri) {
+      return Response.json({ error: 'Certificado digital no configurado. Ve a Ajustes y sube el certificado .p12.' }, { status: 400 });
+    }
     
     // NIF del software desarrollador (FRITECMA)
     const softwareNif = Deno.env.get('FRITECMA_NIF') || 'B00000000';
@@ -689,6 +698,7 @@ Deno.serve(async (req) => {
 
     // 7. Construir XML Veri*factu (estructura básica RegFactuSistemaFacturacion)
     // CRÍTICO: El timezone offset aquí se usa en el hash SHA-256. Cualquier error rompe la firma.
+    console.log(JSON.stringify({ evento: 'generando_xml', invoiceNumber, chainIndex, hashAnterior: hashAnterior ? hashAnterior.slice(0,16)+'...' : '(primera factura)', total: intervention.total, subtotal: intervention.subtotal, iva: intervention.iva_total }));
     const nowDate = new Date(now);
     const timeZoneOffset = getTimeZoneOffset(nowDate);
     
@@ -753,6 +763,8 @@ Deno.serve(async (req) => {
   </soapenv:Body>
 </soapenv:Envelope>`;
 
+    console.log(JSON.stringify({ evento: 'xml_generado', xmlPreview: xmlPayload.slice(0, 500) }));
+
     // 8. Enviar a AEAT con mTLS usando node:https (Deno Node compatibility)
     let verifactuStatus = 'pendiente';
     let verifactuResponse = '';
@@ -761,10 +773,10 @@ Deno.serve(async (req) => {
     let timestampAeat = '';
 
     try {
-      const logContext = { evento: 'verifactu_inicio', modo: IS_PRODUCCION ? 'PROD' : 'SANDBOX', endpoint: AEAT_ENDPOINT, nif: emisorNif, factura: invoiceNumber };
-      console.log(JSON.stringify(logContext));
+      console.log(JSON.stringify({ evento: 'enviando_a_aeat', modo: IS_PRODUCCION ? 'PROD' : 'SANDBOX', endpoint: AEAT_ENDPOINT, nif: emisorNif, factura: invoiceNumber }));
 
       const { httpStatus, responseText } = await sendToAEAT(xmlPayload, base44, adminUser, emisorNif);
+      console.log(JSON.stringify({ evento: 'respuesta_aeat_recibida', httpStatus, longitudRespuesta: responseText.length, preview: responseText.slice(0, 300) }));
 
       // En SANDBOX: aceptar respuestas 2xx sin SOAP Fault. En PROD: solo 200 exacto
       if ((!IS_PRODUCCION && httpStatus >= 200 && httpStatus < 300 || IS_PRODUCCION && httpStatus === 200) && !responseText.includes('<Fault>')) {
@@ -830,6 +842,9 @@ Deno.serve(async (req) => {
     const retentionUntil = retentionDate.toISOString().slice(0, 10);
 
     // 10. Crear registro de factura — XML en texto plano, sin PDF
+    console.log(JSON.stringify({ evento: 'guardando_factura', invoiceNumber, verifactuStatus, total: intervention.total }));
+    let lines = [];
+    try { lines = JSON.parse(intervention.materials_json || '[]'); } catch(_) { lines = []; }
     const invoiceData = {
       invoice_number: invoiceNumber,
       serie: 'A',
@@ -843,7 +858,7 @@ Deno.serve(async (req) => {
       subtotal: intervention.subtotal || 0,
       iva_total: intervention.iva_total || 0,
       total: intervention.total || 0,
-      lines_json: intervention.materials_json || '[]',
+      lines_json: JSON.stringify(lines),
       xml_payload: xmlPayload,
       hash_huella: hashHuella,
       hash_anterior: hashAnterior,
@@ -860,8 +875,8 @@ Deno.serve(async (req) => {
       issuer_name: emisorNombre,
       created_by_email: user.email,
     };
-
     const invoice = await base44.asServiceRole.entities.Invoice.create(invoiceData);
+    console.log(JSON.stringify({ evento: 'factura_guardada', invoice_id: invoice.id, invoiceNumber }));
 
     // 11. Si el envío no fue aceptado inmediatamente, agregarlo a la cola de reintentos
     if (verifactuStatus !== 'aceptado' && verifactuStatus !== 'duplicado') {
@@ -871,7 +886,7 @@ Deno.serve(async (req) => {
           invoice_number: invoiceNumber,
           retry_count: 0,
           max_retries: 5,
-          next_retry_at: new Date(Date.now() + 30000).toISOString(), // reintenta en 30s
+          next_retry_at: new Date(Date.now() + 30000).toISOString(),
           last_attempt_at: now,
           last_error: verifactuResponse,
           status: 'pending',
@@ -886,6 +901,13 @@ Deno.serve(async (req) => {
 
     // 12. Marcar el parte como facturado e inalterable
     await base44.asServiceRole.entities.Intervention.update(intervention_id, {
+      status: 'facturado',
+      validated_by: user.email,
+      validated_at: now,
+    });
+    console.log(JSON.stringify({ evento: 'parte_marcado_facturado', intervention_id }));
+
+    return Response.json({
       success: true,
       mode: 'facturar',
       invoice_number: invoiceNumber,
@@ -896,6 +918,7 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error(JSON.stringify({ evento: 'ERROR_FATAL', message: error.message, stack: error.stack }));
+    return Response.json({ error: error.message, stack: error.stack }, { status: 500 });
   }
 });
