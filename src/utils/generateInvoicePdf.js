@@ -188,7 +188,7 @@ async function renderPage(doc, inv, intervention, client, emisor) {
   Object.entries(ivaByRate).forEach(([rate, v]) => {
     fillRect(doc, TX, ty, TW, 6, LGRAY, [210, 215, 222]);
     sf(doc, 7.5, "normal", DGRAY);
-    doc.text(`Base imponible ${rate}%`, TX + 3,      ty + 4);
+    doc.text(`Base imponible`, TX + 3,      ty + 4);
     doc.text(`${v.base.toFixed(2)} €`,  TX + TW - 3, ty + 4, { align: "right" });
     ty += 6;
 
