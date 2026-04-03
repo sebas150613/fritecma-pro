@@ -49,6 +49,16 @@ export default function InterventionDetail() {
   const [validating, setValidating] = useState(false);
   const [validateResult, setValidateResult] = useState(null);
   const [invoice, setInvoice] = useState(null);
+
+  const getVerifactuLabel = (status) => ({
+    aceptado:   { label: 'Aceptado por AEAT', color: 'text-emerald-700' },
+    sandbox_ok: { label: 'Sandbox OK (sin acuse definitivo)', color: 'text-blue-600' },
+    pendiente:  { label: 'Pendiente de envío', color: 'text-amber-600' },
+    sin_envio:  { label: 'No enviado (error conexión/certificado)', color: 'text-red-600' },
+    rechazado:  { label: 'Rechazado por AEAT', color: 'text-red-700' },
+    error:      { label: 'Error en respuesta AEAT', color: 'text-red-700' },
+    duplicado:  { label: 'Duplicado (ya registrado)', color: 'text-amber-600' },
+  }[status] || { label: status, color: 'text-muted-foreground' });
   const [showRectModal, setShowRectModal] = useState(false);
   const [rectMode, setRectMode] = useState(null); // null | 'anular' | 'corregir'
   const [rectificando, setRectificando] = useState(false);
@@ -284,25 +294,38 @@ export default function InterventionDetail() {
             <div className="space-y-4">
               {validateResult.mode === 'facturar' ? (
                 <div className="space-y-3">
-                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-                    <p className="font-semibold text-emerald-700 flex items-center gap-2"><Receipt className="h-4 w-4" /> Factura generada</p>
-                    <p className="text-sm text-emerald-700 mt-1">Nº {validateResult.invoice_number}</p>
-                  </div>
-                  <div className="text-xs space-y-1 font-mono bg-muted/50 p-3 rounded-xl">
-                    <p className="text-muted-foreground">Hash SHA-256:</p>
-                    <p className="break-all">{validateResult.hash?.slice(0, 32)}...</p>
-                    <p className="text-muted-foreground mt-2">Estado Veri*factu: <span className="font-semibold">{validateResult.verifactu_status}</span></p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">⚠️ Este parte queda bloqueado y no puede editarse ni eliminarse.</p>
+                  {(() => {
+                    const vs = validateResult.verifactu_status;
+                    const isOk = vs === 'aceptado' || vs === 'sandbox_ok';
+                    const vInfo = getVerifactuLabel(vs);
+                    return (
+                      <>
+                        <div className={`p-4 border rounded-xl ${isOk ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+                          <p className={`font-semibold flex items-center gap-2 ${isOk ? 'text-emerald-700' : 'text-amber-700'}`}>
+                            <Receipt className="h-4 w-4" />
+                            {isOk ? 'Factura generada y remitida correctamente a AEAT' : 'Factura generada, pendiente de aceptación AEAT'}
+                          </p>
+                          <p className="text-sm mt-1 font-medium">Nº {validateResult.invoice_number}</p>
+                        </div>
+                        <div className="text-xs space-y-1.5 bg-muted/50 p-3 rounded-xl">
+                          <p><span className="text-muted-foreground">Hash SHA-256: </span><span className="font-mono">{validateResult.hash?.slice(0, 32)}...</span></p>
+                          <p><span className="text-muted-foreground">Estado Veri*factu: </span><span className={`font-semibold ${vInfo.color}`}>{vInfo.label}</span></p>
+                          {validateResult.verifactu_csv && <p><span className="text-muted-foreground">CSV AEAT: </span><span className="font-mono">{validateResult.verifactu_csv}</span></p>}
+                        </div>
+                        {!isOk && (validateResult.codigo_error_aeat || validateResult.descripcion_error_aeat) && (
+                          <div className="p-3 bg-red-50 border border-red-200 rounded-xl space-y-1">
+                            <p className="text-xs font-semibold text-red-800">Diagnóstico Veri*factu</p>
+                            {validateResult.codigo_error_aeat && <p className="text-xs text-red-700"><span className="font-medium">Código: </span>{validateResult.codigo_error_aeat}</p>}
+                            {validateResult.descripcion_error_aeat && <p className="text-xs text-red-700"><span className="font-medium">Detalle: </span>{validateResult.descripcion_error_aeat}</p>}
+                            <p className="text-xs text-red-600 mt-1">La factura queda bloqueada y se reintentará el envío automáticamente.</p>
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground">⚠️ Este parte queda bloqueado y no puede editarse ni eliminarse.</p>
+                      </>
+                    );
+                  })()}
+                  <Button onClick={() => { setShowValidateModal(false); setValidateResult(null); }} className="w-full rounded-xl">Cerrar</Button>
                 </div>
-              ) : (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                  <p className="font-semibold text-blue-700">✓ Parte guardado sin factura</p>
-                  <p className="text-sm text-blue-600 mt-1">Archivado como completado.</p>
-                </div>
-              )}
-              <Button onClick={() => { setShowValidateModal(false); setValidateResult(null); }} className="w-full rounded-xl">Cerrar</Button>
-              </div>
               ) : (
             <div className="space-y-4 mt-2">
 
@@ -366,6 +389,7 @@ export default function InterventionDetail() {
               <Button variant="outline" onClick={() => { setShowValidateModal(false); setValidateResult(null); }} disabled={validating} className="w-full rounded-xl">Cancelar</Button>
             </div>
           )}
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -636,6 +660,58 @@ export default function InterventionDetail() {
           </div>
         )}
       </div>
+
+      {/* Diagnóstico Veri*factu */}
+      {invoice && (
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+            <Receipt className="h-4 w-4" /> Factura · Diagnóstico Veri*factu
+          </h2>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Nº Factura</span>
+              <span className="font-medium">{invoice.invoice_number}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Estado</span>
+              <span className={`font-semibold ${getVerifactuLabel(invoice.verifactu_status).color}`}>
+                {getVerifactuLabel(invoice.verifactu_status).label}
+              </span>
+            </div>
+            {invoice.verifactu_csv && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">CSV AEAT</span>
+                <span className="font-mono text-xs">{invoice.verifactu_csv}</span>
+              </div>
+            )}
+            {invoice.verifactu_idregistro && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">ID Registro</span>
+                <span className="font-mono text-xs">{invoice.verifactu_idregistro}</span>
+              </div>
+            )}
+            {invoice.verifactu_timestamp && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Recepción AEAT</span>
+                <span className="text-xs">{invoice.verifactu_timestamp}</span>
+              </div>
+            )}
+            {invoice.codigo_error_aeat && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl mt-2 space-y-1">
+                <p className="text-xs font-semibold text-red-800">Error Veri*factu</p>
+                <p className="text-xs text-red-700"><span className="font-medium">Código: </span>{invoice.codigo_error_aeat}</p>
+                {invoice.descripcion_error_aeat && <p className="text-xs text-red-700"><span className="font-medium">Detalle: </span>{invoice.descripcion_error_aeat}</p>}
+              </div>
+            )}
+            {invoice.verifactu_response && !invoice.verifactu_csv && (
+              <details className="mt-2">
+                <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">Ver respuesta técnica AEAT</summary>
+                <pre className="mt-2 text-xs bg-muted/60 p-2 rounded-lg overflow-auto max-h-40 whitespace-pre-wrap break-all">{invoice.verifactu_response}</pre>
+              </details>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Conformidad / Receptor */}
       {(intervention.receptor_name || intervention.client_conformidad) && (

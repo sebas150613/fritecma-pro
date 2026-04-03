@@ -102,7 +102,9 @@
         "aceptado",
         "rechazado",
         "error",
-        "sin_envio"
+        "sin_envio",
+        "duplicado",
+        "sandbox_ok"
       ],
       "default": "pendiente"
     },
@@ -127,6 +129,14 @@
     "verifactu_response": {
       "type": "string",
       "title": "Respuesta AEAT (JSON)"
+    },
+    "codigo_error_aeat": {
+      "type": "string",
+      "title": "C\u00f3digo Error AEAT"
+    },
+    "descripcion_error_aeat": {
+      "type": "string",
+      "title": "Descripci\u00f3n Error AEAT"
     },
     "qr_url": {
       "type": "string",

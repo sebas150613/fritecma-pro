@@ -102,69 +102,91 @@ Deno.serve(async (req) => {
     let timestampAeat = '';
     let qrUrl = '';
 
+    let codigoErrorAeat = '';
+    let descripcionErrorAeat = '';
+
     try {
       const { httpStatus, responseText } = await sendToAEAT(xml_payload, base44, adminUser, emisorNif);
 
-      if ((!IS_PRODUCCION && httpStatus >= 200 && httpStatus < 300 || IS_PRODUCCION && httpStatus === 200) && !responseText.includes('<Fault>')) {
-        console.log(JSON.stringify({ evento: 'reintento_respuesta_valida', httpStatus }));
-        verifactuStatus = 'aceptado';
-      } else if (IS_PRODUCCION && httpStatus !== 200) {
-        console.warn(JSON.stringify({ evento: 'error_http_status', httpStatus }));
-        verifactuStatus = 'error';
-        verifactuResponse = `HTTP ${httpStatus}: En producción solo se acepta status 200.`;
-      } else if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
-        console.warn(JSON.stringify({ evento: 'error_html_response' }));
-        verifactuStatus = 'sin_envio';
-        verifactuResponse = 'AEAT rechazó certificado. Verifica credenciales.';
-      } else {
-        verifactuResponse = responseText.slice(0, 2000);
-        const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
-        const idRegistroMatch = responseText.match(/<IDRegistro>([^<]+)<\/IDRegistro>/);
-        idRegistro = idRegistroMatch ? idRegistroMatch[1] : '';
-        const timestampMatch = responseText.match(/<FechaHora(Recepcion|Presentacion)>([^<]+)<\/FechaHora.*?>/);
-        timestampAeat = timestampMatch ? timestampMatch[2] : '';
-        const codigoMatch = responseText.match(/<CodigoErrorRegistro>([^<]+)<\/CodigoErrorRegistro>/);
-        const codigoError = codigoMatch ? codigoMatch[1] : '';
+      const csvMatch = responseText.match(/<CSV>([^<]+)<\/CSV>/);
+      const idRegistroMatch = responseText.match(/<IDRegistro>([^<]+)<\/IDRegistro>/);
+      idRegistro = idRegistroMatch ? idRegistroMatch[1] : '';
+      const timestampMatch = responseText.match(/<FechaHora(?:Recepcion|Presentacion)>([^<]+)<\/FechaHora(?:Recepcion|Presentacion)>/);
+      timestampAeat = timestampMatch ? timestampMatch[1] : '';
+      const codigoMatch = responseText.match(/<CodigoErrorRegistro>([^<]+)<\/CodigoErrorRegistro>/);
+      codigoErrorAeat = codigoMatch ? codigoMatch[1] : '';
+      const descMatch = responseText.match(/<DescripcionErrorRegistro>([^<]+)<\/DescripcionErrorRegistro>/);
+      descripcionErrorAeat = descMatch ? descMatch[1] : '';
+      const estadoEnvio = (responseText.match(/<EstadoEnvio>([^<]+)<\/EstadoEnvio>/) || [])[1] || '';
+      const estadoRegistro = (responseText.match(/<EstadoRegistro>([^<]+)<\/EstadoRegistro>/) || [])[1] || '';
+      const hasFault = responseText.includes('<Fault>') || responseText.includes(':Fault>');
+      const isHtml = responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html');
 
+      verifactuResponse = responseText.slice(0, 2000);
+      console.log(JSON.stringify({ evento: 'reintento_soap_parsing', httpStatus, estadoEnvio, estadoRegistro, csv: csvMatch?.[1], codigoError: codigoErrorAeat, hasFault, isHtml }));
+
+      if (isHtml) {
+        verifactuStatus = 'sin_envio';
+        codigoErrorAeat = 'CERT_REJECTED';
+        descripcionErrorAeat = 'AEAT rechazó el certificado (respuesta HTML).';
+      } else if (hasFault) {
+        verifactuStatus = 'error';
+        const faultMsg = (responseText.match(/<faultstring>([^<]+)<\/faultstring>/) || [])[1] || 'SOAP Fault';
+        codigoErrorAeat = 'SOAP_FAULT';
+        descripcionErrorAeat = faultMsg;
+      } else if (!IS_PRODUCCION && httpStatus >= 200 && httpStatus < 300) {
         if (csvMatch && idRegistro) {
+          csvCode = csvMatch[1]; verifactuStatus = 'aceptado';
+        } else if (codigoErrorAeat) {
+          verifactuStatus = 'rechazado';
+        } else {
+          verifactuStatus = 'sandbox_ok';
+          descripcionErrorAeat = 'Sandbox: validación técnica OK sin CSV definitivo.';
+        }
+      } else if (IS_PRODUCCION && httpStatus !== 200) {
+        verifactuStatus = 'error';
+        codigoErrorAeat = `HTTP_${httpStatus}`;
+        descripcionErrorAeat = `Error HTTP ${httpStatus}`;
+      } else {
+        const esDuplicado = ['30002', '30003', '21000055'].includes(codigoErrorAeat);
+        if (csvMatch && idRegistro && (estadoEnvio === 'Correcto' || estadoRegistro === 'Correcto')) {
           csvCode = csvMatch[1];
           verifactuStatus = 'aceptado';
-          // Generar QR si en producción
           if (IS_PRODUCCION) {
             const fechaQR = invoice.issue_date?.slice(0, 10).split('-').reverse().join('-') || '';
-            const params = new URLSearchParams({
-              nif: emisorNif,
-              numserie: invoice.invoice_number,
-              fecha: fechaQR,
-              importe: (invoice.total || 0).toFixed(2),
-            });
+            const params = new URLSearchParams({ nif: emisorNif, numserie: invoice.invoice_number, fecha: fechaQR, importe: (invoice.total || 0).toFixed(2) });
             qrUrl = `${AEAT_QR_BASE}?${params.toString()}`;
           }
           console.log(JSON.stringify({ evento: 'reintento_aceptado', csv: csvCode }));
-        } else if (codigoError) {
-          verifactuStatus = 'rechazado';
-          verifactuResponse = `Error AEAT: ${codigoError}`;
-          console.warn(JSON.stringify({ evento: 'reintento_rechazado', codigo: codigoError }));
+        } else if (codigoErrorAeat) {
+          verifactuStatus = esDuplicado ? 'duplicado' : 'rechazado';
+          descripcionErrorAeat = descripcionErrorAeat || `Código: ${codigoErrorAeat}`;
+          console.warn(JSON.stringify({ evento: 'reintento_rechazado', codigo: codigoErrorAeat }));
         } else {
           verifactuStatus = 'error';
-          console.warn(JSON.stringify({ evento: 'reintento_respuesta_invalida' }));
+          codigoErrorAeat = 'RESP_INVALIDA';
+          descripcionErrorAeat = `Sin CSV ni código error. EstadoEnvio=${estadoEnvio}`;
         }
       }
     } catch (aeatErr) {
       console.error(JSON.stringify({ evento: 'error_envio_reintento', error: aeatErr.message }));
       verifactuStatus = 'sin_envio';
+      codigoErrorAeat = aeatErr.message.includes('Timeout') ? 'TIMEOUT' : 'CONN_ERROR';
+      descripcionErrorAeat = aeatErr.message;
       verifactuResponse = `Error: ${aeatErr.message}`;
     }
 
     return Response.json({
-      success: verifactuStatus === 'aceptado',
+      success: ['aceptado', 'sandbox_ok', 'duplicado'].includes(verifactuStatus),
       invoice_id,
       verifactu_status: verifactuStatus,
       verifactu_csv: csvCode,
       verifactu_idregistro: idRegistro,
       verifactu_timestamp: timestampAeat,
       qr_url: qrUrl,
-      error: verifactuStatus !== 'aceptado' ? verifactuResponse : null,
+      codigo_error_aeat: codigoErrorAeat || null,
+      descripcion_error_aeat: descripcionErrorAeat || null,
+      error: !['aceptado', 'sandbox_ok', 'duplicado'].includes(verifactuStatus) ? verifactuResponse : null,
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
