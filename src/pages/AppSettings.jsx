@@ -33,6 +33,8 @@ export default function AppSettings() {
   const [emisorNombre, setEmisorNombre] = useState("FRITECMA S.L.");
   const [emisorDireccion, setEmisorDireccion] = useState("");
   const [emisorTelefono, setEmisorTelefono] = useState("");
+  const [emisorLogo, setEmisorLogo] = useState("");
+  const [logoFile, setLogoFile] = useState(null);
   const [savingCert, setSavingCert] = useState(false);
   const [certSaved, setCertSaved] = useState(false);
   const [certUri, setCertUri] = useState("");
@@ -53,6 +55,7 @@ export default function AppSettings() {
     setEmisorNombre(me.verifactu_nombre || "FRITECMA S.L.");
     setEmisorDireccion(me.emisor_direccion || "");
     setEmisorTelefono(me.emisor_telefono || "");
+    setEmisorLogo(me.emisor_logo_url || "");
     setCertUri(me.verifactu_cert_uri || "");
     setLoading(false);
   };
@@ -204,6 +207,24 @@ export default function AppSettings() {
             <Label>Teléfono</Label>
             <Input value={emisorTelefono} onChange={e => setEmisorTelefono(e.target.value)} placeholder="+34 91 000 00 00" className="mt-1 rounded-xl" />
           </div>
+          <div className="sm:col-span-2">
+            <Label>Logo de la Empresa (aparece en el PDF)</Label>
+            <div className="mt-1 flex items-center gap-3">
+              {emisorLogo && !logoFile && (
+                <img src={emisorLogo} alt="Logo" className="h-12 object-contain border rounded-xl p-1 bg-white" />
+              )}
+              <label className="flex-1 cursor-pointer">
+                <div className="border-2 border-dashed border-border rounded-xl p-3 text-center hover:border-accent transition-colors">
+                  {logoFile ? (
+                    <p className="text-sm text-emerald-600 font-medium">✓ {logoFile.name}</p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{emisorLogo ? 'Subir nuevo logo' : 'Subir logo (.png, .jpg)'}</p>
+                  )}
+                </div>
+                <input type="file" accept="image/*" className="hidden" onChange={e => setLogoFile(e.target.files[0])} />
+              </label>
+            </div>
+          </div>
         </div>
 
         <div>
@@ -249,11 +270,19 @@ export default function AppSettings() {
               const { file_uri } = await base44.integrations.Core.UploadPrivateFile({ file: certFile });
               newCertUri = file_uri;
             }
+            let newLogoUrl = emisorLogo;
+            if (logoFile) {
+              const { file_url } = await base44.integrations.Core.UploadFile({ file: logoFile });
+              newLogoUrl = file_url;
+              setEmisorLogo(file_url);
+              setLogoFile(null);
+            }
             const updateData = { verifactu_nif: emisorNif, verifactu_nombre: emisorNombre };
             if (newCertUri) updateData.verifactu_cert_uri = newCertUri;
             if (certPassword) updateData.verifactu_cert_password = certPassword;
             updateData.emisor_direccion = emisorDireccion;
             updateData.emisor_telefono = emisorTelefono;
+            updateData.emisor_logo_url = newLogoUrl;
             await base44.auth.updateMe(updateData);
             if (newCertUri) setCertUri(newCertUri);
             setCertFile(null);

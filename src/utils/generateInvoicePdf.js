@@ -19,6 +19,7 @@ export async function generateInvoicePdf(invoice, intervention) {
     nif:       adminUser.verifactu_nif     || "",
     direccion: adminUser.emisor_direccion  || "",
     telefono:  adminUser.emisor_telefono   || "",
+    logo_url:  adminUser.emisor_logo_url   || "",
   };
 
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
@@ -71,11 +72,24 @@ async function renderPage(doc, inv, intervention, client, emisor) {
     doc.text(`Rectifica factura: ${inv.factura_rectificada_number}`, ML, 27.5);
   }
 
-  sf(doc, 10, "bold", WHITE);
-  doc.text(emisor.nombre, ML + PW, 12, { align: "right" });
-  sf(doc, 8, "normal", [180, 200, 230]);
-  if (emisor.nif)      doc.text(`NIF: ${emisor.nif}`, ML + PW, 18, { align: "right" });
-  if (emisor.telefono) doc.text(`Tel: ${emisor.telefono}`, ML + PW, 24, { align: "right" });
+  // Logo en la banda superior (derecha)
+  if (emisor.logo_url) {
+    try {
+      const logoData = await fetchImageAsDataUrl(emisor.logo_url);
+      // Imagen de 40x20mm máximo, alineada a la derecha de la banda
+      doc.addImage(logoData, ML + PW - 40, 6, 40, 20, undefined, "FAST");
+    } catch (_) {
+      // fallback texto si el logo no carga
+      sf(doc, 10, "bold", WHITE);
+      doc.text(emisor.nombre, ML + PW, 16, { align: "right" });
+    }
+  } else {
+    sf(doc, 10, "bold", WHITE);
+    doc.text(emisor.nombre, ML + PW, 12, { align: "right" });
+    sf(doc, 8, "normal", [180, 200, 230]);
+    if (emisor.nif)      doc.text(`NIF: ${emisor.nif}`, ML + PW, 18, { align: "right" });
+    if (emisor.telefono) doc.text(`Tel: ${emisor.telefono}`, ML + PW, 24, { align: "right" });
+  }
 
   let y = 40;
 
