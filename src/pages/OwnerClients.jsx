@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, CheckCircle2, Loader2, PauseCircle, PlayCircle, UserPlus } from "lucide-react";
+import { Building2, CheckCircle2, Loader2, PauseCircle, PlayCircle, Trash2, UserPlus } from "lucide-react";
 
 const ROLE_OPTIONS = [
   { value: "admin", label: "Admin" },
@@ -137,6 +137,26 @@ export default function OwnerClients() {
       await load();
     } catch (e) {
       setError(e?.message || "No se pudo activar la licencia.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const handleDeleteUser = async (organizationId, userId) => {
+    if (!organizationId || !userId) {
+      return;
+    }
+    const confirmed = window.confirm("¿Eliminar este usuario de este cliente?");
+    if (!confirmed) {
+      return;
+    }
+    setBusy(`delete-user:${userId}`);
+    setError("");
+    try {
+      await appApi.organizations.deleteUser(organizationId, userId);
+      await load();
+    } catch (e) {
+      setError(e?.message || "No se pudo eliminar el usuario.");
     } finally {
       setBusy("");
     }
@@ -446,6 +466,22 @@ export default function OwnerClients() {
                       <div className="text-right">
                         <p className="text-sm font-medium">{u.role || "sin-rol"}</p>
                         <p className="text-xs text-muted-foreground">{u.membership_status || "active"}</p>
+                        <div className="mt-2 flex justify-end">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-8 px-3 rounded-xl text-destructive border-destructive/30 hover:bg-destructive/5"
+                            disabled={busy === `delete-user:${u.id}` || busy === "pause" || busy === "activate"}
+                            onClick={() => handleDeleteUser(selectedOrganization.id, u.id)}
+                          >
+                            {busy === `delete-user:${u.id}` ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5 mr-2" />
+                            )}
+                            Eliminar
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}

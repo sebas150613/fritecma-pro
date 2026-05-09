@@ -216,15 +216,18 @@ router.post(
       plan_code: planCode,
     });
 
-    await membershipStore.create({
-      organization_id: organization.id,
-      organization_name: organization.name,
-      user_id: req.currentUser.id,
-      user_email: req.currentUser.email || "",
-      user_name: req.currentUser.full_name || req.currentUser.email || "Invitado",
-      role: "admin",
-      status: "active",
-    });
+    const isHiddenOwnerRequest = req.currentUser?.is_hidden_owner === true;
+    if (!isHiddenOwnerRequest) {
+      await membershipStore.create({
+        organization_id: organization.id,
+        organization_name: organization.name,
+        user_id: req.currentUser.id,
+        user_email: req.currentUser.email || "",
+        user_name: req.currentUser.full_name || req.currentUser.email || "Invitado",
+        role: "admin",
+        status: "active",
+      });
+    }
 
     await organizationSettingsStore.create({
       organization_id: organization.id,
@@ -238,7 +241,6 @@ router.post(
       trialDays: selectedPlan.code === "starter" ? 15 : 0,
     });
 
-    const isHiddenOwnerRequest = req.currentUser?.is_hidden_owner === true;
     const createdSession = req.authSessionToken || isHiddenOwnerRequest
       ? null
       : await createSessionForUser(req.currentUser.id, {
@@ -389,6 +391,100 @@ router.post(
       },
       invite_url: inviteUrl,
     });
+  })
+);
+
+router.delete(
+  "/:organizationId/users/:userId",
+  asyncHandler(async (req, res) => {
+    const organizationId = String(req.params.organizationId || "").trim();
+    const userId = String(req.params.userId || "").trim();
+
+    if (!organizationId || !userId) {
+      throw new HttpError(400, "organizationId and userId are required");
+    }
+
+    const isOwner = canAccessHiddenUsers(req.currentUser);
+    const isAdmin = ["admin", "superadmin"].includes(req.currentUser?.role);
+
+    if (!isOwner && !isAdmin) {
+      throw new HttpError(403, "Forbidden");
+    }
+
+    if (!isOwner && organizationId !== req.currentOrganization?.id) {
+      throw new HttpError(403, "Forbidden");
+    }
+
+    const membershipsForUser = await membershipStore.filter({
+      filter: {
+        organization_id: organizationId,
+        user_id: userId,
+      },
+      limit: 1,
+    });
+    const targetMembership = membershipsForUser[0] || null;
+    if (!targetMembership) {
+      throw new HttpError(404, "User not found");
+    }
+
+    const users = await userStore.filter({
+      filter: { id: userId },
+      limit: 1,
+    });
+    const targetUser = users[0] || null;
+    if (!targetUser) {
+      throw new HttpError(404, "User not found");
+    }
+
+    if (targetUser.is_hidden_owner === true) {
+      throw new HttpError(403, "Forbidden");
+    }
+
+    const targetRole = String(targetMembership.role || targetUser.role || "").toLowerCase();
+    if (!isOwner && targetRole === "superadmin") {
+      throw new HttpError(403, "Forbidden");
+    }
+
+    const allMembershipsForOrg = await membershipStore.filter({
+      filter: { organization_id: organizationId },
+    });
+    const userById = new Map((await userStore.list()).map((u) => [u.id, u]));
+
+    const activeAdminCount = allMembershipsForOrg.filter((membership) => {
+      if (!membership || membership.status === "disabled") {
+        return false;
+      }
+      const role = String(membership.role || "").toLowerCase();
+      if (!["admin", "superadmin"].includes(role)) {
+        return false;
+      }
+      const user = userById.get(membership.user_id);
+      if (!user || user.is_active === false || user.is_hidden_owner === true) {
+        return false;
+      }
+      return true;
+    }).length;
+
+    const isTargetActiveAdmin =
+      targetMembership.status !== "disabled" && ["admin", "superadmin"].includes(targetRole);
+
+    if (isTargetActiveAdmin && activeAdminCount <= 1) {
+      throw new HttpError(
+        409,
+        "No se puede eliminar el último administrador activo de la empresa."
+      );
+    }
+
+    await membershipStore.delete(targetMembership.id);
+
+    const remainingMemberships = await membershipStore.filter({
+      filter: { user_id: userId },
+    });
+    if (!remainingMemberships || remainingMemberships.length === 0) {
+      await userStore.delete(userId);
+    }
+
+    res.status(204).send();
   })
 );
 

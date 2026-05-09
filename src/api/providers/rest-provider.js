@@ -340,6 +340,13 @@ export const createRestProvider = () => {
           method: "POST",
           body: payload,
         }),
+      deleteUser: (organizationId, userId) =>
+        http.request(
+          `/api/organizations/${encodeURIComponent(organizationId)}/users/${encodeURIComponent(
+            userId
+          )}`,
+          { method: "DELETE" }
+        ),
       pauseLicense: (organizationId) =>
         http.request(
           `/api/organizations/${encodeURIComponent(organizationId)}/license/pause`,

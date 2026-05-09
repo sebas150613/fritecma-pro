@@ -117,6 +117,9 @@ export const appApi = {
     createUser: withProviderMethod(
       (provider) => provider.appApi.organizations?.createUser
     ),
+    deleteUser: withProviderMethod(
+      (provider) => provider.appApi.organizations?.deleteUser
+    ),
     pauseLicense: withProviderMethod(
       (provider) => provider.appApi.organizations?.pauseLicense
     ),

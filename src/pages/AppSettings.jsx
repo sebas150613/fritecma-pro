@@ -121,6 +121,15 @@ export default function AppSettings() {
     loadData();
   };
 
+  const deleteOrganizationUser = async (userId) => {
+    const confirmed = window.confirm("¿Eliminar este usuario de este cliente?");
+    if (!confirmed) {
+      return;
+    }
+    await appApi.organizations.deleteUser(user?.current_organization?.id, userId);
+    loadData();
+  };
+
   const handleDeleteAccount = async () => {
     if (deleteConfirm !== "ELIMINAR") return;
     await appApi.entities.User.delete(user.id);
@@ -277,6 +286,15 @@ export default function AppSettings() {
                     <SelectItem value="tecnico">Técnico</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 rounded-lg text-destructive border-destructive/30 hover:bg-destructive/5"
+                  onClick={() => deleteOrganizationUser(u.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-2" />
+                  Eliminar
+                </Button>
               </div>
             </div>
           ))}

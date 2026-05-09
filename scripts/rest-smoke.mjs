@@ -449,6 +449,19 @@ const runSmoke = async () => {
       throw new Error("Owner org create did not return organization id.");
     }
 
+    const ownerOverviewEmpty = await request("/api/organizations/owner-overview", {
+      headers: ownerHeaders,
+    });
+    const createdOrgOverview = (ownerOverviewEmpty?.organizations || []).find(
+      (org) => org.id === targetOrgId
+    );
+    if (!createdOrgOverview) {
+      throw new Error("Expected new org to appear in owner overview.");
+    }
+    if (createdOrgOverview.user_count !== 0 || (createdOrgOverview.users || []).length !== 0) {
+      throw new Error("Expected new org to start with 0 users.");
+    }
+
     const ownerInviteAdmin = await request(`/api/organizations/${encodeURIComponent(targetOrgId)}/users`, {
       method: "POST",
       headers: ownerHeaders,
@@ -459,6 +472,20 @@ const runSmoke = async () => {
         temporary_password: "TempPass123!",
       }),
     });
+
+    const ownerOverviewAfterAdmin = await request("/api/organizations/owner-overview", {
+      headers: ownerHeaders,
+    });
+    const createdOrgAfterAdmin = (ownerOverviewAfterAdmin?.organizations || []).find(
+      (org) => org.id === targetOrgId
+    );
+    if (!createdOrgAfterAdmin) {
+      throw new Error("Expected org to appear in owner overview after creating admin.");
+    }
+    if (createdOrgAfterAdmin.user_count !== 1 || (createdOrgAfterAdmin.users || []).length !== 1) {
+      throw new Error("Expected org to have 1 user after creating admin.");
+    }
+
     const ownerInviteTech = await request(`/api/organizations/${encodeURIComponent(targetOrgId)}/users`, {
       method: "POST",
       headers: ownerHeaders,
@@ -479,6 +506,64 @@ const runSmoke = async () => {
         temporary_password: "TempPass123!",
       }),
     });
+
+    const ownerInviteTempTech = await request(
+      `/api/organizations/${encodeURIComponent(targetOrgId)}/users`,
+      {
+        method: "POST",
+        headers: ownerHeaders,
+        body: JSON.stringify({
+          email: "tech-delete@local.test",
+          full_name: "Tech Delete",
+          role: "tecnico",
+          temporary_password: "TempPass123!",
+        }),
+      }
+    );
+
+    await request(
+      `/api/organizations/${encodeURIComponent(targetOrgId)}/users/${encodeURIComponent(
+        ownerInviteTempTech?.user?.id
+      )}`,
+      {
+        method: "DELETE",
+        headers: ownerHeaders,
+      }
+    );
+    const ownerOverviewAfterDelete = await request("/api/organizations/owner-overview", {
+      headers: ownerHeaders,
+    });
+    const createdOrgAfterDelete = (ownerOverviewAfterDelete?.organizations || []).find(
+      (org) => org.id === targetOrgId
+    );
+    if (!createdOrgAfterDelete) {
+      throw new Error("Expected org to appear in owner overview after delete.");
+    }
+    if (createdOrgAfterDelete.user_count !== 3) {
+      throw new Error("Expected org user_count to drop after deleting temp tech.");
+    }
+
+    const deleteLastAdminAttempt = await requestExpectFailure(
+      `/api/organizations/${encodeURIComponent(targetOrgId)}/users/${encodeURIComponent(
+        ownerInviteAdmin?.user?.id
+      )}`,
+      {
+        method: "DELETE",
+        headers: ownerHeaders,
+      }
+    );
+    if (deleteLastAdminAttempt.status !== 409) {
+      throw new Error("Expected deleting last admin to be blocked with 409.");
+    }
+    if (
+      typeof deleteLastAdminAttempt.body !== "object" ||
+      deleteLastAdminAttempt.body?.message !==
+        "No se puede eliminar el último administrador activo de la empresa."
+    ) {
+      throw new Error(
+        `Expected last-admin protection message. got=${JSON.stringify(deleteLastAdminAttempt.body)}`
+      );
+    }
 
     await request(`/api/organizations/${encodeURIComponent(targetOrgId)}/license/pause`, {
       method: "POST",
