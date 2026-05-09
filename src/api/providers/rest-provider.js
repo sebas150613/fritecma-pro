@@ -312,6 +312,12 @@ export const createRestProvider = () => {
 
   const appApi = {
     auth,
+    account: {
+      deleteMe: () =>
+        http.request("/api/account/me", {
+          method: "DELETE",
+        }),
+    },
     users: {
       invite: (email, role) =>
         http.request("/api/users/invite", {
