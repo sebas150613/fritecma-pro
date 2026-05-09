@@ -27,6 +27,13 @@ router.delete(
       throw new HttpError(403, "La cuenta owner no se puede eliminar desde este flujo.");
     }
 
+    if (!["tecnico", "ayudante"].includes(currentUser.role)) {
+      throw new HttpError(
+        403,
+        "Solo técnico y ayudante pueden eliminar su cuenta desde este flujo."
+      );
+    }
+
     const memberships = await membershipStore.filter({
       filter: { user_id: currentUser.id },
     });
