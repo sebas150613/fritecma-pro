@@ -20,7 +20,8 @@ import {
   CalendarDays,
   Fingerprint,
   Truck,
-  ShoppingCart
+  ShoppingCart,
+  ShoppingBag
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -93,6 +94,19 @@ const ownerLinks = [
 
 const TAB_ROOTS = ["/", "/interventions", "/fichaje", "/settings"];
 
+const pedidosLink = { to: "/purchase-orders", label: "Pedidos", icon: ShoppingBag };
+
+const injectPedidos = (links, show) => {
+  if (!show) {
+    return links;
+  }
+  const idx = links.findIndex((l) => l.to === "/settings");
+  if (idx === -1) {
+    return [...links, pedidosLink];
+  }
+  return [...links.slice(0, idx), pedidosLink, ...links.slice(idx)];
+};
+
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -120,16 +134,23 @@ export default function Layout() {
     if (root) tabHistoryRef.current[root] = location.pathname;
   }, [location.pathname]);
 
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isAdmin =
+    user?.role === "admin" ||
+    user?.role === "superadmin" ||
+    user?.role === "encargado";
   const isOficina = user?.role === "oficina";
   const isAyudante = user?.role === "ayudante";
   const isHiddenOwner = user?.is_hidden_owner === true;
+  const showPurchaseOrdersNav =
+    !isHiddenOwner &&
+    user?.role !== "superadmin" &&
+    ["admin", "oficina", "encargado"].includes(user?.role || "");
   const links = isHiddenOwner
     ? ownerLinks
     : isAdmin
-      ? adminLinks
+      ? injectPedidos(adminLinks, showPurchaseOrdersNav)
       : isOficina
-        ? oficinaLinks
+        ? injectPedidos(oficinaLinks, showPurchaseOrdersNav)
         : isAyudante
           ? ayudanteLinks
           : techLinks;

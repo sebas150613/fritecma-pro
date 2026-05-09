@@ -17,6 +17,7 @@ import functionRoutes from "./routes/functions.js";
 import publicAppRoutes from "./routes/public-app.js";
 import organizationRoutes from "./routes/organizations.js";
 import billingRoutes, { stripeWebhookHandler } from "./routes/billing.js";
+import purchaseOrderRoutes from "./routes/purchase-orders.js";
 import { ensureSaasBootstrap } from "./lib/auth.js";
 import { initializeStoreBackend } from "./lib/json-store.js";
 import { bootstrapOrganizationSubscriptions } from "./services/billing-service.js";
@@ -92,6 +93,7 @@ app.use("/api/email", emailRoutes);
 app.use("/api/business", businessNotificationRoutes);
 app.use("/api/functions", functionRoutes);
 app.use("/api/billing", billingRoutes);
+app.use("/api/purchase-orders", purchaseOrderRoutes);
 
 app.use((error, _req, res, _next) => {
   const status =

@@ -30,6 +30,10 @@
       "type": "string",
       "title": "Email"
     },
+    "order_email": {
+      "type": "string",
+      "title": "Email de pedidos"
+    },
     "contact_person": {
       "type": "string",
       "title": "Persona de Contacto"

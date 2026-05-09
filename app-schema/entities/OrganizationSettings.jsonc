@@ -73,6 +73,34 @@
     "desplazamiento_tramos_json": {
       "type": "string",
       "title": "Tramos de desplazamiento (JSON)"
+    },
+    "pedidos_email_from": {
+      "type": "string",
+      "title": "Email operativo de pedidos"
+    },
+    "pedidos_email_from_name": {
+      "type": "string",
+      "title": "Nombre remitente pedidos"
+    },
+    "pedidos_reply_to": {
+      "type": "string",
+      "title": "Reply-To pedidos"
+    },
+    "pedidos_entrega_direccion": {
+      "type": "string",
+      "title": "Direcci\u00f3n entrega / almac\u00e9n"
+    },
+    "pedidos_entrega_contacto": {
+      "type": "string",
+      "title": "Contacto entregas"
+    },
+    "pedidos_entrega_telefono": {
+      "type": "string",
+      "title": "Tel\u00e9fono entregas"
+    },
+    "pedidos_entrega_observaciones": {
+      "type": "string",
+      "title": "Observaciones entrega"
     }
   },
   "required": [

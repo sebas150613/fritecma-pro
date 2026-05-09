@@ -32,6 +32,13 @@ export const ORGANIZATION_SETTINGS_FIELDS = [
   "tarifa_oficial_ayudante_nocturna",
   "tarifa_oficial_ayudante_festiva",
   "desplazamiento_tramos_json",
+  "pedidos_email_from",
+  "pedidos_email_from_name",
+  "pedidos_reply_to",
+  "pedidos_entrega_direccion",
+  "pedidos_entrega_contacto",
+  "pedidos_entrega_telefono",
+  "pedidos_entrega_observaciones",
 ];
 
 export const getOrganizationStore = () => organizationStore;

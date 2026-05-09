@@ -957,6 +957,145 @@ const runSmoke = async () => {
       throw new Error("Expected hard-deleted org to disappear from owner overview.");
     }
 
+    // --- Purchase orders (supplier module) ---
+    await request("/api/auth/me", {
+      method: "PATCH",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        pedidos_email_from: "compras-po-smoke@local.test",
+        pedidos_email_from_name: "Smoke Compras",
+        pedidos_reply_to: "reply-po-smoke@local.test",
+        pedidos_entrega_direccion: "Polígono Industrial Smoke 1",
+        pedidos_entrega_contacto: "Recepción",
+        pedidos_entrega_telefono: "611222333",
+      }),
+    });
+
+    const poSupplier = await request("/api/entities/Supplier", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        name: "Proveedor PO Smoke",
+        email: "po-main@local.test",
+        order_email: "po-orders@local.test",
+        category: "general",
+      }),
+    });
+
+    const poMaterial = await request("/api/entities/Material", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        name: "Material PO Smoke",
+        unit: "m",
+        category: "consumible",
+        supplier_id: poSupplier.id,
+      }),
+    });
+
+    const poSendRes = await request("/api/purchase-orders/send", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        supplier_id: poSupplier.id,
+        delivery_type: "company_address",
+        notes: "Smoke purchase order",
+        lines: [{ material_id: poMaterial.id, quantity: 3 }],
+      }),
+    });
+    const poId = poSendRes?.order?.id;
+    if (!poId || poSendRes?.order?.status !== "pending_delivery") {
+      throw new Error(
+        `Expected purchase order pending_delivery. got=${JSON.stringify(poSendRes)}`
+      );
+    }
+
+    const poListRes = await request("/api/purchase-orders", { headers: adminHeaders });
+    if (!(poListRes?.orders || []).some((o) => o.id === poId)) {
+      throw new Error("Expected purchase order in list.");
+    }
+
+    const techPoLogin = await loginViaRedirect({
+      pathname: "/api/auth/login",
+      formFields: {
+        email: "tech-license@local.test",
+        password: "TempPass123!",
+        redirect_uri: `${BASE_URL}/`,
+      },
+    });
+    if (!techPoLogin.token) {
+      throw new Error(`Expected tech login after license activate. location=${techPoLogin.location}`);
+    }
+    const techPoHeaders = {
+      Authorization: `Bearer ${techPoLogin.token}`,
+      "X-App-Id": "local-app",
+      "Content-Type": "application/json",
+      "X-Organization-Id": orgAId,
+    };
+
+    const techPoDenied = await requestExpectFailure("/api/purchase-orders/send", {
+      method: "POST",
+      headers: techPoHeaders,
+      body: JSON.stringify({
+        supplier_id: poSupplier.id,
+        delivery_type: "company_address",
+        lines: [{ material_id: poMaterial.id, quantity: 1 }],
+      }),
+    });
+    if (techPoDenied.status !== 403) {
+      throw new Error(`Expected technician purchase-order send to be 403, got ${techPoDenied.status}`);
+    }
+
+    const ownerPoDenied = await requestExpectFailure("/api/purchase-orders/send", {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        supplier_id: poSupplier.id,
+        delivery_type: "company_address",
+        lines: [{ material_id: poMaterial.id, quantity: 1 }],
+      }),
+    });
+    if (ownerPoDenied.status !== 403) {
+      throw new Error(`Expected owner purchase-order send to be 403, got ${ownerPoDenied.status}`);
+    }
+
+    await request(`/api/purchase-orders/${encodeURIComponent(poId)}/status`, {
+      method: "PATCH",
+      headers: adminHeaders,
+      body: JSON.stringify({ status: "delivered" }),
+    });
+
+    const issuesNoNotes = await requestExpectFailure(
+      `/api/purchase-orders/${encodeURIComponent(poId)}/status`,
+      {
+        method: "PATCH",
+        headers: adminHeaders,
+        body: JSON.stringify({ status: "delivered_with_issues" }),
+      }
+    );
+    if (issuesNoNotes.status !== 422) {
+      throw new Error(
+        `Expected delivered_with_issues without notes to fail with 422, got ${issuesNoNotes.status}`
+      );
+    }
+
+    await request(`/api/purchase-orders/${encodeURIComponent(poId)}/status`, {
+      method: "PATCH",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        status: "delivered_with_issues",
+        issue_notes: "Embalaje dañado en una caja.",
+      }),
+    });
+
+    const poDeleteDenied = await requestExpectFailure(
+      `/api/entities/PurchaseOrder/${encodeURIComponent(poId)}`,
+      { method: "DELETE", headers: adminHeaders }
+    );
+    if (poDeleteDenied.status !== 403) {
+      throw new Error(`Expected PurchaseOrder DELETE to be 403, got ${poDeleteDenied.status}`);
+    }
+
     // --- Seed idempotency check (demo memberships must not recreate if disabled) ---
     const membershipRecords = await readJsonArray(tempMembershipsFile);
     const removedMembership = membershipRecords.find(

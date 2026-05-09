@@ -149,6 +149,19 @@ const buildFromHeader = (emailSettings) => {
   return addr;
 };
 
+/** Cabecera From por envío (p. ej. pedidos empresa); si no hay datos, SMTP global */
+const buildFromHeaderForPayload = (payload, emailSettings) => {
+  const addr = String(payload.fromEmail || "").trim();
+  if (addr) {
+    const name = String(payload.fromName || "").trim();
+    if (name) {
+      return `${name} <${addr}>`;
+    }
+    return addr;
+  }
+  return buildFromHeader(emailSettings);
+};
+
 export const sendEmail = async (payload = {}) => {
   const emailSettings = await getEffectiveEmailSettings();
 
@@ -178,8 +191,15 @@ export const sendEmail = async (payload = {}) => {
     throw new HttpError(400, 'Email payload requires at least one recipient in "to", "cc" or "bcc".');
   }
 
-  const fromHeader = buildFromHeader(emailSettings);
-  const replyToEffective = String(emailSettings.email_reply_to || "").trim() || undefined;
+  const fromHeader = buildFromHeaderForPayload(payload, emailSettings);
+  let replyToEffective;
+  if (Object.prototype.hasOwnProperty.call(payload, "replyTo")) {
+    const explicit = String(payload.replyTo ?? "").trim();
+    replyToEffective =
+      explicit || String(emailSettings.email_reply_to || "").trim() || undefined;
+  } else {
+    replyToEffective = String(emailSettings.email_reply_to || "").trim() || undefined;
+  }
 
   const message = {
     from: fromHeader,

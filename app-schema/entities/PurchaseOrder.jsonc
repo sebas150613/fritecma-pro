@@ -1,0 +1,117 @@
+{
+  "name": "PurchaseOrder",
+  "type": "object",
+  "properties": {
+    "number": {
+      "type": "string",
+      "title": "N\u00famero de pedido"
+    },
+    "supplier_id": {
+      "type": "string",
+      "title": "ID Proveedor"
+    },
+    "supplier_name": {
+      "type": "string",
+      "title": "Proveedor"
+    },
+    "supplier_email": {
+      "type": "string",
+      "title": "Email proveedor"
+    },
+    "status": {
+      "type": "string",
+      "title": "Estado",
+      "enum": [
+        "draft",
+        "pending_delivery",
+        "delivered",
+        "delivered_with_issues",
+        "cancelled",
+        "send_error"
+      ]
+    },
+    "lines_json": {
+      "type": "string",
+      "title": "L\u00edneas (JSON)"
+    },
+    "delivery_type": {
+      "type": "string",
+      "title": "Tipo entrega",
+      "enum": [
+        "company_address",
+        "project",
+        "pickup_store"
+      ]
+    },
+    "delivery_label": {
+      "type": "string",
+      "title": "Descripci\u00f3n entrega"
+    },
+    "delivery_address": {
+      "type": "string",
+      "title": "Direcci\u00f3n entrega"
+    },
+    "project_id": {
+      "type": "string",
+      "title": "ID Obra"
+    },
+    "project_name": {
+      "type": "string",
+      "title": "Obra"
+    },
+    "requested_by_user_id": {
+      "type": "string",
+      "title": "Usuario solicitante"
+    },
+    "requested_by_name": {
+      "type": "string",
+      "title": "Nombre solicitante"
+    },
+    "requested_by_email": {
+      "type": "string",
+      "title": "Email solicitante"
+    },
+    "sent_at": {
+      "type": "string",
+      "title": "Enviado",
+      "format": "date-time"
+    },
+    "email_message_id": {
+      "type": "string",
+      "title": "Message-ID email"
+    },
+    "email_status": {
+      "type": "string",
+      "title": "Estado env\u00edo email"
+    },
+    "issue_notes": {
+      "type": "string",
+      "title": "Notas incidencia"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Observaciones"
+    },
+    "pdf_filename": {
+      "type": "string",
+      "title": "PDF"
+    },
+    "pdf_generated_at": {
+      "type": "string",
+      "title": "PDF generado",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "number",
+    "supplier_id",
+    "supplier_name",
+    "supplier_email",
+    "status",
+    "lines_json",
+    "delivery_type",
+    "requested_by_user_id",
+    "requested_by_name",
+    "requested_by_email"
+  ]
+}

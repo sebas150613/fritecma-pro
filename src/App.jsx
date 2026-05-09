@@ -29,6 +29,7 @@ import MaterialRequests from './pages/MaterialRequests';
 import AbsenceManagement from './pages/AbsenceManagement';
 import Calendar from './pages/Calendar';
 import OwnerClients from './pages/OwnerClients';
+import PurchaseOrders from './pages/PurchaseOrders';
 const normalizeRole = (value) =>
   String(value || "")
     .trim()
@@ -88,6 +89,7 @@ const AuthenticatedApp = () => {
         <Route path="/stock-movements" element={<StockMovements />} />
         <Route path="/projects" element={<Projects />} />
         <Route path="/suppliers" element={<Suppliers />} />
+        <Route path="/purchase-orders" element={<PurchaseOrders />} />
         <Route path="/stock-entry" element={<StockBatchEntry />} />
         <Route path="/material-requests" element={<MaterialRequests />} />
         <Route path="/absences" element={<AbsenceManagement />} />

@@ -439,6 +439,19 @@ export const createRestProvider = () => {
           body: payload,
         }),
     },
+    purchaseOrders: {
+      list: () => http.request("/api/purchase-orders"),
+      send: (payload) =>
+        http.request("/api/purchase-orders/send", {
+          method: "POST",
+          body: payload,
+        }),
+      updateStatus: (id, payload) =>
+        http.request(`/api/purchase-orders/${encodeURIComponent(id)}/status`, {
+          method: "PATCH",
+          body: payload,
+        }),
+    },
     billing: {
       summary: (organizationId) =>
         http.request(

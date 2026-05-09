@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Settings, Users, Shield, Trash2, Upload, Key, FileCheck, Loader2, Crown, Copy, Building2, Coins, Plus } from "lucide-react";
+import { Settings, Users, Shield, Trash2, Upload, Key, FileCheck, Loader2, Crown, Copy, Building2, Coins, Plus, ShoppingBag } from "lucide-react";
 import OrganizationBillingPanel from "@/components/OrganizationBillingPanel";
 import { parseTramosJson, ensureTramoIds } from "@/lib/displacementBilling";
 
@@ -71,6 +71,15 @@ export default function AppSettings() {
   const [despTramos, setDespTramos] = useState([]);
   const [tarifasSaving, setTarifasSaving] = useState(false);
   const [tarifasMessage, setTarifasMessage] = useState("");
+  const [pedidosEmailFrom, setPedidosEmailFrom] = useState("");
+  const [pedidosEmailFromName, setPedidosEmailFromName] = useState("");
+  const [pedidosReplyTo, setPedidosReplyTo] = useState("");
+  const [pedidosEntregaDireccion, setPedidosEntregaDireccion] = useState("");
+  const [pedidosEntregaContacto, setPedidosEntregaContacto] = useState("");
+  const [pedidosEntregaTelefono, setPedidosEntregaTelefono] = useState("");
+  const [pedidosEntregaObservaciones, setPedidosEntregaObservaciones] = useState("");
+  const [pedidosSaving, setPedidosSaving] = useState(false);
+  const [pedidosMessage, setPedidosMessage] = useState("");
 
   useEffect(() => {
     loadData();
@@ -88,6 +97,13 @@ export default function AppSettings() {
     setTarifaOaNoct(me.tarifa_oficial_ayudante_nocturna ?? "");
     setTarifaOaFest(me.tarifa_oficial_ayudante_festiva ?? "");
     setDespTramos(ensureTramoIds(parseTramosJson(me.desplazamiento_tramos_json)));
+    setPedidosEmailFrom(me.pedidos_email_from ?? "");
+    setPedidosEmailFromName(me.pedidos_email_from_name ?? "");
+    setPedidosReplyTo(me.pedidos_reply_to ?? "");
+    setPedidosEntregaDireccion(me.pedidos_entrega_direccion ?? "");
+    setPedidosEntregaContacto(me.pedidos_entrega_contacto ?? "");
+    setPedidosEntregaTelefono(me.pedidos_entrega_telefono ?? "");
+    setPedidosEntregaObservaciones(me.pedidos_entrega_observaciones ?? "");
     if (["admin", "superadmin"].includes(me.role) && me.is_hidden_owner !== true) {
       const allUsers = await appApi.entities.User.list("full_name", 100);
       setUsers(allUsers);
@@ -281,10 +297,36 @@ export default function AppSettings() {
   const isOwner = user?.is_hidden_owner === true;
   const canManageClientUsers = canManageUsers && !isOwner;
   const canEditTarifas = ["admin", "superadmin", "oficina", "encargado"].includes(user?.role);
+  const canEditPedidosSettings =
+    !isOwner &&
+    ["admin", "oficina", "encargado"].includes(user?.role) &&
+    user?.role !== "superadmin";
 
   const parseTarifaInput = (v) => {
     const x = parseFloat(String(v ?? "").replace(",", "."));
     return Number.isFinite(x) && x >= 0 ? x : undefined;
+  };
+
+  const handleSavePedidos = async () => {
+    setPedidosSaving(true);
+    setPedidosMessage("");
+    try {
+      await appApi.auth.updateMe({
+        pedidos_email_from: pedidosEmailFrom.trim(),
+        pedidos_email_from_name: pedidosEmailFromName.trim(),
+        pedidos_reply_to: pedidosReplyTo.trim(),
+        pedidos_entrega_direccion: pedidosEntregaDireccion.trim(),
+        pedidos_entrega_contacto: pedidosEntregaContacto.trim(),
+        pedidos_entrega_telefono: pedidosEntregaTelefono.trim(),
+        pedidos_entrega_observaciones: pedidosEntregaObservaciones.trim(),
+      });
+      setPedidosMessage("Datos de pedidos guardados.");
+      await loadData();
+    } catch (e) {
+      setPedidosMessage(e?.message || "No se pudo guardar.");
+    } finally {
+      setPedidosSaving(false);
+    }
   };
 
   const handleSaveTarifas = async () => {
@@ -772,6 +814,94 @@ export default function AppSettings() {
         >
           {tarifasSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
           Guardar tarifas
+        </Button>
+      </div>
+      )}
+
+      {canEditPedidosSettings && (
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+        <h2 className="font-semibold flex items-center gap-2">
+          <ShoppingBag className="h-4 w-4 text-accent" /> Pedidos a proveedor
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Correo operativo que verán los proveedores al recibir pedidos. No configura el SMTP global de FRIGEST (solo el panel owner). Si «Respuesta» está vacío, se usará el email de pedidos.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="sm:col-span-2">
+            <Label className="text-xs">Email de pedidos de la empresa</Label>
+            <Input
+              value={pedidosEmailFrom}
+              onChange={(e) => setPedidosEmailFrom(e.target.value)}
+              placeholder="compras@miempresa.com"
+              className="mt-1 rounded-xl"
+              type="email"
+              autoComplete="off"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label className="text-xs">Nombre remitente visible</Label>
+            <Input
+              value={pedidosEmailFromName}
+              onChange={(e) => setPedidosEmailFromName(e.target.value)}
+              placeholder="Ej. Mi empresa — Compras"
+              className="mt-1 rounded-xl"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label className="text-xs">Email de respuesta (reply-to)</Label>
+            <Input
+              value={pedidosReplyTo}
+              onChange={(e) => setPedidosReplyTo(e.target.value)}
+              placeholder="Opcional; si está vacío se usa el email de pedidos"
+              className="mt-1 rounded-xl"
+              type="email"
+              autoComplete="off"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label className="text-xs">Dirección completa de entrega / almacén</Label>
+            <Input
+              value={pedidosEntregaDireccion}
+              onChange={(e) => setPedidosEntregaDireccion(e.target.value)}
+              className="mt-1 rounded-xl"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Persona de contacto para entregas</Label>
+            <Input
+              value={pedidosEntregaContacto}
+              onChange={(e) => setPedidosEntregaContacto(e.target.value)}
+              className="mt-1 rounded-xl"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Teléfono de entregas</Label>
+            <Input
+              value={pedidosEntregaTelefono}
+              onChange={(e) => setPedidosEntregaTelefono(e.target.value)}
+              className="mt-1 rounded-xl"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Label className="text-xs">Observaciones de entrega</Label>
+            <Input
+              value={pedidosEntregaObservaciones}
+              onChange={(e) => setPedidosEntregaObservaciones(e.target.value)}
+              className="mt-1 rounded-xl"
+            />
+          </div>
+        </div>
+        {pedidosMessage && (
+          <p className="text-xs text-muted-foreground">{pedidosMessage}</p>
+        )}
+        <Button
+          type="button"
+          onClick={handleSavePedidos}
+          disabled={pedidosSaving}
+          className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+        >
+          {pedidosSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+          Guardar datos de pedidos
         </Button>
       </div>
       )}

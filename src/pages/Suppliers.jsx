@@ -29,7 +29,7 @@ const BOTTLE_STATUS_COLORS = {
 
 const EMPTY = {
   name: "", cif: "", address: "", city: "", postal_code: "",
-  phone: "", email: "", contact_person: "", category: "general", notes: "", is_active: true,
+  phone: "", email: "", order_email: "", contact_person: "", category: "general", notes: "", is_active: true,
 };
 
 export default function Suppliers() {
@@ -300,6 +300,18 @@ export default function Suppliers() {
               <div className="col-span-2">
                 <Label>Email</Label>
                 <Input value={form.email || ""} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="mt-1 rounded-xl" />
+              </div>
+              <div className="col-span-2">
+                <Label>Email de pedidos</Label>
+                <Input
+                  value={form.order_email || ""}
+                  onChange={(e) => setForm((f) => ({ ...f, order_email: e.target.value }))}
+                  className="mt-1 rounded-xl"
+                  placeholder="Opcional; si está vacío se usa el email principal"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Si se deja vacío, se usará el email principal del proveedor.
+                </p>
               </div>
               <div className="col-span-2">
                 <Label>Dirección</Label>

@@ -170,6 +170,13 @@ export const appApi = {
   functions: {
     invoke: withProviderMethod((provider) => provider.appApi.functions?.invoke),
   },
+  purchaseOrders: {
+    list: withProviderMethod((provider) => provider.appApi.purchaseOrders?.list),
+    send: withProviderMethod((provider) => provider.appApi.purchaseOrders?.send),
+    updateStatus: withProviderMethod(
+      (provider) => provider.appApi.purchaseOrders?.updateStatus
+    ),
+  },
   billing: {
     summary: withProviderMethod((provider) => provider.appApi.billing?.summary),
     checkout: withProviderMethod((provider) => provider.appApi.billing?.checkout),

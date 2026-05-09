@@ -35,6 +35,7 @@ const NON_DELETABLE_OPERATIONAL_ENTITIES = new Set([
   "StockMovement",
   "MaterialRequest",
   "Visit",
+  "PurchaseOrder",
 ]);
 
 const OPERATIONAL_DELETE_FORBIDDEN_MESSAGE =

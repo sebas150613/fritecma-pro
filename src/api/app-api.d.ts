@@ -53,6 +53,11 @@ export type AppApi = {
   functions: {
     invoke: (name: string, payload?: any) => Promise<any>;
   };
+  purchaseOrders: {
+    list: () => Promise<{ orders: any[] }>;
+    send: (payload: any) => Promise<any>;
+    updateStatus: (id: string, payload: any) => Promise<any>;
+  };
   billing: {
     summary: (organizationId?: string) => Promise<any>;
     checkout: (payload: any) => Promise<any>;
