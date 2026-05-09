@@ -56,6 +56,9 @@ export default function AppSettings() {
   const [smtpTesting, setSmtpTesting] = useState(false);
   const [smtpMessage, setSmtpMessage] = useState("");
   const [ownerOrganizations, setOwnerOrganizations] = useState([]);
+  const [editableUsers, setEditableUsers] = useState({});
+  const [savingUserId, setSavingUserId] = useState("");
+  const [userManagementError, setUserManagementError] = useState("");
 
   useEffect(() => {
     loadData();
@@ -67,8 +70,22 @@ export default function AppSettings() {
     if (["admin", "superadmin"].includes(me.role) && me.is_hidden_owner !== true) {
       const allUsers = await appApi.entities.User.list("full_name", 100);
       setUsers(allUsers);
+      setEditableUsers(
+        Object.fromEntries(
+          allUsers.map((item) => [
+            item.id,
+            {
+              full_name: item.full_name || "",
+              email: item.email || "",
+              role: item.role || "tecnico",
+              is_active: item.is_active !== false,
+            },
+          ])
+        )
+      );
     } else {
       setUsers([]);
+      setEditableUsers({});
     }
     setEmisorNif(me.verifactu_nif || "");
     setEmisorNombre(me.verifactu_nombre || "FRIGEST S.L.");
@@ -111,15 +128,56 @@ export default function AppSettings() {
     loadData();
   };
 
-  const setUserRole = async (userId, newRole) => {
-    await appApi.entities.User.update(userId, { role: newRole });
-    loadData();
+  const updateEditableUser = (userId, field, value) => {
+    setEditableUsers((current) => ({
+      ...current,
+      [userId]: {
+        ...(current[userId] || {}),
+        [field]: value,
+      },
+    }));
   };
 
-  const toggleUserActive = async (userId, currentValue) => {
-    await appApi.entities.User.update(userId, { is_active: !currentValue });
-    loadData();
-  };
+  const saveEditableUser = async (userId) => {
+    const draft = editableUsers[userId];
+    if (!draft) {
+      return;
+    }
+
+    const fullName = String(draft.full_name || "").trim();
+    const email = String(draft.email || "").trim().toLowerCase();
+    const role = String(draft.role || "tecnico").trim();
+    const isActive = draft.is_active !== false;
+
+    if (!fullName) {
+      setUserManagementError("El nombre del usuario es obligatorio.");
+      return;
+    }
+
+    if (!email) {
+      setUserManagementError("El email del usuario es obligatorio.");
+      return;
+    }
+
+    setSavingUserId(userId);
+    setUserManagementError("");
+
+    try {
+      await appApi.entities.User.update(userId, {
+        full_name: fullName,
+        email,
+        role,
+        is_active: isActive,
+      });
+      await loadData();
+    } catch (error) {
+      setUserManagementError(
+        error?.message || "No se pudo guardar la información del usuario."
+      );
+    } finally {
+      setSavingUserId("");
+    }
+  };;
 
   const deleteOrganizationUser = async (userId) => {
     const confirmed = window.confirm("¿Eliminar este usuario de este cliente?");
@@ -257,47 +315,122 @@ export default function AppSettings() {
           </div>
         )}
 
-        <div className="space-y-2">
-          {users.map(u => (
-            <div key={u.id} className="flex items-center justify-between py-3 px-4 bg-muted/50 rounded-xl">
-              <div>
-                <p className="font-medium text-sm">{u.full_name || u.email}</p>
-                <p className="text-xs text-muted-foreground">{u.email}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <Switch
-                    checked={u.is_active !== false}
-                    onCheckedChange={() => toggleUserActive(u.id, u.is_active !== false)}
-                  />
-                  <span className={`text-xs font-medium ${u.is_active !== false ? 'text-green-600' : 'text-destructive'}`}>
-                    {u.is_active !== false ? 'Activo' : 'Bloqueado'}
-                  </span>
+{userManagementError && (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+            {userManagementError}
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {users.map((u) => {
+            const draft = editableUsers[u.id] || {
+              full_name: u.full_name || "",
+              email: u.email || "",
+              role: u.role || "tecnico",
+              is_active: u.is_active !== false,
+            };
+            const isSavingThisUser = savingUserId === u.id;
+
+            return (
+              <div key={u.id} className="rounded-2xl border border-border bg-muted/40 p-4 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Nombre</Label>
+                    <Input
+                      value={draft.full_name}
+                      onChange={(event) =>
+                        updateEditableUser(u.id, "full_name", event.target.value)
+                      }
+                      placeholder="Nombre y apellidos"
+                      className="mt-1 rounded-xl"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Email</Label>
+                    <Input
+                      value={draft.email}
+                      onChange={(event) =>
+                        updateEditableUser(u.id, "email", event.target.value)
+                      }
+                      placeholder="usuario@empresa.com"
+                      className="mt-1 rounded-xl"
+                    />
+                  </div>
                 </div>
-                <Select value={u.role || "tecnico"} onValueChange={v => setUserRole(u.id, v)}>
-                  <SelectTrigger className="h-8 text-xs rounded-lg w-32">
-                    <SelectValue>{ROLE_LABELS[u.role] || u.role}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {u.role === "superadmin" && <SelectItem value="superadmin">Super Admin</SelectItem>}
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="oficina">Oficina</SelectItem>
-                    <SelectItem value="ayudante">Ayudante</SelectItem>
-                    <SelectItem value="tecnico">Técnico</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-8 rounded-lg text-destructive border-destructive/30 hover:bg-destructive/5"
-                  onClick={() => deleteOrganizationUser(u.id)}
-                >
-                  <Trash2 className="h-3.5 w-3.5 mr-2" />
-                  Eliminar
-                </Button>
+
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <Select
+                      value={draft.role || "tecnico"}
+                      onValueChange={(value) => updateEditableUser(u.id, "role", value)}
+                    >
+                      <SelectTrigger className="h-9 rounded-xl sm:w-40">
+                        <SelectValue>{ROLE_LABELS[draft.role] || draft.role}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {u.role === "superadmin" && (
+                          <SelectItem value="superadmin">Super Admin</SelectItem>
+                        )}
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="oficina">Oficina</SelectItem>
+                        <SelectItem value="ayudante">Ayudante</SelectItem>
+                        <SelectItem value="tecnico">Técnico</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={draft.is_active !== false}
+                        onCheckedChange={(checked) =>
+                          updateEditableUser(u.id, "is_active", checked)
+                        }
+                      />
+                      <span
+                        className={`text-xs font-medium ${
+                          draft.is_active !== false ? "text-green-600" : "text-destructive"
+                        }`}
+                      >
+                        {draft.is_active !== false ? "Activo" : "Bloqueado"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-xl"
+                      disabled={isSavingThisUser}
+                      onClick={() => saveEditableUser(u.id)}
+                    >
+                      {isSavingThisUser ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : null}
+                      Guardar cambios
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-xl text-destructive border-destructive/30 hover:bg-destructive/5"
+                      disabled={isSavingThisUser}
+                      onClick={() => deleteOrganizationUser(u.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-2" />
+                      Eliminar
+                    </Button>
+                  </div>
+                </div>
               </div>
+            );
+          })}
+
+          {!users.length && (
+            <div className="rounded-2xl border border-dashed border-border p-5 text-sm text-muted-foreground">
+              Esta empresa todavía no tiene usuarios.
             </div>
-          ))}
+          )}
         </div>
       </div>
       )}
