@@ -30,6 +30,12 @@ const ensureRuntimeDirs = async () => {
   await fs.mkdir(serverConfig.privateUploadsDir, { recursive: true });
 };
 
+const createCorsForbiddenError = () => {
+  const error = new Error("Origin is not allowed by CORS policy.");
+  error.status = 403;
+  return error;
+};
+
 const corsOptions = serverConfig.isProduction
   ? {
       origin(origin, callback) {
@@ -38,7 +44,7 @@ const corsOptions = serverConfig.isProduction
           return;
         }
 
-        callback(new Error("Origin is not allowed by CORS policy."));
+        callback(createCorsForbiddenError());
       },
     }
   : undefined;
