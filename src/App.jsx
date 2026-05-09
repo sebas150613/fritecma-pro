@@ -1,9 +1,9 @@
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
-import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import { AuthProvider, useAuth } from '@/lib/app-auth';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -29,7 +29,7 @@ import AbsenceManagement from './pages/AbsenceManagement';
 import Calendar from './pages/Calendar';
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, user } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -54,7 +54,7 @@ const AuthenticatedApp = () => {
   // Render the main app
   return (
     <Routes>
-      <Route element={<Layout />}>
+      <Route element={<HiddenOwnerRouteGate user={user}><Layout /></HiddenOwnerRouteGate>}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/interventions" element={<Interventions />} />
         <Route path="/interventions/new" element={<NewIntervention />} />
@@ -80,6 +80,16 @@ const AuthenticatedApp = () => {
       </Route>
     </Routes>
   );
+};
+
+const HiddenOwnerRouteGate = ({ user, children }) => {
+  const location = useLocation();
+
+  if (user?.is_hidden_owner === true && location.pathname !== '/settings') {
+    return <Navigate to="/settings" replace />;
+  }
+
+  return children;
 };
 
 

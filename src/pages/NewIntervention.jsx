@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, MapPin, Loader2, Save, LogIn, AlertTriangle } from "lucide-react";
+import { Plus, MapPin, Loader2, Save, LogIn, AlertTriangle } from "lucide-react";
 import BackButton from "../components/BackButton";
 import MaterialLineForm from "../components/MaterialLineForm";
 import LaborSection from "../components/LaborSection";
@@ -59,6 +59,7 @@ export default function NewIntervention() {
     helper_email: "",
     helper_name: "",
     tipo_horario: "",
+    tarifa_aplicada: null,
   });
 
   const [lines, setLines] = useState([]);
@@ -69,7 +70,7 @@ export default function NewIntervention() {
     getLocation();
     // Refresh gas bottles every 5 seconds to catch recent stock changes
     const interval = setInterval(async () => {
-      const bottles = await base44.entities.GasBottle.list("-created_date", 200).catch(() => []);
+      const bottles = await appApi.entities.GasBottle.list("-created_date", 200).catch(() => []);
       setGasBottles(bottles || []);
       const activeBotles = (bottles || []).filter(b => b.status === "activa" && (b.carga_actual || 0) > 0);
       const uniqueGases = [...new Set(activeBotles.map(b => b.gas_type))].filter(Boolean).sort();
@@ -80,13 +81,13 @@ export default function NewIntervention() {
 
   const loadInitialData = async () => {
     try {
-      const me = await base44.auth.me();
+      const me = await appApi.auth.me();
       setUser(me);
       const isAdmin = me.role === "admin";
 
       if (!isAdmin) {
         const today = new Date().toISOString().slice(0, 10);
-        const records = await base44.entities.TimeRecord.filter(
+        const records = await appApi.entities.TimeRecord.filter(
           { technician_email: me.email, work_date: today },
           "-timestamp",
           1
@@ -109,10 +110,10 @@ export default function NewIntervention() {
       }
 
       const [clientList, materialList, bottleList, userList] = await Promise.all([
-        base44.entities.Client.list("name", 500).catch(() => []),
-        base44.entities.Material.filter({ is_active: true }, "name", 500).catch(() => []),
-        base44.entities.GasBottle.list("-created_date", 200).catch(() => []),
-        base44.entities.User.list("full_name", 100).catch(() => []),
+        appApi.entities.Client.list("name", 500).catch(() => []),
+        appApi.entities.Material.filter({ is_active: true }, "name", 500).catch(() => []),
+        appApi.entities.GasBottle.list("-created_date", 200).catch(() => []),
+        appApi.entities.User.list("full_name", 100).catch(() => []),
       ]);
       setClients(clientList || []);
       setMaterials(materialList || []);
@@ -150,7 +151,7 @@ export default function NewIntervention() {
   const handleClientChange = async (clientId) => {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
-    const centers = await base44.entities.WorkCenter.filter({ client_id: clientId }, "name", 100);
+    const centers = await appApi.entities.WorkCenter.filter({ client_id: clientId }, "name", 100);
     setWorkCenters(centers);
     // Store client tarifas for LaborSection
     setClientTarifas({
@@ -240,7 +241,6 @@ export default function NewIntervention() {
       gas_recovered_kg: form.gas_recovered_kg,
       gas_leak_kg: Math.max(0, (form.gas_loaded_kg || 0) - (form.gas_recovered_kg || 0)),
       description: form.description,
-      technician_notes: form.technician_notes,
       materials_json: JSON.stringify(allLines),
       subtotal: totals.subtotal,
       iva_total: totals.ivaTotal,
@@ -259,18 +259,18 @@ export default function NewIntervention() {
         : form.technician_notes,
     };
 
-    const created = await base44.entities.Intervention.create(data);
+    const created = await appApi.entities.Intervention.create(data);
 
     // Deduct gas from selected bottle
     if (form.gas_bottle_id && form.gas_loaded_kg > 0) {
       const bottle = gasBottles.find(b => b.id === form.gas_bottle_id);
       if (bottle) {
         const newKg = Math.max(0, (bottle.carga_actual || 0) - form.gas_loaded_kg);
-        await base44.entities.GasBottle.update(form.gas_bottle_id, {
+        await appApi.entities.GasBottle.update(form.gas_bottle_id, {
           carga_actual: newKg,
           status: newKg <= 0 ? "vacia" : "activa",
         });
-        await base44.entities.GasTransfer.create({
+        await appApi.entities.GasTransfer.create({
           from_bottle_id: bottle.id,
           from_bottle_serial: bottle.serial_number,
           to_bottle_id: bottle.id,
@@ -294,25 +294,6 @@ export default function NewIntervention() {
       technicianEmail: user.email,
       technicianName: user.full_name,
     });
-
-    // Check for low stock alerts and notify admins
-    if (materialOnlyLines.length > 0) {
-      const materialIds = [...new Set(materialOnlyLines.map(l => l.material_id))];
-      const updatedMats = await Promise.all(materialIds.map(id => base44.entities.Material.filter({ id }, "name", 1).then(r => r[0]).catch(() => null)));
-      const lowMats = updatedMats.filter(m => m && m.min_stock > 0 && (m.stock_quantity || 0) <= m.min_stock);
-      if (lowMats.length > 0) {
-        const allUsers = await base44.entities.User.list("full_name", 100);
-        const recipients = allUsers.filter(u => ["admin", "superadmin", "encargado", "oficina"].includes(u.role));
-        const alertBody = `⚠️ ALERTA DE STOCK BAJO\n\nEl parte ${interventionNumber} ha generado las siguientes alertas:\n\n${lowMats.map(m => `• ${m.name}: ${m.stock_quantity || 0} ${m.unit || "ud"} (mínimo: ${m.min_stock})`).join("\n")}\n\nAccede a la app para gestionar los pedidos.`;
-        await Promise.allSettled(recipients.map(u =>
-          base44.integrations.Core.SendEmail({
-            to: u.email,
-            subject: `⚠️ Stock Bajo — ${lowMats.length} referencia(s) bajo mínimos`,
-            body: alertBody,
-          })
-        ));
-      }
-    }
 
     setSaving(false);
     navigate(`/interventions/${created.id}`);
@@ -685,3 +666,4 @@ export default function NewIntervention() {
     </div>
   );
 }
+

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Link } from "react-router-dom";
 import { PackagePlus, ChevronRight, CheckCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,7 @@ export default function PendingStockPanel({ user }) {
   const [validating, setValidating] = useState(null);
 
   const load = () => {
-    base44.entities.StockEntry.filter({ status: "pendiente" }, "-created_date", 20)
+    appApi.entities.StockEntry.filter({ status: "pendiente" }, "-created_date", 20)
       .then(setEntries).catch(() => {});
   };
 
@@ -22,13 +22,13 @@ export default function PendingStockPanel({ user }) {
 
   const handleValidate = async (entry) => {
     setValidating(entry.id);
-    const mats = await base44.entities.Material.filter({ id: entry.material_id });
+    const mats = await appApi.entities.Material.filter({ id: entry.material_id });
     const currentStock = mats[0]?.stock_quantity || 0;
     const newStock = currentStock + entry.quantity;
 
-    await base44.entities.Material.update(entry.material_id, { stock_quantity: newStock });
+    await appApi.entities.Material.update(entry.material_id, { stock_quantity: newStock });
 
-    await base44.entities.StockMovement.create({
+    await appApi.entities.StockMovement.create({
       material_id: entry.material_id,
       material_name: entry.material_name,
       material_code: entry.material_code,
@@ -44,7 +44,7 @@ export default function PendingStockPanel({ user }) {
       supplier_name: entry.supplier_name,
     });
 
-    await base44.entities.StockEntry.update(entry.id, {
+    await appApi.entities.StockEntry.update(entry.id, {
       status: "validado",
       validated_by: user?.email,
       validated_by_name: user?.full_name,
@@ -95,3 +95,4 @@ export default function PendingStockPanel({ user }) {
     </div>
   );
 }
+

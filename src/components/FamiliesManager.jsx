@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
@@ -18,8 +17,8 @@ export default function FamiliesManager({ open, onClose }) {
 
   const load = async () => {
     const [fams, subs] = await Promise.all([
-      base44.entities.MaterialFamily.list("name", 200),
-      base44.entities.MaterialSubfamily.list("name", 500),
+      appApi.entities.MaterialFamily.list("name", 200),
+      appApi.entities.MaterialSubfamily.list("name", 500),
     ]);
     setFamilies(fams);
     setSubfamilies(subs);
@@ -29,7 +28,7 @@ export default function FamiliesManager({ open, onClose }) {
 
   const addFamily = async () => {
     if (!newFamilyName.trim()) return;
-    await base44.entities.MaterialFamily.create({ name: newFamilyName.trim(), is_active: true });
+    await appApi.entities.MaterialFamily.create({ name: newFamilyName.trim(), is_active: true });
     setNewFamilyName("");
     toast.success("Familia creada");
     load();
@@ -38,8 +37,8 @@ export default function FamiliesManager({ open, onClose }) {
   const deleteFamily = async (id) => {
     if (!confirm("¿Eliminar esta familia y sus subfamilias?")) return;
     const subs = subfamilies.filter(s => s.family_id === id);
-    for (const s of subs) await base44.entities.MaterialSubfamily.delete(s.id);
-    await base44.entities.MaterialFamily.delete(id);
+    for (const s of subs) await appApi.entities.MaterialSubfamily.delete(s.id);
+    await appApi.entities.MaterialFamily.delete(id);
     if (selectedFamily === id) setSelectedFamily(null);
     load();
   };
@@ -48,7 +47,7 @@ export default function FamiliesManager({ open, onClose }) {
     const famId = newSubFamily || selectedFamily;
     if (!newSubName.trim() || !famId) { toast.error("Selecciona una familia y escribe un nombre"); return; }
     const fam = families.find(f => f.id === famId);
-    await base44.entities.MaterialSubfamily.create({ family_id: famId, family_name: fam?.name || "", name: newSubName.trim(), is_active: true });
+    await appApi.entities.MaterialSubfamily.create({ family_id: famId, family_name: fam?.name || "", name: newSubName.trim(), is_active: true });
     setNewSubName("");
     toast.success("Subfamilia creada");
     load();
@@ -56,7 +55,7 @@ export default function FamiliesManager({ open, onClose }) {
 
   const deleteSubfamily = async (id) => {
     if (!confirm("¿Eliminar esta subfamilia?")) return;
-    await base44.entities.MaterialSubfamily.delete(id);
+    await appApi.entities.MaterialSubfamily.delete(id);
     load();
   };
 
@@ -140,3 +139,4 @@ export default function FamiliesManager({ open, onClose }) {
     </Dialog>
   );
 }
+

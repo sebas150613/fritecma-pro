@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Plus, Phone, Mail, Pencil, Trash2, Building, History } from "lucide-react";
+import { Plus, Phone, Pencil, Trash2, Building, History } from "lucide-react";
 import WorkCenterHistory from "./WorkCenterHistory";
 import MapLink from "./MapLink";
 
@@ -28,7 +28,7 @@ export default function WorkCentersInline({ client, readOnly = false }) {
 
   const loadCenters = async () => {
     setLoading(true);
-    const items = await base44.entities.WorkCenter.filter({ client_id: client.id }, "name", 100);
+    const items = await appApi.entities.WorkCenter.filter({ client_id: client.id }, "name", 100);
     setCenters(items);
     setLoading(false);
   };
@@ -49,9 +49,9 @@ export default function WorkCentersInline({ client, readOnly = false }) {
     setSaving(true);
     const data = { ...form, client_id: client.id, client_name: client.name };
     if (editing) {
-      await base44.entities.WorkCenter.update(editing.id, data);
+      await appApi.entities.WorkCenter.update(editing.id, data);
     } else {
-      await base44.entities.WorkCenter.create(data);
+      await appApi.entities.WorkCenter.create(data);
     }
     setSaving(false);
     setDialogOpen(false);
@@ -60,7 +60,7 @@ export default function WorkCentersInline({ client, readOnly = false }) {
 
   const handleDelete = async (id) => {
     if (!confirm("¿Eliminar este centro de trabajo?")) return;
-    await base44.entities.WorkCenter.delete(id);
+    await appApi.entities.WorkCenter.delete(id);
     loadCenters();
   };
 
@@ -184,3 +184,4 @@ export default function WorkCentersInline({ client, readOnly = false }) {
     </div>
   );
 }
+

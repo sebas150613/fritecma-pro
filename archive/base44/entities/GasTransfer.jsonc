@@ -1,0 +1,66 @@
+{
+  "name": "GasTransfer",
+  "type": "object",
+  "properties": {
+    "from_bottle_id": {
+      "type": "string",
+      "title": "Botella Origen ID"
+    },
+    "from_bottle_serial": {
+      "type": "string",
+      "title": "N\u00ba Serie Origen"
+    },
+    "to_bottle_id": {
+      "type": "string",
+      "title": "Botella Destino ID"
+    },
+    "to_bottle_serial": {
+      "type": "string",
+      "title": "N\u00ba Serie Destino"
+    },
+    "gas_type": {
+      "type": "string",
+      "title": "Tipo de Gas"
+    },
+    "kg_transferred": {
+      "type": "number",
+      "title": "Kg Traspasados"
+    },
+    "technician_email": {
+      "type": "string",
+      "title": "Email T\u00e9cnico"
+    },
+    "technician_name": {
+      "type": "string",
+      "title": "Nombre T\u00e9cnico"
+    },
+    "timestamp": {
+      "type": "string",
+      "title": "Fecha/Hora",
+      "format": "date-time"
+    },
+    "intervention_number": {
+      "type": "string",
+      "title": "N\u00ba Parte (si aplica)"
+    },
+    "new_location_type": {
+      "type": "string",
+      "title": "Nueva Ubicaci\u00f3n Destino"
+    },
+    "new_location_detail": {
+      "type": "string",
+      "title": "Detalle Nueva Ubicaci\u00f3n"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notas"
+    }
+  },
+  "required": [
+    "from_bottle_id",
+    "to_bottle_id",
+    "kg_transferred",
+    "technician_email",
+    "timestamp"
+  ]
+}

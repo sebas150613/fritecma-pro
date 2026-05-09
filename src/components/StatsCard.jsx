@@ -1,11 +1,19 @@
 import { cn } from "@/lib/utils";
 
-export default function StatsCard({ icon: Icon, label, value, subtitle, className }) {
+export default function StatsCard({
+  icon: Icon,
+  label,
+  value,
+  subtitle = null,
+  className = "",
+}) {
   return (
-    <div className={cn(
-      "bg-card rounded-2xl p-5 border border-border shadow-sm hover:shadow-md transition-shadow duration-200",
-      className
-    )}>
+    <div
+      className={cn(
+        "bg-card rounded-2xl p-5 border border-border shadow-sm hover:shadow-md transition-shadow duration-200",
+        className
+      )}
+    >
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-muted-foreground font-medium">{label}</p>

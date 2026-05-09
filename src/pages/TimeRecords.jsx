@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import PullToRefresh from "../components/PullToRefresh";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -32,9 +32,9 @@ export default function TimeRecords() {
   }, []);
 
   const loadData = async () => {
-    const me = await base44.auth.me();
+    const me = await appApi.auth.me();
     setUser(me);
-    const allRecords = await base44.entities.TimeRecord.list("-timestamp", 2000);
+    const allRecords = await appApi.entities.TimeRecord.list("-timestamp", 2000);
     setRecords(allRecords);
     setLoading(false);
   };
@@ -62,7 +62,10 @@ export default function TimeRecords() {
     });
 
     return Object.values(byTechDay).map((entry) => {
-      const sorted = [...entry.records].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      const sorted = [...entry.records].sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
       let totalMinutes = 0;
       let activeStart = null;
 
@@ -70,7 +73,8 @@ export default function TimeRecords() {
         if ((r.type === "entrada" || r.type === "reanudacion") && !activeStart) {
           activeStart = new Date(r.timestamp);
         } else if ((r.type === "pausa" || r.type === "salida") && activeStart) {
-          totalMinutes += (new Date(r.timestamp) - activeStart) / 60000;
+          totalMinutes +=
+            (new Date(r.timestamp).getTime() - activeStart.getTime()) / 60000;
           activeStart = null;
         }
       });
@@ -117,8 +121,9 @@ export default function TimeRecords() {
     rows.push(["=== RESUMEN MENSUAL ===", "", "", "", "", ""]);
     rows.push(["Técnico", "Total Horas", "", "", "", ""]);
     Object.entries(byTech).forEach(([tech, mins]) => {
-      const h = Math.floor(mins / 60);
-      const m = Math.round(mins % 60);
+      const totalTechMinutes = Number(mins) || 0;
+      const h = Math.floor(totalTechMinutes / 60);
+      const m = Math.round(totalTechMinutes % 60);
       rows.push([tech, `${h}h ${m.toString().padStart(2, "0")}m`, "", "", "", ""]);
     });
 
@@ -227,7 +232,7 @@ export default function TimeRecords() {
                     className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 rounded-lg"
                     onClick={async () => {
                       if (!window.confirm(`¿Eliminar fichajes del ${moment(s.date).format("DD/MM/YYYY")} de ${s.technician}?`)) return;
-                      await Promise.all(s.records.map(r => base44.entities.TimeRecord.delete(r.id)));
+                      await Promise.all(s.records.map(r => appApi.entities.TimeRecord.delete(r.id)));
                       setRecords(prev => prev.filter(r => !s.records.some(sr => sr.id === r.id)));
                     }}>
                     <Trash2 className="h-3.5 w-3.5" />
@@ -282,7 +287,7 @@ export default function TimeRecords() {
                           className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 rounded-lg"
                           onClick={async () => {
                             if (!window.confirm(`¿Eliminar todos los fichajes del ${moment(s.date).format("DD/MM/YYYY")} de ${s.technician}?`)) return;
-                            await Promise.all(s.records.map(r => base44.entities.TimeRecord.delete(r.id)));
+                            await Promise.all(s.records.map(r => appApi.entities.TimeRecord.delete(r.id)));
                             setRecords(prev => prev.filter(r => !s.records.some(sr => sr.id === r.id)));
                           }}
                         >
@@ -301,3 +306,4 @@ export default function TimeRecords() {
     </PullToRefresh>
   );
 }
+

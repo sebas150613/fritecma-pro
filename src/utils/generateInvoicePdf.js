@@ -1,4 +1,4 @@
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import moment from "moment";
 import { jsPDF } from "jspdf";
 
@@ -41,20 +41,19 @@ async function fetchImageAsDataUrl(url) {
 export async function generateInvoicePdf(invoice, intervention) {
   if (!invoice) { alert("No hay factura generada para este parte."); return; }
 
-  const [clientList, allUserList] = await Promise.all([
-    base44.entities.Client.filter({ id: intervention.client_id }, "-created_date", 1).catch(() => []),
-    base44.entities.User.list("full_name", 100).catch(() => []),
+  const [clientList, currentUser] = await Promise.all([
+    appApi.entities.Client.filter({ id: intervention.client_id }, "-created_date", 1).catch(() => []),
+    appApi.auth.me().catch(() => null),
   ]);
 
   const client    = clientList[0] || {};
-  const adminUser = allUserList.find((u) => u.verifactu_nif) || {};
 
   const emisor = {
-    nombre:    adminUser.verifactu_nombre || "FRITECMA S.L.",
-    nif:       adminUser.verifactu_nif    || "",
-    direccion: adminUser.emisor_direccion || "",
-    telefono:  adminUser.emisor_telefono  || "",
-    logo_url:  adminUser.emisor_logo_url  || "",
+    nombre:    currentUser?.verifactu_nombre || "FRIGEST S.L.",
+    nif:       currentUser?.verifactu_nif    || "",
+    direccion: currentUser?.emisor_direccion || "",
+    telefono:  currentUser?.emisor_telefono  || "",
+    logo_url:  currentUser?.emisor_logo_url  || "",
   };
 
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
@@ -66,7 +65,7 @@ export async function generateInvoicePdf(invoice, intervention) {
 
     // Página 2: Factura original como referencia
     if (invoice.factura_rectificada_id) {
-      const origList = await base44.entities.Invoice.filter(
+      const origList = await appApi.entities.Invoice.filter(
         { id: invoice.factura_rectificada_id }, "-created_date", 1
       ).catch(() => []);
 
@@ -352,3 +351,4 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
     : `Emitido el ${moment().format("DD/MM/YYYY")}  ·  ${emisor.nombre}${emisor.nif ? `  ·  NIF ${emisor.nif}` : ""}`;
   doc.text(footerLabel, ML + PW / 2, footerY, { align: "center" });
 }
+

@@ -1,13 +1,12 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import BackButton from "../components/BackButton";
 import RectificativaForm from "../components/RectificativaForm";
-import { ArrowLeft, FileText, Mail, Clock, MapPin, Flame, User, Loader2, Package, CheckCircle2, Pencil, Trash2, Plus, AlertTriangle, Wrench, Lock, Receipt, RotateCcw } from "lucide-react";
-import { Textarea } from "@/components/ui/textarea";
+import { FileText, Mail, Clock, Flame, User, Loader2, Package, CheckCircle2, Pencil, Trash2, Plus, AlertTriangle, Wrench, Lock, Receipt, RotateCcw } from "lucide-react";
 import MapLink from "../components/MapLink";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -74,10 +73,10 @@ export default function InterventionDetail() {
 
   const loadData = async () => {
     const [me, items, visitList, invoiceList] = await Promise.all([
-      base44.auth.me(),
-      base44.entities.Intervention.filter({ id }, "-created_date", 1),
-      base44.entities.Visit.filter({ intervention_id: id }, "date", 50),
-      base44.entities.Invoice.filter({ intervention_id: id }, "-created_date", 1),
+      appApi.auth.me(),
+      appApi.entities.Intervention.filter({ id }, "-created_date", 1),
+      appApi.entities.Visit.filter({ intervention_id: id }, "date", 50),
+      appApi.entities.Invoice.filter({ intervention_id: id }, "-created_date", 1),
     ]);
     setUser(me);
     if (items.length > 0) setIntervention(items[0]);
@@ -87,7 +86,7 @@ export default function InterventionDetail() {
   };
 
   const updateStatus = async (status) => {
-    await base44.entities.Intervention.update(id, { status });
+    await appApi.entities.Intervention.update(id, { status });
     setIntervention(prev => ({ ...prev, status }));
   };
 
@@ -95,21 +94,11 @@ export default function InterventionDetail() {
     if (!intervention) return;
     setSendingEmail(true);
     try {
-      const client = await base44.entities.Client.filter({ id: intervention.client_id }, "-created_date", 1);
-      const clientEmail = client[0]?.email;
-      if (clientEmail) {
-        await base44.integrations.Core.SendEmail({
-          to: clientEmail,
-          subject: `Parte de Trabajo ${intervention.number} - FRITECMA`,
-          body: `Estimado/a ${intervention.client_name},\n\nAdjunto le enviamos el parte de trabajo ${intervention.number}.\n\nTotal: ${(intervention.total || 0).toFixed(2)} €\n\nGracias por confiar en FRITECMA.\n\nUn saludo.`,
-        });
-        await base44.entities.Intervention.update(id, { email_sent: true });
-        setIntervention(prev => ({ ...prev, email_sent: true }));
-      } else {
-        alert("El cliente no tiene email registrado.");
-      }
+      await appApi.business.sendInterventionClientEmail(id);
+      await appApi.entities.Intervention.update(id, { email_sent: true });
+      setIntervention(prev => ({ ...prev, email_sent: true }));
     } catch (e) {
-      alert(`No se pudo enviar el email: ${e.message || "El destinatario debe ser un usuario registrado en la app."}`);
+      alert(`No se pudo enviar el email: ${e.message || "Error desconocido."}`);
     }
     setSendingEmail(false);
   };
@@ -126,7 +115,7 @@ export default function InterventionDetail() {
 
   const handleDelete = async () => {
     setDeleting(true);
-    await base44.entities.AuditLog.create({
+    await appApi.entities.AuditLog.create({
       action: "eliminacion",
       entity_type: "Intervention",
       entity_id: id,
@@ -136,7 +125,7 @@ export default function InterventionDetail() {
       changes_summary: `Parte eliminado: ${intervention.client_name} - ${intervention.number}`,
       timestamp: new Date().toISOString(),
     });
-    await base44.entities.Intervention.delete(id);
+    await appApi.entities.Intervention.delete(id);
     setDeleting(false);
     navigate("/interventions");
   };
@@ -149,7 +138,7 @@ export default function InterventionDetail() {
         if (adminTipoHorario) payload.tipo_horario_override = adminTipoHorario;
         if (adminTarifaOverride) payload.tarifa_override = parseFloat(adminTarifaOverride);
       }
-      const res = await base44.functions.invoke('processVerifactu', payload);
+      const res = await appApi.functions.invoke('processVerifactu', payload);
       const data = res.data;
       setValidateResult(data);
       await loadData();
@@ -163,15 +152,15 @@ export default function InterventionDetail() {
     if (!rectMotivoAnular.trim()) return;
     setRectificando(true);
     try {
-      const res = await base44.functions.invoke('processVerifactu', {
+      const res = await appApi.functions.invoke('processVerifactu', {
         intervention_id: id,
         mode: 'rectificar',
         original_invoice_id: invoice.id,
         rectificativa_motivo: rectMotivoAnular,
       });
       setRectResult(res.data);
-      await base44.entities.Intervention.update(id, { status: 'anulado' });
-      await base44.entities.AuditLog.create({
+      await appApi.entities.Intervention.update(id, { status: 'anulado' });
+      await appApi.entities.AuditLog.create({
         action: 'modificacion',
         entity_type: 'Intervention',
         entity_id: id,
@@ -769,3 +758,4 @@ export default function InterventionDetail() {
     </div>
   );
 }
+

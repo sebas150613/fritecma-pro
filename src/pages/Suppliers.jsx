@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Truck, Phone, Mail, MapPin, Edit, Trash2, FlaskConical, Package } from "lucide-react";
+import { Plus, Truck, Phone, Mail, Edit, Trash2, FlaskConical, Package } from "lucide-react";
 import MapLink from "../components/MapLink";
 import { cn } from "@/lib/utils";
 
@@ -48,10 +48,10 @@ export default function Suppliers() {
 
   const init = async () => {
     const [me, s, b, m] = await Promise.all([
-      base44.auth.me(),
-      base44.entities.Supplier.list("name", 200),
-      base44.entities.GasBottle.list("serial_number", 500),
-      base44.entities.Material.list("name", 500),
+      appApi.auth.me(),
+      appApi.entities.Supplier.list("name", 200),
+      appApi.entities.GasBottle.list("serial_number", 500),
+      appApi.entities.Material.list("name", 500),
     ]);
     setUser(me); setSuppliers(s); setBottles(b); setMaterials(m);
     setLoading(false);
@@ -59,9 +59,9 @@ export default function Suppliers() {
 
   const reload = async () => {
     const [s, b, m] = await Promise.all([
-      base44.entities.Supplier.list("name", 200),
-      base44.entities.GasBottle.list("serial_number", 500),
-      base44.entities.Material.list("name", 500),
+      appApi.entities.Supplier.list("name", 200),
+      appApi.entities.GasBottle.list("serial_number", 500),
+      appApi.entities.Material.list("name", 500),
     ]);
     setSuppliers(s); setBottles(b); setMaterials(m);
   };
@@ -71,13 +71,13 @@ export default function Suppliers() {
 
   const save = async () => {
     setSaving(true);
-    if (editing) await base44.entities.Supplier.update(editing.id, form);
-    else await base44.entities.Supplier.create(form);
+    if (editing) await appApi.entities.Supplier.update(editing.id, form);
+    else await appApi.entities.Supplier.create(form);
     await reload(); setSaving(false); setModal(false);
   };
 
   const del = async () => {
-    await base44.entities.Supplier.delete(deleteTarget.id);
+    await appApi.entities.Supplier.delete(deleteTarget.id);
     await reload(); setDeleteTarget(null);
   };
 
@@ -346,3 +346,4 @@ export default function Suppliers() {
     </div>
   );
 }
+

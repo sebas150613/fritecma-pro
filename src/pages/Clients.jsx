@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -42,8 +42,8 @@ export default function Clients() {
 
   const loadData = async () => {
     const [me, items] = await Promise.all([
-      base44.auth.me(),
-      base44.entities.Client.list("name", 500),
+      appApi.auth.me(),
+      appApi.entities.Client.list("name", 500),
     ]);
     setUser(me);
     setClients(items);
@@ -67,9 +67,9 @@ export default function Clients() {
 
   const handleSave = async () => {
     if (editingClient) {
-      await base44.entities.Client.update(editingClient.id, form);
+      await appApi.entities.Client.update(editingClient.id, form);
     } else {
-      await base44.entities.Client.create(form);
+      await appApi.entities.Client.create(form);
     }
     setDialogOpen(false);
     loadData();
@@ -77,7 +77,7 @@ export default function Clients() {
 
   const handleDelete = async (id) => {
     if (!confirm("¿Eliminar este cliente?")) return;
-    await base44.entities.Client.delete(id);
+    await appApi.entities.Client.delete(id);
     loadData();
   };
 
@@ -282,3 +282,4 @@ export default function Clients() {
     </div>
   );
 }
+

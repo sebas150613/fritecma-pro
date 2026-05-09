@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { LogIn, Coffee, LogOut, RefreshCw, MapPin, Loader2, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,7 +24,7 @@ export default function FichajeWidget({ user, onStatusChange }) {
   }, [user]);
 
   const loadTodayRecords = async () => {
-    const records = await base44.entities.TimeRecord.filter(
+    const records = await appApi.entities.TimeRecord.filter(
       { technician_email: user.email, work_date: today },
       "timestamp",
       50
@@ -66,7 +66,7 @@ export default function FichajeWidget({ user, onStatusChange }) {
     setRegistering(true);
     const location = await getLocation();
     const now = new Date().toISOString();
-    await base44.entities.TimeRecord.create({
+    await appApi.entities.TimeRecord.create({
       technician_email: user.email,
       technician_name: user.full_name,
       type,
@@ -163,3 +163,4 @@ export default function FichajeWidget({ user, onStatusChange }) {
     </div>
   );
 }
+

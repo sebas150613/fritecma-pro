@@ -1,0 +1,45 @@
+{
+  "name": "OrganizationSettings",
+  "type": "object",
+  "properties": {
+    "organization_id": {
+      "type": "string",
+      "title": "ID Organización"
+    },
+    "verifactu_nif": {
+      "type": "string",
+      "title": "NIF / CIF"
+    },
+    "verifactu_nombre": {
+      "type": "string",
+      "title": "Razón Social"
+    },
+    "verifactu_cert_uri": {
+      "type": "string",
+      "title": "Certificado"
+    },
+    "verifactu_cert_password": {
+      "type": "string",
+      "title": "Password Certificado"
+    },
+    "verifactu_produccion": {
+      "type": "boolean",
+      "title": "Modo Producción"
+    },
+    "emisor_direccion": {
+      "type": "string",
+      "title": "Dirección Fiscal"
+    },
+    "emisor_telefono": {
+      "type": "string",
+      "title": "Teléfono"
+    },
+    "emisor_logo_url": {
+      "type": "string",
+      "title": "Logo"
+    }
+  },
+  "required": [
+    "organization_id"
+  ]
+}

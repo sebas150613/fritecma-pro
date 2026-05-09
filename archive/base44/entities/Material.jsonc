@@ -1,0 +1,96 @@
+{
+  "name": "Material",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "title": "C\u00f3digo"
+    },
+    "name": {
+      "type": "string",
+      "title": "Nombre del Material"
+    },
+    "category": {
+      "type": "string",
+      "title": "Categor\u00eda",
+      "enum": [
+        "gas_refrigerante",
+        "repuesto",
+        "consumible",
+        "herramienta",
+        "mano_de_obra",
+        "desplazamiento",
+        "otro"
+      ]
+    },
+    "family_id": {
+      "type": "string",
+      "title": "ID Familia"
+    },
+    "family_name": {
+      "type": "string",
+      "title": "Familia"
+    },
+    "subfamily_id": {
+      "type": "string",
+      "title": "ID Subfamilia"
+    },
+    "subfamily_name": {
+      "type": "string",
+      "title": "Subfamilia"
+    },
+    "unit": {
+      "type": "string",
+      "title": "Unidad",
+      "enum": [
+        "ud",
+        "kg",
+        "m",
+        "l",
+        "h"
+      ],
+      "default": "ud"
+    },
+    "cost_price": {
+      "type": "number",
+      "title": "Precio Coste (\u20ac)"
+    },
+    "sell_price": {
+      "type": "number",
+      "title": "Precio Venta (\u20ac)"
+    },
+    "stock_quantity": {
+      "type": "number",
+      "title": "Stock Actual",
+      "default": 0
+    },
+    "min_stock": {
+      "type": "number",
+      "title": "Stock M\u00ednimo",
+      "default": 0
+    },
+    "iva_percent": {
+      "type": "number",
+      "title": "IVA (%)",
+      "default": 21
+    },
+    "supplier_id": {
+      "type": "string",
+      "title": "ID Proveedor Principal"
+    },
+    "supplier_name": {
+      "type": "string",
+      "title": "Proveedor Principal"
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Activo",
+      "default": true
+    }
+  },
+  "required": [
+    "name",
+    "category",
+    "sell_price"
+  ]
+}

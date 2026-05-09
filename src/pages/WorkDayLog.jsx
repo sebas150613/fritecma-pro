@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,9 +68,9 @@ export default function WorkDayLog() {
 
   useEffect(() => {
     Promise.all([
-      base44.auth.me(),
-      base44.entities.Client.list("name", 500),
-      base44.entities.Project.filter({ status: "en_curso" }, "name", 200),
+      appApi.auth.me(),
+      appApi.entities.Client.list("name", 500),
+      appApi.entities.Project.filter({ status: "en_curso" }, "name", 200),
     ]).then(([me, cl, pr]) => {
       setUser(me);
       setClients(cl);
@@ -83,7 +83,7 @@ export default function WorkDayLog() {
   }, [user, selectedDate]);
 
   const loadExisting = async () => {
-    const records = await base44.entities.WorkDay.filter(
+    const records = await appApi.entities.WorkDay.filter(
       { technician_email: user.email, work_date: selectedDate },
       "-created_date", 1
     );
@@ -142,9 +142,9 @@ export default function WorkDayLog() {
       status,
     };
     if (existingId) {
-      await base44.entities.WorkDay.update(existingId, data);
+      await appApi.entities.WorkDay.update(existingId, data);
     } else {
-      const created = await base44.entities.WorkDay.create(data);
+      const created = await appApi.entities.WorkDay.create(data);
       setExistingId(created.id);
     }
     setSaving(false);
@@ -362,3 +362,4 @@ export default function WorkDayLog() {
     </div>
   );
 }
+

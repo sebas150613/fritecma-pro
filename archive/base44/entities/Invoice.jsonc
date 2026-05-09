@@ -1,0 +1,200 @@
+{
+  "name": "Invoice",
+  "type": "object",
+  "properties": {
+    "invoice_number": {
+      "type": "string",
+      "title": "N\u00famero de Factura"
+    },
+    "serie": {
+      "type": "string",
+      "title": "Serie",
+      "default": "A"
+    },
+    "tipo_factura": {
+      "type": "string",
+      "title": "Tipo Factura Veri*factu",
+      "enum": [
+        "F1",
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5"
+      ],
+      "default": "F1"
+    },
+    "intervention_id": {
+      "type": "string",
+      "title": "ID Parte"
+    },
+    "intervention_number": {
+      "type": "string",
+      "title": "N\u00ba Parte"
+    },
+    "client_id": {
+      "type": "string",
+      "title": "ID Cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "title": "Cliente"
+    },
+    "client_nif": {
+      "type": "string",
+      "title": "NIF Cliente"
+    },
+    "client_address": {
+      "type": "string",
+      "title": "Direcci\u00f3n Cliente"
+    },
+    "issue_date": {
+      "type": "string",
+      "title": "Fecha Emisi\u00f3n",
+      "format": "date-time"
+    },
+    "subtotal": {
+      "type": "number",
+      "title": "Base Imponible (\u20ac)",
+      "default": 0
+    },
+    "iva_total": {
+      "type": "number",
+      "title": "Total IVA (\u20ac)",
+      "default": 0
+    },
+    "total": {
+      "type": "number",
+      "title": "Total (\u20ac)",
+      "default": 0
+    },
+    "lines_json": {
+      "type": "string",
+      "title": "L\u00edneas (JSON)"
+    },
+    "xml_payload": {
+      "type": "string",
+      "title": "Registro XML Veri*factu (texto plano, conservaci\u00f3n 6 a\u00f1os)"
+    },
+    "hash_huella": {
+      "type": "string",
+      "title": "Huella Digital (Hash SHA-256)"
+    },
+    "hash_anterior": {
+      "type": "string",
+      "title": "Hash Factura Anterior"
+    },
+    "invoice_chain_index": {
+      "type": "number",
+      "title": "\u00cdndice en la Cadena",
+      "default": 1
+    },
+    "retention_until": {
+      "type": "string",
+      "title": "Conservar hasta (YYYY-MM-DD) \u2014 m\u00edn. 6 a\u00f1os"
+    },
+    "verifactu_status": {
+      "type": "string",
+      "title": "Estado Veri*factu",
+      "enum": [
+        "pendiente",
+        "enviado",
+        "aceptado",
+        "rechazado",
+        "error",
+        "sin_envio",
+        "duplicado",
+        "sandbox_ok",
+        "validado_sandbox"
+      ],
+      "default": "pendiente"
+    },
+    "pending_submission": {
+      "type": "boolean",
+      "title": "Env\u00edo Pendiente en Cola de Reintentos",
+      "default": false
+    },
+    "verifactu_csv": {
+      "type": "string",
+      "title": "CSV AEAT (C\u00f3digo Seguro Verificaci\u00f3n)"
+    },
+    "verifactu_idregistro": {
+      "type": "string",
+      "title": "ID Registro AEAT"
+    },
+    "verifactu_timestamp": {
+      "type": "string",
+      "title": "Fecha/Hora Recepci\u00f3n AEAT",
+      "format": "date-time"
+    },
+    "verifactu_response": {
+      "type": "string",
+      "title": "Respuesta AEAT completa"
+    },
+    "verifactu_http_status": {
+      "type": "number",
+      "title": "HTTP Status AEAT"
+    },
+    "verifactu_diagnostico": {
+      "type": "string",
+      "title": "Diagn\u00f3stico T\u00e9cnico",
+      "enum": [
+        "certificado_rechazado",
+        "soap_fault",
+        "respuesta_valida_sin_csv",
+        "timeout",
+        "error_red",
+        "aceptado_ok",
+        "rechazado_aeat"
+      ]
+    },
+    "codigo_error_aeat": {
+      "type": "string",
+      "title": "C\u00f3digo Error AEAT"
+    },
+    "descripcion_error_aeat": {
+      "type": "string",
+      "title": "Descripci\u00f3n Error AEAT"
+    },
+    "qr_url": {
+      "type": "string",
+      "title": "URL QR Verificaci\u00f3n AEAT"
+    },
+    "is_locked": {
+      "type": "boolean",
+      "title": "Bloqueada (inalterable)",
+      "default": true
+    },
+    "issuer_nif": {
+      "type": "string",
+      "title": "NIF Emisor"
+    },
+    "issuer_name": {
+      "type": "string",
+      "title": "Nombre Emisor"
+    },
+    "created_by_email": {
+      "type": "string",
+      "title": "Creado por"
+    },
+    "factura_rectificada_id": {
+      "type": "string",
+      "title": "ID Factura Original Rectificada"
+    },
+    "factura_rectificada_number": {
+      "type": "string",
+      "title": "N\u00ba Factura Original Rectificada"
+    },
+    "rectificativa_motivo": {
+      "type": "string",
+      "title": "Motivo de Rectificaci\u00f3n"
+    }
+  },
+  "required": [
+    "invoice_number",
+    "intervention_id",
+    "client_name",
+    "issue_date",
+    "total"
+  ]
+}

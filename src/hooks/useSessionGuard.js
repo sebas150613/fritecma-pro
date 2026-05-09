@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 const CHECK_INTERVAL = 60 * 1000; // Check every 1 minute
@@ -11,22 +11,25 @@ function updateLastActivity() {
 
 async function checkSession() {
   try {
-    const me = await base44.auth.me();
+    const me = await appApi.auth.me();
     if (!me || me.is_active === false) {
-      base44.auth.logout("/");
+      appApi.auth.logout("/");
     }
   } catch {
-    base44.auth.logout("/");
+    appApi.auth.logout("/");
   }
 }
 
 function checkInactivity() {
   const lastActivity = localStorage.getItem(LAST_ACTIVITY_KEY);
-  if (!lastActivity) return;
+  if (!lastActivity) {
+    updateLastActivity(); // Initialize if missing
+    return;
+  }
   
   const timeSinceActivity = Date.now() - parseInt(lastActivity, 10);
   if (timeSinceActivity > INACTIVITY_TIMEOUT) {
-    base44.auth.logout("/");
+    appApi.auth.logout("/");
   }
 }
 
@@ -38,7 +41,11 @@ export function useSessionGuard() {
 
     // Track user activity
     const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
-    const handleActivity = () => updateLastActivity();
+    const handleActivity = () => {
+      if (document.visibilityState !== "hidden") {
+        updateLastActivity();
+      }
+    };
     
     activityEvents.forEach(event => {
       document.addEventListener(event, handleActivity, { passive: true });
@@ -67,3 +74,4 @@ export function useSessionGuard() {
 }
 
 export { checkSession };
+

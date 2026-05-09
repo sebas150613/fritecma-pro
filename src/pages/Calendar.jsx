@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,7 +45,7 @@ export default function Calendar() {
     if (!user) return;
     
     // Suscripción en tiempo real a cambios en eventos
-    const unsubscribe = base44.entities.CalendarEvent.subscribe((event) => {
+    const unsubscribe = appApi.entities.CalendarEvent.subscribe((event) => {
       loadEvents();
     });
     
@@ -54,12 +54,12 @@ export default function Calendar() {
 
   const loadData = async () => {
     try {
-      const me = await base44.auth.me();
+      const me = await appApi.auth.me();
       setUser(me);
 
       const [userList, eventList] = await Promise.all([
-        base44.entities.User.list("full_name", 200),
-        base44.entities.CalendarEvent.list("-start_date", 500)
+        appApi.entities.User.list("full_name", 200),
+        appApi.entities.CalendarEvent.list("-start_date", 500)
       ]);
 
       setUsers(userList || []);
@@ -73,7 +73,7 @@ export default function Calendar() {
 
   const loadEvents = async () => {
     try {
-      const eventList = await base44.entities.CalendarEvent.list("-start_date", 500);
+      const eventList = await appApi.entities.CalendarEvent.list("-start_date", 500);
       setEvents(eventList || []);
     } catch (error) {
       console.error("Error loading events:", error);
@@ -126,7 +126,7 @@ export default function Calendar() {
         completed: form.completed
       };
 
-      await base44.entities.CalendarEvent.create(data);
+      await appApi.entities.CalendarEvent.create(data);
       await loadEvents();
       setDialogOpen(false);
       resetForm();
@@ -140,7 +140,7 @@ export default function Calendar() {
   const handleDelete = async (id) => {
     if (!confirm("¿Eliminar este evento?")) return;
     try {
-      await base44.entities.CalendarEvent.delete(id);
+      await appApi.entities.CalendarEvent.delete(id);
       await loadEvents();
     } catch (error) {
       console.error("Error deleting event:", error);
@@ -149,7 +149,7 @@ export default function Calendar() {
 
   const handleToggleComplete = async (event) => {
     try {
-      await base44.entities.CalendarEvent.update(event.id, { completed: !event.completed });
+      await appApi.entities.CalendarEvent.update(event.id, { completed: !event.completed });
       await loadEvents();
     } catch (error) {
       console.error("Error updating event:", error);
@@ -319,3 +319,4 @@ export default function Calendar() {
     </div>
   );
 }
+

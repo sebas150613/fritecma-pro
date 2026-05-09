@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,9 +20,9 @@ export default function StockBatchEntry() {
   const [openDropdown, setOpenDropdown] = useState(null);
 
   useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
-    base44.entities.Material.filter({ is_active: true }).then(setMaterials).catch(() => {});
-    base44.entities.Supplier.filter({ is_active: true }).then(setSuppliers).catch(() => {});
+    appApi.auth.me().then(setUser).catch(() => {});
+    appApi.entities.Material.filter({ is_active: true }).then(setMaterials).catch(() => {});
+    appApi.entities.Supplier.filter({ is_active: true }).then(setSuppliers).catch(() => {});
   }, []);
 
   const isTecnico = user?.role === "user" || user?.role === "tecnico";
@@ -68,7 +68,9 @@ export default function StockBatchEntry() {
   };
 
   const handleConfirm = async () => {
-    const validLines = lines.filter(l => l.materialId && l.quantity > 0);
+    const validLines = lines.filter(
+      (l) => l.materialId && Number(l.quantity) > 0
+    );
     if (!albaran.trim()) { toast.error("Introduce el Nº de Albarán antes de confirmar"); return; }
     if (!validLines.length) { toast.error("Añade al menos una línea con material y cantidad válidos"); return; }
 
@@ -80,7 +82,7 @@ export default function StockBatchEntry() {
 
         if (savePending) {
           // Técnico: guardar como pendiente, sin tocar el stock todavía
-          await base44.entities.StockEntry.create({
+          await appApi.entities.StockEntry.create({
             albaran_number: albaran.trim(),
             material_id: line.materialId,
             material_name: line.materialName,
@@ -97,8 +99,8 @@ export default function StockBatchEntry() {
         } else {
           // Admin/Encargado: actualizar stock directamente y marcar como validado
           const newStock = (mat?.stock_quantity || 0) + qty;
-          await base44.entities.Material.update(line.materialId, { stock_quantity: newStock });
-          await base44.entities.StockMovement.create({
+          await appApi.entities.Material.update(line.materialId, { stock_quantity: newStock });
+          await appApi.entities.StockMovement.create({
             material_id: line.materialId,
             material_name: line.materialName,
             material_code: line.materialCode,
@@ -113,7 +115,7 @@ export default function StockBatchEntry() {
             supplier_id: line.supplierId || undefined,
             supplier_name: line.supplierName || undefined,
           });
-          await base44.entities.StockEntry.create({
+          await appApi.entities.StockEntry.create({
             albaran_number: albaran.trim(),
             material_id: line.materialId,
             material_name: line.materialName,
@@ -134,7 +136,7 @@ export default function StockBatchEntry() {
       }
 
       if (!savePending) {
-        const updatedMaterials = await base44.entities.Material.filter({ is_active: true });
+        const updatedMaterials = await appApi.entities.Material.filter({ is_active: true });
         setMaterials(updatedMaterials);
       }
 
@@ -286,9 +288,9 @@ export default function StockBatchEntry() {
               </div>
 
               {/* Stock preview after entry — only for non-pending */}
-              {!savePending && line.materialId && line.quantity > 0 && (
+              {!savePending && line.materialId && Number(line.quantity) > 0 && (
                 <div className="mt-1 ml-1 text-xs text-muted-foreground">
-                  Stock resultante: <span className="font-semibold text-green-600">{(line.currentStock + parseFloat(line.quantity || 0)).toFixed(2)} {line.unit}</span>
+                  Stock resultante: <span className="font-semibold text-green-600">{(line.currentStock + Number(line.quantity || 0)).toFixed(2)} {line.unit}</span>
                 </div>
               )}
             </div>
@@ -307,12 +309,12 @@ export default function StockBatchEntry() {
       <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-card border border-border rounded-xl">
         <div className="text-sm text-muted-foreground">
           <span className="font-medium text-foreground">
-            {lines.filter(l => l.materialId && l.quantity > 0).length}
+            {lines.filter((l) => l.materialId && Number(l.quantity) > 0).length}
           </span> línea(s) listas para {savePending ? "enviar" : "confirmar"}
         </div>
         <Button
           onClick={handleConfirm}
-          disabled={saving || !albaran.trim() || !lines.some(l => l.materialId && l.quantity > 0)}
+          disabled={saving || !albaran.trim() || !lines.some((l) => l.materialId && Number(l.quantity) > 0)}
           className={`gap-2 ${savePending ? "bg-amber-600 hover:bg-amber-700" : "bg-green-600 hover:bg-green-700"} text-white`}
         >
           {savePending ? <Clock className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
@@ -322,3 +324,4 @@ export default function StockBatchEntry() {
     </div>
   );
 }
+

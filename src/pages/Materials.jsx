@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import PullToRefresh from "../components/PullToRefresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,7 @@ const emptyMaterial = {
   code: "", name: "", category: "repuesto", unit: "ud",
   cost_price: 0, sell_price: 0, stock_quantity: 0, min_stock: 0, iva_percent: 21, is_active: true,
   family_id: "", family_name: "", subfamily_id: "", subfamily_name: "",
+  supplier_id: "", supplier_name: "",
 };
 
 export default function Materials() {
@@ -54,7 +55,7 @@ export default function Materials() {
   const openHistory = async (mat) => {
     setHistoryMaterial(mat);
     setLoadingMovements(true);
-    const items = await base44.entities.StockMovement.filter({ material_id: mat.id }, "-created_date", 100);
+    const items = await appApi.entities.StockMovement.filter({ material_id: mat.id }, "-created_date", 100);
     setMovements(items);
     setLoadingMovements(false);
   };
@@ -64,13 +65,13 @@ export default function Materials() {
   }, []);
 
   const loadData = async () => {
-    const me = await base44.auth.me();
+    const me = await appApi.auth.me();
     setUser(me);
     const [items, sups, fams, subs] = await Promise.all([
-      base44.entities.Material.list("name", 500),
-      base44.entities.Supplier.list("name", 200),
-      base44.entities.MaterialFamily.list("name", 200),
-      base44.entities.MaterialSubfamily.list("name", 500),
+      appApi.entities.Material.list("name", 500),
+      appApi.entities.Supplier.list("name", 200),
+      appApi.entities.MaterialFamily.list("name", 200),
+      appApi.entities.MaterialSubfamily.list("name", 500),
     ]);
     setMaterials(items);
     setSuppliers(sups);
@@ -99,9 +100,9 @@ export default function Materials() {
 
   const handleSave = async () => {
     if (editingMaterial) {
-      await base44.entities.Material.update(editingMaterial.id, form);
+      await appApi.entities.Material.update(editingMaterial.id, form);
     } else {
-      await base44.entities.Material.create(form);
+      await appApi.entities.Material.create(form);
     }
     setDialogOpen(false);
     loadData();
@@ -109,7 +110,7 @@ export default function Materials() {
 
   const handleDelete = async (id) => {
     if (!confirm("¿Eliminar este material?")) return;
-    await base44.entities.Material.delete(id);
+    await appApi.entities.Material.delete(id);
     loadData();
   };
 
@@ -314,7 +315,7 @@ export default function Materials() {
                   {isAdmin && (
                     <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive rounded-xl h-7 w-7 p-0" onClick={async () => {
                       if (!confirm("¿Eliminar este movimiento del historial?")) return;
-                      await base44.entities.StockMovement.delete(mv.id);
+                      await appApi.entities.StockMovement.delete(mv.id);
                       setMovements(prev => prev.filter(x => x.id !== mv.id));
                     }}>
                       <Trash2 className="h-3.5 w-3.5" />
@@ -477,3 +478,4 @@ export default function Materials() {
     </PullToRefresh>
   );
 }
+

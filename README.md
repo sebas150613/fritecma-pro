@@ -1,14 +1,12 @@
-**Welcome to your Base44 project** 
+**FRIGEST**
 
 **About**
-
-View and Edit  your app on [Base44.com](http://Base44.com) 
 
 This project contains everything you need to run your app locally.
 
 **Edit the code in your local development environment**
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+This repository is being migrated away from direct Base44-specific project wiring while preserving the current app behavior.
 
 **Prerequisites:** 
 
@@ -18,22 +16,106 @@ Any change pushed to the repo will also be reflected in the Base44 Builder.
 4. Create an `.env.local` file and set the right environment variables
 
 ```
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=your_backend_url
+VITE_APP_ID=your_app_id
+VITE_APP_BACKEND_PROVIDER=rest
+VITE_APP_API_URL=http://localhost:3000
+VITE_APP_LOGIN_URL=http://localhost:3000/api/auth/login
+VITE_APP_LOGOUT_URL=http://localhost:3000/api/auth/logout-page
+
+APP_ALLOW_AUTH_BYPASS=false
+APP_PUBLIC_SIGNUP_ENABLED=true
+APP_REQUIRE_EMAIL_VERIFICATION=false
+APP_DATABASE_SSL=false
+DATABASE_URL=
+APP_SETTINGS_SECRET=
+
+APP_AI_PROVIDER=openai
+OPENAI_API_KEY=
+APP_AI_MODEL=gpt-5-mini
+APP_AI_VISION_MODEL=gpt-5-mini
+APP_AI_TIMEOUT_MS=90000
+
+APP_SMTP_HOST=
+APP_SMTP_PORT=587
+APP_SMTP_SECURE=false
+APP_SMTP_USER=
+APP_SMTP_PASS=
+APP_EMAIL_FROM=
+APP_EMAIL_REPLY_TO=
+
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+VITE_STRIPE_PUBLISHABLE_KEY=
+STRIPE_PRICE_STARTER=
+STRIPE_PRICE_GROWTH=
+STRIPE_PRICE_ENTERPRISE=
 
 e.g.
-VITE_BASE44_APP_ID=cbef744a8545c389ef439ea6
-VITE_BASE44_APP_BASE_URL=https://my-to-do-list-81bfaad7.base44.app
+VITE_APP_ID=local-app
+VITE_APP_BACKEND_PROVIDER=rest
+VITE_APP_API_URL=http://127.0.0.1:3000
 ```
 
 Run the app: `npm run dev`
 
-**Publish your changes**
+Run the REST backend scaffold: `npm run server:dev`
 
-Open [Base44.com](http://Base44.com) and click on Publish.
+Run frontend + backend together in REST mode: `npm run dev:rest`
 
-**Docs & Support**
+Seed demo data for REST mode: `npm run seed:rest -- --reset`
 
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
+Run the REST smoke test: `npm run smoke:rest`
 
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+Audit remaining Base44 references: `npm run audit:base44`
+
+Audit REST entity parity against the archived legacy entity set: `npm run audit:entities`
+
+Audit REST function parity against the archived legacy function set: `npm run audit:functions`
+
+REST contract reference: [docs/rest-api-contract.md](./docs/rest-api-contract.md)
+
+SaaS phase 1 reference: [docs/saas-foundation.md](./docs/saas-foundation.md)
+
+SaaS phase 2 reference: [docs/saas-phase2.md](./docs/saas-phase2.md)
+
+SaaS phase 3 reference: [docs/saas-phase3.md](./docs/saas-phase3.md)
+
+SaaS phase 4 reference: [docs/saas-phase4.md](./docs/saas-phase4.md)
+
+SaaS phase 5 reference: [docs/saas-phase5.md](./docs/saas-phase5.md)
+
+**Runtime note**
+
+The app runtime is now REST-only. Legacy Base44 artifacts have been moved under `archive/base44/`, and the frontend and local backend no longer depend on the Base44 SDK or Base44 runtime services.
+
+Entity schemas used by the local REST backend now live in `app-schema/entities/`, and the old Base44 entity definitions are archived in `archive/base44/entities/` as historical reference material.
+The active REST function registry now lives in `app-schema/functions.json`, and the old Base44 function implementations are archived in `archive/base44/functions/` as historical reference material.
+
+The repo already includes a local backend scaffold in `server/` with:
+
+- generic entity CRUD persisted to local JSON files
+- local development auth bootstrap
+- public/private file upload endpoints
+- SMTP email support with stub fallback and local delivery log
+- OpenAI-backed AI endpoint with text and structured JSON responses
+- local implementations for `processVerifactu`, retry queue, gas sync, clock-in notifications, hash verification and sandbox test
+
+Suggested local REST setup:
+
+1. Copy `.env.rest.example` to `.env.local` and adjust values if needed
+2. Run `npm run seed:rest -- --reset`
+3. Run `npm run dev:rest`
+4. Open `http://127.0.0.1:3000/api/auth/login?redirect_uri=http://127.0.0.1:5173/`
+
+The REST scaffold now supports local session-based login for development users.
+The smoke test boots the local REST server, exercises auth, entities, files/functions and exits with a non-zero code if a critical flow breaks.
+The seed script loads representative demo data so dashboard, stock, interventions, calendar, suppliers and projects have meaningful content in REST mode.
+
+If `OPENAI_API_KEY` is not set, the REST backend keeps the app stable with safe AI fallbacks:
+
+- chat returns a friendly configuration message
+- OCR/structured extraction returns an empty object matching the requested schema
+
+If SMTP is not configured, email sends are accepted in stub mode and recorded in `server/data/email-deliveries.json`.
+
+`testVerifactuSandbox` also accepts `{ "dry_run": true }` so you can validate the REST flow without making an external AEAT call.

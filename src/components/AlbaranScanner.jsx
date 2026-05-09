@@ -1,13 +1,12 @@
 import { useState, useRef } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  Camera, Upload, Loader2, CheckCircle2, AlertTriangle, Plus,
-  X, ScanLine, Package, ChevronRight, FileImage
+  Camera, Loader2, CheckCircle2, AlertTriangle,
+  X, ScanLine, FileImage
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -55,7 +54,7 @@ export default function AlbaranScanner({ open, onClose, materials, suppliers = [
     setProcessingMsg("Subiendo imagen...");
 
     // Upload image
-    const { file_url } = await base44.integrations.Core.UploadFile({ file: imageFile });
+    const { file_url } = await appApi.files.uploadPublic({ file: imageFile });
 
     setProcessingMsg("Analizando albarán con IA...");
 
@@ -79,7 +78,7 @@ Devuelve ÚNICAMENTE un JSON válido con esta estructura exacta:
 
 Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un número positivo. Extrae TODAS las líneas de productos que veas.`;
 
-    const result = await base44.integrations.Core.InvokeLLM({
+    const result = await appApi.ai.invoke({
       prompt,
       file_urls: [file_url],
       model: "claude_sonnet_4_6",
@@ -165,7 +164,7 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
     for (const line of linesToApply) {
       if (line.is_new) {
         // Create new material
-        const newMat = await base44.entities.Material.create({
+        const newMat = await appApi.entities.Material.create({
           code: line.code || "",
           name: line.description,
           category: line.new_category || "repuesto",
@@ -178,7 +177,7 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
           is_active: true,
           ...(albaranMeta.supplier_id ? { supplier_id: albaranMeta.supplier_id, supplier_name: albaranMeta.supplier } : {}),
         });
-        await base44.entities.StockMovement.create({
+        await appApi.entities.StockMovement.create({
           material_id: newMat.id,
           material_name: line.description,
           material_code: line.code || "",
@@ -201,8 +200,8 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
           updateData.supplier_id = albaranMeta.supplier_id;
           updateData.supplier_name = albaranMeta.supplier;
         }
-        await base44.entities.Material.update(mat.id, updateData);
-        await base44.entities.StockMovement.create({
+        await appApi.entities.Material.update(mat.id, updateData);
+        await appApi.entities.StockMovement.create({
           material_id: mat.id,
           material_name: mat.name,
           material_code: mat.code || "",
@@ -448,3 +447,4 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
     </Dialog>
   );
 }
+

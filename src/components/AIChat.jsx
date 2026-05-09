@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, X, Send, Loader2, Bot, User, ChevronDown, RefreshCw } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -10,13 +10,13 @@ async function loadContext(user) {
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   const [clients, materials, projects, gasBottles, interventions] = await Promise.all([
-    base44.entities.Client.list("name", 200),
-    base44.entities.Material.filter({ is_active: true }, "name", 500),
-    base44.entities.Project.list("name", 100),
-    base44.entities.GasBottle.list("-created_date", 200),
+    appApi.entities.Client.list("name", 200),
+    appApi.entities.Material.filter({ is_active: true }, "name", 500),
+    appApi.entities.Project.list("name", 100),
+    appApi.entities.GasBottle.list("-created_date", 200),
     isAdmin
-      ? base44.entities.Intervention.list("-date", 50)
-      : base44.entities.Intervention.filter({ technician_email: user.email }, "-date", 20),
+      ? appApi.entities.Intervention.list("-date", 50)
+      : appApi.entities.Intervention.filter({ technician_email: user.email }, "-date", 20),
   ]);
 
   // Summarize gas bottles by type
@@ -83,8 +83,8 @@ function buildSystemPrompt(user, contextText) {
   const canSeePrices = isAdmin || user?.role === "oficina";
   const roleName = isAdmin ? "Administrador" : user?.role === "oficina" ? "Oficina" : "Técnico";
 
-  return `Eres el asistente oficial de FRITECMA, empresa de mantenimiento de refrigeración industrial.
-Tu nombre es "Asistente FRITECMA". Siempre respondes en español, de forma clara y concisa.
+  return `Eres el asistente oficial de FRIGEST, empresa de mantenimiento de refrigeración industrial.
+Tu nombre es "Asistente FRIGEST". Siempre respondes en español, de forma clara y concisa.
 
 USUARIO ACTIVO: ${user?.full_name || "Desconocido"} | Rol: ${roleName} | Email: ${user?.email || "—"}
 
@@ -159,7 +159,7 @@ export default function AIChat({ user }) {
     setLoadingCtx(false);
     setMessages([{
       role: "assistant",
-      content: `¡Hola, ${user?.full_name?.split(" ")[0] || ""}! Soy el asistente de FRITECMA. Acabo de cargar los datos actuales de la app.\n\nPuedo ayudarte con:\n- **Consultas de stock**: "¿Cuánto R449A queda?"\n- **Guía de la app**: "¿Cómo añado un ayudante?"\n- **Datos de clientes y obras**: "¿Qué obras están activas?"\n\n¿En qué puedo ayudarte?`
+      content: `¡Hola, ${user?.full_name?.split(" ")[0] || ""}! Soy el asistente de FRIGEST. Acabo de cargar los datos actuales de la app.\n\nPuedo ayudarte con:\n- **Consultas de stock**: "¿Cuánto R449A queda?"\n- **Guía de la app**: "¿Cómo añado un ayudante?"\n- **Datos de clientes y obras**: "¿Qué obras están activas?"\n\n¿En qué puedo ayudarte?`
     }]);
   };
 
@@ -196,7 +196,7 @@ ${history}
 
 Asistente:`;
 
-    const response = await base44.integrations.Core.InvokeLLM({ prompt: fullPrompt });
+    const response = await appApi.ai.invoke({ prompt: fullPrompt });
     setMessages(prev => [...prev, { role: "assistant", content: response }]);
     setLoading(false);
   };
@@ -223,7 +223,7 @@ Asistente:`;
       <button
         onClick={() => setOpen(v => !v)}
         className="fixed top-20 right-4 lg:top-auto lg:bottom-6 lg:right-6 z-40 h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-primary shadow-xl flex items-center justify-center text-white hover:bg-primary/90 transition-all duration-200 hover:scale-105"
-        title="Asistente IA FRITECMA"
+        title="Asistente IA FRIGEST"
       >
         {open ? <X className="h-6 w-6" /> : <MessageSquare className="h-6 w-6" />}
       </button>
@@ -237,7 +237,7 @@ Asistente:`;
               <Bot className="h-5 w-5" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-sm">Asistente FRITECMA</p>
+              <p className="font-semibold text-sm">Asistente FRIGEST</p>
               <p className="text-xs text-white/70">
                 {loadingCtx ? "Cargando datos..." : contextLoaded ? "✓ Datos cargados" : "IA · Solo lectura"}
               </p>
@@ -349,3 +349,4 @@ Asistente:`;
     </>
   );
 }
+

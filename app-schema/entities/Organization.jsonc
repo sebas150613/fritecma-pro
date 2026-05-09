@@ -1,0 +1,27 @@
+{
+  "name": "Organization",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Nombre"
+    },
+    "slug": {
+      "type": "string",
+      "title": "Slug"
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Activa",
+      "default": true
+    },
+    "plan_code": {
+      "type": "string",
+      "title": "Plan"
+    }
+  },
+  "required": [
+    "name",
+    "slug"
+  ]
+}

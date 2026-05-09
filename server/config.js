@@ -1,0 +1,72 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const workspaceRoot = path.resolve(__dirname, "..");
+const protectedEnvKeys = new Set(Object.keys(process.env));
+
+const applyEnvFile = (envPath, { canOverrideLoadedEnv = false } = {}) => {
+  if (!fs.existsSync(envPath)) {
+    return;
+  }
+
+  const parsed = dotenv.parse(fs.readFileSync(envPath));
+
+  for (const [key, value] of Object.entries(parsed)) {
+    if (protectedEnvKeys.has(key)) {
+      continue;
+    }
+
+    if (process.env[key] === undefined || canOverrideLoadedEnv) {
+      process.env[key] = value;
+    }
+  }
+};
+
+applyEnvFile(path.join(workspaceRoot, ".env"));
+applyEnvFile(path.join(workspaceRoot, ".env.local"), {
+  canOverrideLoadedEnv: true,
+});
+
+export const serverConfig = {
+  port: Number(process.env.APP_SERVER_PORT || 3000),
+  host: process.env.APP_SERVER_HOST || "127.0.0.1",
+  dataDir: path.join(__dirname, "data"),
+  uploadsDir: path.join(__dirname, "uploads"),
+  publicUploadsDir: path.join(__dirname, "uploads", "public"),
+  privateUploadsDir: path.join(__dirname, "uploads", "private"),
+  databaseUrl: process.env.DATABASE_URL || "",
+  databaseSsl: process.env.APP_DATABASE_SSL === "true",
+  devToken: process.env.APP_DEV_TOKEN || "local-dev-token",
+  allowAuthBypass: process.env.APP_ALLOW_AUTH_BYPASS !== "false",
+  publicSignupEnabled: process.env.APP_PUBLIC_SIGNUP_ENABLED !== "false",
+  requireEmailVerification: process.env.APP_REQUIRE_EMAIL_VERIFICATION === "true",
+  appId: process.env.APP_ID || process.env.VITE_APP_ID || "local-app",
+  aiProvider: process.env.APP_AI_PROVIDER || "openai",
+  aiBaseUrl: (process.env.APP_AI_BASE_URL || "https://api.openai.com/v1").replace(
+    /\/+$/,
+    ""
+  ),
+  aiApiKey: process.env.OPENAI_API_KEY || "",
+  aiModel: process.env.APP_AI_MODEL || "gpt-5-mini",
+  aiVisionModel:
+    process.env.APP_AI_VISION_MODEL ||
+    process.env.APP_AI_MODEL ||
+    "gpt-5-mini",
+  aiTimeoutMs: Number(process.env.APP_AI_TIMEOUT_MS || 90000),
+  smtpHost: process.env.APP_SMTP_HOST || "",
+  smtpPort: Number(process.env.APP_SMTP_PORT || 587),
+  smtpSecure: process.env.APP_SMTP_SECURE === "true",
+  smtpUser: process.env.APP_SMTP_USER || "",
+  smtpPass: process.env.APP_SMTP_PASS || "",
+  emailFrom: process.env.APP_EMAIL_FROM || "",
+  emailReplyTo: process.env.APP_EMAIL_REPLY_TO || "",
+  salesEmail: process.env.APP_SALES_EMAIL || "",
+  appSettingsSecret: process.env.APP_SETTINGS_SECRET || "",
+  stripeSecretKey: process.env.STRIPE_SECRET_KEY || "",
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
+  stripePublishableKey: process.env.VITE_STRIPE_PUBLISHABLE_KEY || "",
+};

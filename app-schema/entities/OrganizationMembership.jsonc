@@ -1,0 +1,50 @@
+{
+  "name": "OrganizationMembership",
+  "type": "object",
+  "properties": {
+    "organization_id": {
+      "type": "string",
+      "title": "ID Organización"
+    },
+    "organization_name": {
+      "type": "string",
+      "title": "Organización"
+    },
+    "user_id": {
+      "type": "string",
+      "title": "ID Usuario"
+    },
+    "user_email": {
+      "type": "string",
+      "title": "Email Usuario"
+    },
+    "user_name": {
+      "type": "string",
+      "title": "Nombre Usuario"
+    },
+    "role": {
+      "type": "string",
+      "title": "Rol",
+      "enum": [
+        "admin",
+        "oficina",
+        "tecnico",
+        "ayudante"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "title": "Estado",
+      "enum": [
+        "active",
+        "invited",
+        "disabled"
+      ]
+    }
+  },
+  "required": [
+    "organization_id",
+    "user_id",
+    "role"
+  ]
+}

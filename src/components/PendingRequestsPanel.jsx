@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Link } from "react-router-dom";
 import { ClipboardList, Clock, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ export default function PendingRequestsPanel() {
   const [requests, setRequests] = useState([]);
 
   useEffect(() => {
-    base44.entities.MaterialRequest.filter({ status: "pendiente" }, "-created_date", 10)
+    appApi.entities.MaterialRequest.filter({ status: "pendiente" }, "-created_date", 10)
       .then(setRequests).catch(() => {});
   }, []);
 
@@ -51,3 +51,4 @@ export default function PendingRequestsPanel() {
     </div>
   );
 }
+

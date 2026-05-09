@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import PullToRefresh from "../components/PullToRefresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,7 +48,7 @@ export default function WorkDayReport() {
   const [detailRecord, setDetailRecord] = useState(null);
 
   useEffect(() => {
-    base44.auth.me().then(me => { setUser(me); loadData(me); });
+    appApi.auth.me().then(me => { setUser(me); loadData(me); });
   }, []);
 
   useEffect(() => {
@@ -58,10 +58,10 @@ export default function WorkDayReport() {
   const loadData = async (me) => {
     setLoading(true);
     const [allRecords, userList, clientList, trList] = await Promise.all([
-      base44.entities.WorkDay.list("-work_date", 500),
-      base44.entities.User.list("full_name", 100),
-      base44.entities.Client.list("name", 500),
-      base44.entities.TimeRecord.list("-timestamp", 1000),
+      appApi.entities.WorkDay.list("-work_date", 500),
+      appApi.entities.User.list("full_name", 100),
+      appApi.entities.Client.list("name", 500),
+      appApi.entities.TimeRecord.list("-timestamp", 1000),
     ]);
     setUsers(userList);
     setRecords(allRecords);
@@ -71,7 +71,7 @@ export default function WorkDayReport() {
   };
 
   const handleValidate = async (id) => {
-    await base44.entities.WorkDay.update(id, { status: "validado" });
+    await appApi.entities.WorkDay.update(id, { status: "validado" });
     setRecords(prev => prev.map(x => x.id === id ? { ...x, status: "validado" } : x));
     setDetailRecord(prev => prev && prev.id === id ? { ...prev, status: "validado" } : prev);
   };
@@ -123,7 +123,12 @@ export default function WorkDayReport() {
     });
     return Object.values(byKey).map(d => {
       const fichaje_hours = (d.entradas.length > 0 && d.salidas.length > 0)
-        ? Math.round((new Date(d.salidas[d.salidas.length - 1]) - new Date(d.entradas[0])) / 36000) / 100
+        ? Math.round(
+            (
+              new Date(d.salidas[d.salidas.length - 1]).getTime() -
+              new Date(d.entradas[0]).getTime()
+            ) / 36000
+          ) / 100
         : null;
       const diff = fichaje_hours != null && d.tramos_hours != null ? Math.abs(fichaje_hours - d.tramos_hours) : null;
       return { ...d, fichaje_hours, diff };
@@ -325,7 +330,7 @@ export default function WorkDayReport() {
                     {isAdmin && (
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 rounded-lg" onClick={async () => {
                         if (!window.confirm(`¿Eliminar el registro del ${r.work_date} de ${r.technician_name}?`)) return;
-                        await base44.entities.WorkDay.delete(r.id);
+                        await appApi.entities.WorkDay.delete(r.id);
                         setRecords(prev => prev.filter(x => x.id !== r.id));
                       }}><Trash2 className="h-3.5 w-3.5" /></Button>
                     )}
@@ -371,7 +376,7 @@ export default function WorkDayReport() {
                             className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 rounded-lg"
                             onClick={async () => {
                               if (!window.confirm(`¿Eliminar el registro del ${r.work_date} de ${r.technician_name}?`)) return;
-                              await base44.entities.WorkDay.delete(r.id);
+                              await appApi.entities.WorkDay.delete(r.id);
                               setRecords(prev => prev.filter(x => x.id !== r.id));
                             }}>
                             <Trash2 className="h-3.5 w-3.5" />
@@ -403,3 +408,4 @@ export default function WorkDayReport() {
     </PullToRefresh>
   );
 }
+

@@ -1,0 +1,28 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "title": "Rol de Empresa",
+      "enum": [
+        "admin",
+        "oficina",
+        "ayudante",
+        "tecnico"
+      ]
+    },
+    "global_role": {
+      "type": "string",
+      "title": "Rol Global",
+      "enum": [
+        "superadmin"
+      ]
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Activo",
+      "default": true
+    }
+  }
+}

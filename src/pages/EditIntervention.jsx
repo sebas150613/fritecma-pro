@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import BackButton from "../components/BackButton";
-import { ArrowLeft, Save, Loader2, Plus } from "lucide-react";
+import { Save, Loader2, Plus } from "lucide-react";
 import MaterialLineForm from "../components/MaterialLineForm";
 import moment from "moment";
 
@@ -57,10 +57,10 @@ export default function EditIntervention() {
 
   const loadData = async () => {
     const [me, interventions, materialList, clientList] = await Promise.all([
-      base44.auth.me(),
-      base44.entities.Intervention.filter({ id }, "-created_date", 1),
-      base44.entities.Material.filter({ is_active: true }, "name", 500),
-      base44.entities.Client.list("name", 500),
+      appApi.auth.me(),
+      appApi.entities.Intervention.filter({ id }, "-created_date", 1),
+      appApi.entities.Material.filter({ is_active: true }, "name", 500),
+      appApi.entities.Client.list("name", 500),
     ]);
     setUser(me);
     setMaterials(materialList);
@@ -70,7 +70,7 @@ export default function EditIntervention() {
       const inv = interventions[0];
       setOriginal(inv);
       if (inv.client_id) {
-        const centers = await base44.entities.WorkCenter.filter({ client_id: inv.client_id }, "name", 100);
+        const centers = await appApi.entities.WorkCenter.filter({ client_id: inv.client_id }, "name", 100);
         setWorkCenters(centers);
       }
       setForm({
@@ -122,7 +122,7 @@ export default function EditIntervention() {
     const materialsChanged = JSON.stringify(lines) !== original.materials_json;
     if (materialsChanged) changes.push("materiales/líneas");
 
-    await base44.entities.Intervention.update(id, {
+    await appApi.entities.Intervention.update(id, {
       client_id: form.client_id,
       client_name: form.client_name,
       work_center_id: form.work_center_id || undefined,
@@ -143,7 +143,7 @@ export default function EditIntervention() {
       total: totals.total,
     });
 
-    await base44.entities.AuditLog.create({
+    await appApi.entities.AuditLog.create({
       action: "modificacion",
       entity_type: "Intervention",
       entity_id: id,
@@ -203,7 +203,7 @@ export default function EditIntervention() {
             const c = clients.find(x => x.id === v);
             if (c) {
               setForm(f => ({ ...f, client_id: c.id, client_name: c.name, work_center_id: "", work_center_name: "" }));
-              const centers = await base44.entities.WorkCenter.filter({ client_id: v }, "name", 100);
+              const centers = await appApi.entities.WorkCenter.filter({ client_id: v }, "name", 100);
               setWorkCenters(centers);
             }
           }}>
@@ -330,3 +330,4 @@ export default function EditIntervention() {
     </div>
   );
 }
+

@@ -1,0 +1,30 @@
+[
+  {
+    "name": "processVerifactu",
+    "roles": ["admin", "superadmin", "oficina"]
+  },
+  {
+    "name": "processVerifactuRetry",
+    "roles": ["admin", "superadmin", "oficina"]
+  },
+  {
+    "name": "retryVerifactuSubmissions",
+    "roles": ["admin", "superadmin"]
+  },
+  {
+    "name": "sendClockInNotifications",
+    "roles": ["admin", "superadmin"]
+  },
+  {
+    "name": "syncGasBottleStatus",
+    "roles": ["admin", "superadmin"]
+  },
+  {
+    "name": "testVerifactuSandbox",
+    "roles": ["admin", "superadmin", "oficina"]
+  },
+  {
+    "name": "verifyInvoiceHashes",
+    "roles": ["admin", "superadmin"]
+  }
+]

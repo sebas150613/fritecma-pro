@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Download, Package, Clock, Users } from "lucide-react";
 import moment from "moment";
 
@@ -61,7 +61,7 @@ export default function ProjectDetailModal({ project, projectMaterials, onClose 
   useEffect(() => {
     if (!project) return;
     setLoading(true);
-    base44.entities.WorkDay.list("-work_date", 1000).then(all => {
+    appApi.entities.WorkDay.list("-work_date", 1000).then(all => {
       // Filter days that have segments linked to this project
       const relevant = all.filter(wd => {
         if (!wd.segments_json) return false;
@@ -285,3 +285,4 @@ export default function ProjectDetailModal({ project, projectMaterials, onClose 
     </Dialog>
   );
 }
+

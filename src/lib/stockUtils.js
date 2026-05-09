@@ -1,4 +1,4 @@
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 
 /**
  * Validates lines against current stock and returns warnings.
@@ -10,7 +10,7 @@ export async function validateStockAvailability(lines) {
   if (materialIds.length === 0) return warnings;
 
   const materials = await Promise.all(
-    materialIds.map(id => base44.entities.Material.filter({ id }, "name", 1).then(r => r[0]).catch(() => null))
+    materialIds.map(id => appApi.entities.Material.filter({ id }, "name", 1).then(r => r[0]).catch(() => null))
   );
 
   for (const line of lines) {
@@ -35,7 +35,7 @@ export async function deductStockForIntervention({ lines, interventionId, interv
   if (materialIds.length === 0) return;
 
   const materials = await Promise.all(
-    materialIds.map(id => base44.entities.Material.filter({ id }, "name", 1).then(r => r[0]).catch(() => null))
+    materialIds.map(id => appApi.entities.Material.filter({ id }, "name", 1).then(r => r[0]).catch(() => null))
   );
 
   for (const line of lines) {
@@ -48,10 +48,10 @@ export async function deductStockForIntervention({ lines, interventionId, interv
     const stockAfter = stockBefore - (line.quantity || 0);
 
     // Update stock
-    await base44.entities.Material.update(mat.id, { stock_quantity: stockAfter });
+    await appApi.entities.Material.update(mat.id, { stock_quantity: stockAfter });
 
     // Log movement
-    await base44.entities.StockMovement.create({
+    await appApi.entities.StockMovement.create({
       material_id: mat.id,
       material_name: mat.name,
       material_code: mat.code || "",
@@ -66,3 +66,4 @@ export async function deductStockForIntervention({ lines, interventionId, interv
     });
   }
 }
+

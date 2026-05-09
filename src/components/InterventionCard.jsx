@@ -1,7 +1,6 @@
+import React from "react";
 import { Link } from "react-router-dom";
 import { Clock, MapPin, User, ChevronRight, Flame } from "lucide-react";
-import { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import moment from "moment";
@@ -20,60 +19,73 @@ const statusLabels = {
   facturado: "Facturado",
 };
 
-export default function InterventionCard({ intervention, isAdmin }) {
-  const i = intervention;
+export default React.memo(function InterventionCard({ intervention, isAdmin }) {
+  // Usar constantes para evitar accesos repetitivos a propiedades
+  const {
+    id,
+    number,
+    client_name,
+    status,
+    date,
+    location_address,
+    gas_type,
+    gas_loaded_kg = 0,
+    gas_recovered_kg = 0,
+    technician_name,
+    total = 0
+  } = intervention;
   return (
     <Link
-      to={`/interventions/${i.id}`}
+      to={`/interventions/${id}`}
       className="block bg-card rounded-2xl border border-border p-5 hover:shadow-lg hover:border-accent/30 transition-all duration-200 group"
     >
       <div className="flex items-start justify-between mb-3">
         <div>
           <p className="text-xs text-muted-foreground font-medium">
-            {i.number || `#${i.id?.slice(0, 6)}`}
+            {number || `#${id?.slice(0, 6)}`}
           </p>
           <h3 className="font-semibold text-base mt-0.5 group-hover:text-accent transition-colors">
-            {i.client_name}
+            {client_name}
           </h3>
         </div>
-        <Badge variant="outline" className={cn("text-xs border", statusColors[i.status])}>
-          {statusLabels[i.status] || i.status}
+        <Badge variant="outline" className={cn("text-xs border", statusColors[status] || "bg-gray-100 text-gray-700 border-gray-200")}>
+          {statusLabels[status] || status}
         </Badge>
       </div>
 
       <div className="space-y-2 text-sm text-muted-foreground">
         <div className="flex items-center gap-2">
           <Clock className="h-3.5 w-3.5" />
-          <span>{moment(i.date).format("DD MMM YYYY · HH:mm")}</span>
+          <span>{moment(date).format("DD MMM YYYY · HH:mm")}</span>
         </div>
-        {i.location_address && (
+        {location_address && (
           <div className="flex items-center gap-2">
             <MapPin className="h-3.5 w-3.5" />
-            <span className="truncate">{i.location_address}</span>
+            <span className="truncate">{location_address}</span>
           </div>
         )}
-        {i.gas_type && (
+        {gas_type && (
           <div className="flex items-center gap-2">
             <Flame className="h-3.5 w-3.5" />
-            <span>{i.gas_type} · {i.gas_loaded_kg || 0}kg cargados · {i.gas_recovered_kg || 0}kg recuperados</span>
+            <span>{gas_type} · {gas_loaded_kg}kg cargados · {gas_recovered_kg}kg recuperados</span>
           </div>
         )}
-        {i.technician_name && (
+        {technician_name && (
           <div className="flex items-center gap-2">
             <User className="h-3.5 w-3.5" />
-            <span>{i.technician_name}</span>
+            <span>{technician_name}</span>
           </div>
         )}
       </div>
 
       <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
         {isAdmin ? (
-          <p className="text-lg font-bold">{(i.total || 0).toFixed(2)} €</p>
+          <p className="text-lg font-bold">{total.toFixed(2)} €</p>
         ) : (
           <p className="text-sm text-muted-foreground">Ver detalle</p>
         )}
         <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
       </div>
     </Link>
-  );
-}
+    );
+}, (prevProps, nextProps) => prevProps.intervention.id === nextProps.intervention.id && prevProps.intervention.status === nextProps.intervention.status);

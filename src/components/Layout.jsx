@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useSessionGuard } from "../hooks/useSessionGuard";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
+import AppLogo from "@/components/AppLogo";
 import {
   LayoutDashboard,
   ClipboardList,
@@ -12,7 +13,6 @@ import {
   Menu,
   X,
   LogOut,
-  Snowflake,
   ChevronRight,
   Clock,
   FlaskConical,
@@ -28,22 +28,6 @@ import { cn } from "@/lib/utils";
 
 
 const adminLinks = [
-  { to: "/", label: "Panel", icon: LayoutDashboard },
-  { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
-  { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
-  { to: "/materials", label: "Stock / Materiales", icon: Package },
-  { to: "/clients", label: "Clientes", icon: Users },
-  { to: "/calendar", label: "Calendario", icon: CalendarDays },
-  { to: "/time-records", label: "Registro Fichajes", icon: Clock },
-  { to: "/workday-report", label: "Jornadas", icon: CalendarDays },
-  { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
-  { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
-  { to: "/stock-entry", label: "Entrada Stock", icon: PackagePlus },
-  { to: "/suppliers", label: "Proveedores", icon: Truck },
-  { to: "/settings", label: "Configuración", icon: Settings },
-];
-
-const encargadoLinks = [
   { to: "/", label: "Panel", icon: LayoutDashboard },
   { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
   { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
@@ -103,6 +87,10 @@ const ayudanteLinks = [
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
 
+const ownerLinks = [
+  { to: "/settings", label: "Panel Owner", icon: Settings },
+];
+
 const TAB_ROOTS = ["/", "/interventions", "/fichaje", "/settings"];
 
 export default function Layout() {
@@ -110,6 +98,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [switchingOrg, setSwitchingOrg] = useState(false);
   useSessionGuard();
 
   // Remember last visited path per bottom tab
@@ -121,7 +110,7 @@ export default function Layout() {
   });
 
   useEffect(() => {
-    base44.auth.me().then(setUser).catch(() => {});
+    appApi.auth.me().then(setUser).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -132,13 +121,37 @@ export default function Layout() {
   }, [location.pathname]);
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
-  const isEncargado = user?.role === "encargado";
   const isOficina = user?.role === "oficina";
   const isAyudante = user?.role === "ayudante";
-  const links = isAdmin ? adminLinks : isEncargado ? encargadoLinks : isOficina ? oficinaLinks : isAyudante ? ayudanteLinks : techLinks;
+  const isHiddenOwner = user?.is_hidden_owner === true;
+  const links = isHiddenOwner
+    ? ownerLinks
+    : isAdmin
+      ? adminLinks
+      : isOficina
+        ? oficinaLinks
+        : isAyudante
+          ? ayudanteLinks
+          : techLinks;
 
   const handleLogout = () => {
-    base44.auth.logout("/");
+    appApi.auth.logout("/");
+  };
+
+  const handleOrganizationSwitch = async (organizationId) => {
+    if (!organizationId || organizationId === user?.current_organization?.id) {
+      return;
+    }
+
+    setSwitchingOrg(true);
+
+    try {
+      const nextUser = await appApi.auth.switchOrganization(organizationId);
+      setUser(nextUser);
+      window.location.reload();
+    } finally {
+      setSwitchingOrg(false);
+    }
   };
 
   return (
@@ -159,7 +172,7 @@ export default function Layout() {
         )}
       >
         <div className="p-6 flex items-center gap-3">
-          <img src="https://media.base44.com/images/public/69c81838d85448113a40d658/54eaa6c58_Fritecma.jpg" alt="FRITECMA" className="h-20 w-auto object-contain" />
+          <AppLogo />
           <Button
             variant="ghost"
             size="icon"
@@ -196,14 +209,36 @@ export default function Layout() {
         </nav>
 
         <div className="p-4 border-t border-sidebar-border pb-28 lg:pb-4">
+          {user?.organization_memberships?.length > 1 && (
+            <div className="px-2 mb-3">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-sidebar-foreground/40 mb-2">
+                Empresa
+              </p>
+              <select
+                className="w-full rounded-xl border border-sidebar-border bg-sidebar-accent px-3 py-2 text-sm text-sidebar-foreground"
+                value={user?.current_organization?.id || ""}
+                onChange={(e) => handleOrganizationSwitch(e.target.value)}
+                disabled={switchingOrg}
+              >
+                {(user.organization_memberships || []).map((membership) => (
+                  <option key={membership.organization_id} value={membership.organization_id}>
+                    {membership.organization_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex items-center gap-3 px-2">
             <div className="h-9 w-9 rounded-full bg-sidebar-accent flex items-center justify-center text-sm font-semibold text-sidebar-foreground">
               {user?.full_name?.[0] || "U"}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">{user?.full_name || "Usuario"}</p>
+              <p className="text-[11px] text-sidebar-foreground/60 truncate">
+                {switchingOrg ? "Cambiando empresa..." : user?.current_organization?.name || "Sin empresa"}
+              </p>
               <p className="text-xs text-sidebar-foreground/50 capitalize">
-                {isAdmin ? "Administrador" : isEncargado ? "Encargado" : isOficina ? "Oficina" : isAyudante ? "Ayudante" : "Técnico"}
+                {isHiddenOwner ? "Owner" : isAdmin ? "Administrador" : isOficina ? "Oficina" : isAyudante ? "Ayudante" : "Técnico"}
               </p>
             </div>
             <Button
@@ -228,7 +263,7 @@ export default function Layout() {
           <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)} className="flex-shrink-0">
             <Menu className="h-5 w-5" />
           </Button>
-          <img src="https://media.base44.com/images/public/69c81838d85448113a40d658/54eaa6c58_Fritecma.jpg" alt="FRITECMA" className="h-12 w-auto object-contain flex-1 min-w-0" />
+          <AppLogo compact className="flex-1 min-w-0" />
           <div className="w-9 flex-shrink-0" />
         </header>
 
@@ -290,3 +325,4 @@ export default function Layout() {
     </div>
   );
 }
+

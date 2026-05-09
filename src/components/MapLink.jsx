@@ -1,17 +1,24 @@
 import { MapPin } from "lucide-react";
 
 /**
- * Renders a clickable address that opens Google Maps (or Apple Maps on iOS).
- * Pass `address` as a full text string, or `lat`+`lng` for coordinates.
+ * Renders a clickable address that opens Google Maps.
+ * Pass `address` as a full text string, or `lat` + `lng` for coordinates.
  */
-export default function MapLink({ address, lat, lng, className = "" }) {
-  if (!address && !lat) return null;
+export default function MapLink({
+  address,
+  lat = null,
+  lng = null,
+  className = "",
+}) {
+  if (!address && lat == null) {
+    return null;
+  }
 
   const buildUrl = () => {
-    if (lat && lng) {
-      // Coordinates link — works on both Google Maps and Apple Maps
+    if (lat != null && lng != null) {
       return `https://maps.google.com/?q=${lat},${lng}`;
     }
+
     return `https://maps.google.com/?q=${encodeURIComponent(address)}`;
   };
 
@@ -24,7 +31,9 @@ export default function MapLink({ address, lat, lng, className = "" }) {
       title="Abrir en Google Maps"
     >
       <MapPin className="h-3.5 w-3.5 shrink-0 text-blue-500" />
-      <span className="truncate">{address || `${lat?.toFixed(5)}, ${lng?.toFixed(5)}`}</span>
+      <span className="truncate">
+        {address || `${lat?.toFixed(5)}, ${lng?.toFixed(5)}`}
+      </span>
     </a>
   );
 }

@@ -1,15 +1,26 @@
 {
-  "name": "base44-app",
+  "name": "frigest",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "dev:rest": "node scripts/dev-rest.mjs",
+    "server:dev": "node --watch server/index.js",
+    "server:start": "node server/index.js",
+    "build": "vite build && npm run generate-pwa-assets",
+    "generate-pwa-assets": "node scripts/generate-pwa-assets.js",
+    "analyze": "vite build --mode analyze",
+    "audit:base44": "node scripts/audit-base44.mjs",
+    "audit:entities": "node scripts/audit-entity-parity.mjs",
+    "audit:functions": "node scripts/audit-function-parity.mjs",
+    "seed:rest": "node scripts/seed-rest.mjs",
+    "smoke:rest": "node scripts/rest-smoke.mjs",
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "optimize-images": "node scripts/optimize-images.js"
   },
   "dependencies": {
     "@base44/sdk": "^0.8.27",
@@ -50,16 +61,21 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
+    "cors": "^2.8.5",
     "date-fns": "^3.6.0",
+    "dotenv": "^16.6.1",
     "embla-carousel-react": "^8.5.2",
+    "express": "^4.21.2",
     "framer-motion": "^11.16.4",
     "html2canvas": "^1.4.1",
     "input-otp": "^1.4.2",
-    "jspdf": "^4.0.0",
-    "lodash": "^4.17.21",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.475.0",
     "moment": "^2.30.1",
+    "multer": "^1.4.5-lts.2",
     "next-themes": "^0.4.4",
+    "nodemailer": "^8.0.5",
+    "pg": "^8.20.0",
     "react": "^18.2.0",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.2.0",
@@ -72,6 +88,7 @@
     "react-router-dom": "^6.26.0",
     "recharts": "^2.15.4",
     "sonner": "^2.0.1",
+    "stripe": "^22.0.1",
     "tailwind-merge": "^3.0.2",
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.171.0",
@@ -93,8 +110,14 @@
     "eslint-plugin-unused-imports": "^4.3.0",
     "globals": "^15.14.0",
     "postcss": "^8.5.3",
+    "rollup-plugin-visualizer": "^7.0.1",
     "tailwindcss": "^3.4.17",
+    "terser": "^5.46.1",
     "typescript": "^5.8.2",
-    "vite": "^6.1.0"
+    "vite": "^6.4.2"
+  },
+  "overrides": {
+    "lodash": "4.18.1",
+    "rollup": "4.60.1"
   }
 }

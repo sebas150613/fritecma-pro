@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Plus, MapPin, Loader2, Save } from "lucide-react";
+import { Plus, MapPin, Loader2, Save } from "lucide-react";
 import BackButton from "../components/BackButton";
 import MaterialLineForm from "../components/MaterialLineForm";
 import LaborSection from "../components/LaborSection";
@@ -62,11 +62,11 @@ export default function NewVisit() {
 
   const loadData = async () => {
     const [me, invList, materialList, bottleList, userList] = await Promise.all([
-      base44.auth.me(),
-      base44.entities.Intervention.filter({ id }, "-created_date", 1),
-      base44.entities.Material.filter({ is_active: true }, "name", 500),
-      base44.entities.GasBottle.list("-created_date", 200),
-      base44.entities.User.list("full_name", 100),
+      appApi.auth.me(),
+      appApi.entities.Intervention.filter({ id }, "-created_date", 1),
+      appApi.entities.Material.filter({ is_active: true }, "name", 500),
+      appApi.entities.GasBottle.list("-created_date", 200),
+      appApi.entities.User.list("full_name", 100),
     ]);
     setUser(me);
     if (invList[0]) setIntervention(invList[0]);
@@ -125,7 +125,7 @@ export default function NewVisit() {
     const now = new Date().toISOString();
 
     // Get existing visits count
-    const existingVisits = await base44.entities.Visit.filter({ intervention_id: id }, "-created_date", 100);
+    const existingVisits = await appApi.entities.Visit.filter({ intervention_id: id }, "-created_date", 100);
     const visitNumber = existingVisits.length + 1;
 
     const visitData = {
@@ -161,18 +161,18 @@ export default function NewVisit() {
       client_conformidad: form.client_conformidad,
     };
 
-    const created = await base44.entities.Visit.create(visitData);
+    const created = await appApi.entities.Visit.create(visitData);
 
     // Deduct gas from bottle
     if (form.gas_bottle_id && form.gas_loaded_kg > 0) {
       const bottle = gasBottles.find(b => b.id === form.gas_bottle_id);
       if (bottle) {
         const newKg = Math.max(0, (bottle.current_kg || 0) - form.gas_loaded_kg);
-        await base44.entities.GasBottle.update(form.gas_bottle_id, {
+        await appApi.entities.GasBottle.update(form.gas_bottle_id, {
           current_kg: newKg,
           status: newKg <= 0 ? "vacia" : "activa",
         });
-        await base44.entities.GasTransfer.create({
+        await appApi.entities.GasTransfer.create({
           from_bottle_id: bottle.id,
           from_bottle_serial: bottle.serial_number,
           to_bottle_id: bottle.id,
@@ -198,7 +198,7 @@ export default function NewVisit() {
     });
 
     // Update intervention incident_status
-    await base44.entities.Intervention.update(id, {
+    await appApi.entities.Intervention.update(id, {
       incident_status: form.incident_status,
       status: form.incident_status === "finalizado" ? "pendiente_revision" : "en_curso",
     });
@@ -402,3 +402,4 @@ export default function NewVisit() {
     </div>
   );
 }
+

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import PullToRefresh from "../components/PullToRefresh";
 import AnimatedPage from "../components/AnimatedPage";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Plus, Search, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,23 +21,23 @@ export default function Interventions() {
   }, []);
 
   const loadData = async () => {
-    const me = await base44.auth.me();
+    const me = await appApi.auth.me();
     setUser(me);
     const isAdmin = me.role === "admin" || me.role === "superadmin" || me.role === "encargado";
 
     let items;
     if (isAdmin) {
-      items = await base44.entities.Intervention.list("-created_date", 200);
+      items = await appApi.entities.Intervention.list("-created_date", 200);
     } else if (me.role === "ayudante") {
       // Ayudante can see interventions where they are the helper
       const [asTech, asHelper] = await Promise.all([
-        base44.entities.Intervention.filter({ technician_email: me.email }, "-created_date", 200),
-        base44.entities.Intervention.filter({ helper_email: me.email }, "-created_date", 200),
+        appApi.entities.Intervention.filter({ technician_email: me.email }, "-created_date", 200),
+        appApi.entities.Intervention.filter({ helper_email: me.email }, "-created_date", 200),
       ]);
       const ids = new Set(asTech.map(i => i.id));
       items = [...asTech, ...asHelper.filter(i => !ids.has(i.id))];
     } else {
-      items = await base44.entities.Intervention.filter(
+      items = await appApi.entities.Intervention.filter(
         { technician_email: me.email },
         "-created_date",
         200
@@ -187,3 +187,4 @@ export default function Interventions() {
     </AnimatedPage>
   );
 }
+

@@ -1,0 +1,112 @@
+{
+  "name": "GasBottle",
+  "type": "object",
+  "properties": {
+    "serial_number": {
+      "type": "string",
+      "title": "N\u00ba de Serie"
+    },
+    "gas_type": {
+      "type": "string",
+      "title": "Tipo de Gas",
+      "enum": [
+        "R449A",
+        "R134a",
+        "R404A",
+        "R410A",
+        "R407C",
+        "R22",
+        "R32",
+        "R290",
+        "R600a",
+        "R744",
+        "otro"
+      ]
+    },
+    "tipo_botella": {
+      "type": "string",
+      "title": "Tipo de Botella",
+      "enum": [
+        "Gas",
+        "Recuperaci\u00f3n"
+      ]
+    },
+    "carga_inicial": {
+      "type": "number",
+      "title": "Carga Inicial (kg)",
+      "default": 0
+    },
+    "carga_actual": {
+      "type": "number",
+      "title": "Carga Actual (kg)",
+      "default": 0
+    },
+    "owner_type": {
+      "type": "string",
+      "title": "Propietario Gas",
+      "enum": [
+        "fritecma",
+        "cliente"
+      ],
+      "default": "fritecma"
+    },
+    "casco_owner": {
+      "type": "string",
+      "title": "Propiedad del Casco",
+      "enum": [
+        "fritecma",
+        "cliente"
+      ],
+      "default": "fritecma"
+    },
+    "owner_client_id": {
+      "type": "string",
+      "title": "ID Cliente (si propietario = cliente)"
+    },
+    "owner_client_name": {
+      "type": "string",
+      "title": "Nombre Cliente Propietario"
+    },
+    "supplier_id": {
+      "type": "string",
+      "title": "ID Proveedor"
+    },
+    "supplier_name": {
+      "type": "string",
+      "title": "Proveedor"
+    },
+    "location_type": {
+      "type": "string",
+      "title": "Ubicaci\u00f3n",
+      "enum": [
+        "taller",
+        "furgoneta",
+        "cliente"
+      ],
+      "default": "taller"
+    },
+    "location_detail": {
+      "type": "string",
+      "title": "Detalle Ubicaci\u00f3n (N\u00ba Furgoneta / Cliente)"
+    },
+    "status": {
+      "type": "string",
+      "title": "Estado (Solo lectura - se actualiza autom\u00e1ticamente)",
+      "enum": [
+        "activa",
+        "vacia",
+        "devuelta"
+      ],
+      "default": "activa"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Observaciones"
+    }
+  },
+  "required": [
+    "serial_number",
+    "gas_type",
+    "tipo_botella"
+  ]
+}

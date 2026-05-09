@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -44,12 +44,12 @@ export default function GasBottles() {
 
   useEffect(() => {
     Promise.all([
-      base44.auth.me(),
-      base44.entities.GasBottle.list("-created_date", 200),
-      base44.entities.GasTransfer.list("-timestamp", 200),
-      base44.entities.Client.list("name", 200),
-      base44.entities.Intervention.list("-created_date", 500),
-      base44.entities.Supplier.list("name", 200),
+      appApi.auth.me(),
+      appApi.entities.GasBottle.list("-created_date", 200),
+      appApi.entities.GasTransfer.list("-timestamp", 200),
+      appApi.entities.Client.list("name", 200),
+      appApi.entities.Intervention.list("-created_date", 500),
+      appApi.entities.Supplier.list("name", 200),
     ]).then(([u, b, t, c, invs, sups]) => {
       setUser(u); setBottles(b); setTransfers(t); setClients(c); setSuppliers(sups);
       // Build number → id map
@@ -62,8 +62,8 @@ export default function GasBottles() {
 
   const reload = async () => {
     const [b, t] = await Promise.all([
-      base44.entities.GasBottle.list("-created_date", 200),
-      base44.entities.GasTransfer.list("-timestamp", 200),
+      appApi.entities.GasBottle.list("-created_date", 200),
+      appApi.entities.GasTransfer.list("-timestamp", 200),
     ]);
     setBottles(b); setTransfers(t);
   };
@@ -114,8 +114,8 @@ export default function GasBottles() {
         notes: bottleForm.notes || ""
       };
       
-      if (editingBottle) await base44.entities.GasBottle.update(editingBottle.id, data);
-      else await base44.entities.GasBottle.create(data);
+      if (editingBottle) await appApi.entities.GasBottle.update(editingBottle.id, data);
+      else await appApi.entities.GasBottle.create(data);
       await reload(); setSaving(false); setBottleModal(false);
     } catch (err) {
       console.error("Error guardando botella:", err);
@@ -125,7 +125,7 @@ export default function GasBottles() {
 
   const deleteBottle = async (id) => {
     if (!confirm("¿Eliminar esta botella?")) return;
-    await base44.entities.GasBottle.delete(id);
+    await appApi.entities.GasBottle.delete(id);
     await reload();
   };
 
@@ -148,7 +148,7 @@ export default function GasBottles() {
     const now = new Date().toISOString();
 
     // Update origin (subtract)
-    await base44.entities.GasBottle.update(transferForm.from_bottle_id, {
+    await appApi.entities.GasBottle.update(transferForm.from_bottle_id, {
       carga_actual: (fromBottle.carga_actual || 0) - kg,
       status: ((fromBottle.carga_actual || 0) - kg) <= 0 ? "vacia" : "activa",
     });
@@ -159,10 +159,10 @@ export default function GasBottles() {
       destUpdate.location_type = transferForm.new_location_type;
       destUpdate.location_detail = transferForm.new_location_detail || "";
     }
-    await base44.entities.GasBottle.update(transferForm.to_bottle_id, destUpdate);
+    await appApi.entities.GasBottle.update(transferForm.to_bottle_id, destUpdate);
 
     // Log
-    await base44.entities.GasTransfer.create({
+    await appApi.entities.GasTransfer.create({
       from_bottle_id: transferForm.from_bottle_id,
       from_bottle_serial: fromBottle?.serial_number,
       to_bottle_id: transferForm.to_bottle_id,
@@ -220,7 +220,7 @@ export default function GasBottles() {
               <SelectTrigger className="w-40 rounded-xl"><SelectValue placeholder="Propietario" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="fritecma">Fritecma</SelectItem>
+                <SelectItem value="fritecma">FRIGEST</SelectItem>
                 <SelectItem value="cliente">Cliente</SelectItem>
               </SelectContent>
             </Select>
@@ -256,7 +256,7 @@ export default function GasBottles() {
 
                   <div className="text-xs text-muted-foreground space-y-1">
                     <p>📍 {LOCATION_LABELS[b.location_type]}{b.location_detail ? ` · ${b.location_detail}` : ""}</p>
-                    <p>👤 {b.owner_type === "fritecma" ? "Fritecma" : `Cliente: ${b.owner_client_name || "-"}`}</p>
+                    <p>👤 {b.owner_type === "fritecma" ? "FRIGEST" : `Cliente: ${b.owner_client_name || "-"}`}</p>
                   </div>
 
                   <div className="flex gap-2 pt-1">
@@ -283,7 +283,7 @@ export default function GasBottles() {
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="font-bold text-xl">{gas}</h3>
                     <Badge variant="outline" className={owner === "fritecma" ? "border-primary/30 text-primary" : "border-amber-300 text-amber-700"}>
-                      {owner === "fritecma" ? "Fritecma" : "Cliente"}
+                      {owner === "fritecma" ? "FRIGEST" : "Cliente"}
                     </Badge>
                   </div>
                   <p className="text-3xl font-black text-accent">{kg.toFixed(2)} <span className="text-base font-medium text-muted-foreground">kg</span></p>
@@ -378,7 +378,7 @@ export default function GasBottles() {
                 <Select value={bottleForm.owner_type} onValueChange={v => setBottleForm(f => ({ ...f, owner_type: v }))}>
                   <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="fritecma">Fritecma</SelectItem>
+                    <SelectItem value="fritecma">FRIGEST</SelectItem>
                     <SelectItem value="cliente">Cliente</SelectItem>
                   </SelectContent>
                 </Select>
@@ -398,7 +398,7 @@ export default function GasBottles() {
                 >
                   <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__fritecma__">Fritecma (propio)</SelectItem>
+                    <SelectItem value="__fritecma__">FRIGEST (propio)</SelectItem>
                     {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -556,3 +556,4 @@ export default function GasBottles() {
     </div>
   );
 }
+

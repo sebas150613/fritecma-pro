@@ -1,0 +1,59 @@
+import { runtimeConfig } from "@/lib/runtime-config";
+
+const buildPublicApiUrl = (path) => {
+  const baseUrl =
+    runtimeConfig.backendProvider === "rest" && runtimeConfig.apiUrl
+      ? runtimeConfig.apiUrl.replace(/\/+$/, "")
+      : "";
+
+  return baseUrl ? `${baseUrl}${path}` : path;
+};
+
+const buildHeaders = () => {
+  const headers = {
+    "Content-Type": "application/json",
+    "X-App-Id": runtimeConfig.appId,
+  };
+
+  if (runtimeConfig.token) {
+    headers.Authorization = `Bearer ${runtimeConfig.token}`;
+  }
+
+  return headers;
+};
+
+const parseResponseBody = async (response) => {
+  const contentType = response.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  return text ? { message: text } : null;
+};
+
+export const publicAppApi = {
+  async getPublicSettings(appId = runtimeConfig.appId) {
+    const response = await fetch(
+      buildPublicApiUrl(`/api/apps/public/prod/public-settings/by-id/${appId}`),
+      {
+        method: "GET",
+        headers: buildHeaders(),
+      }
+    );
+
+    const body = await parseResponseBody(response);
+
+    if (!response.ok) {
+      const error = new Error(
+        body?.message || `Failed to load app public settings (${response.status})`
+      );
+      error.status = response.status;
+      error.data = body;
+      throw error;
+    }
+
+    return body;
+  },
+};

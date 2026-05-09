@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -37,14 +37,14 @@ export default function MaterialRequests() {
   const [resolveNotes, setResolveNotes] = useState("");
 
   useEffect(() => {
-    base44.auth.me().then(u => {
+    appApi.auth.me().then(u => {
       setUser(u);
       loadRequests();
     });
   }, []);
 
   const loadRequests = async () => {
-    const items = await base44.entities.MaterialRequest.list("-created_date", 200);
+    const items = await appApi.entities.MaterialRequest.list("-created_date", 200);
     setRequests(items);
     setLoading(false);
   };
@@ -56,21 +56,18 @@ export default function MaterialRequests() {
   const handleSubmit = async () => {
     if (!form.description.trim()) { toast.error("Introduce una descripción"); return; }
     setSaving(true);
-    await base44.entities.MaterialRequest.create({
+    const created = await appApi.entities.MaterialRequest.create({
       ...form,
       technician_email: user.email,
       technician_name: user.full_name,
       status: "pendiente",
-      quantity: parseFloat(form.quantity) || 1,
+      quantity: Number(form.quantity) || 1,
     });
-    // Notify encargados via email
     try {
-      await base44.integrations.Core.SendEmail({
-        to: "encargado@fritecma.com",
-        subject: `Nueva solicitud de ${TYPE_LABELS[form.request_type]} — ${user.full_name}`,
-        body: `El técnico ${user.full_name} ha realizado una nueva solicitud:\n\nTipo: ${TYPE_LABELS[form.request_type]}\nDescripción: ${form.description}\nCantidad: ${form.quantity} ${form.unit}\nUrgencia: ${URGENCY_CONFIG[form.urgency]?.label}\nNotas: ${form.notes || "-"}\n\nRevísala en la aplicación.`,
-      });
-    } catch (_) { /* silenciar si no está configurado */ }
+      await appApi.business.notifyMaterialRequestApprovers(created.id);
+    } catch (_) {
+      /* silenciar si no hay SMTP o no hay aprobadores */
+    }
     toast.success("Solicitud enviada correctamente");
     setDialogOpen(false);
     setForm({ ...EMPTY_FORM });
@@ -80,7 +77,7 @@ export default function MaterialRequests() {
 
   const handleResolve = async () => {
     const { request, action } = resolveDialog;
-    await base44.entities.MaterialRequest.update(request.id, {
+    await appApi.entities.MaterialRequest.update(request.id, {
       status: action,
       resolved_by: user.email,
       resolved_at: new Date().toISOString(),
@@ -255,3 +252,4 @@ export default function MaterialRequests() {
     </div>
   );
 }
+

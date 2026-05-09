@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import AnimatedPage from "../components/AnimatedPage";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { LogIn, LogOut, MapPin, Loader2, CheckCircle2, AlertTriangle, ShieldAlert } from "lucide-react";
@@ -46,11 +46,11 @@ export default function Fichaje() {
   }, []);
 
   const init = async () => {
-    const me = await base44.auth.me();
+    const me = await appApi.auth.me();
     setUser(me);
     await loadTodayRecords(me.email);
     if (me.role === "admin" || me.role === "superadmin" || me.role === "oficina") {
-      const recent = await base44.entities.TimeRecord.filter(
+      const recent = await appApi.entities.TimeRecord.filter(
         { work_date: today },
         "-timestamp",
         100
@@ -62,7 +62,7 @@ export default function Fichaje() {
   };
 
   const loadTodayRecords = async (email) => {
-    const records = await base44.entities.TimeRecord.filter(
+    const records = await appApi.entities.TimeRecord.filter(
       { technician_email: email, work_date: today },
       "timestamp",
       50
@@ -136,7 +136,7 @@ export default function Fichaje() {
       return;
     }
     const now = new Date().toISOString();
-    await base44.entities.TimeRecord.create({
+    await appApi.entities.TimeRecord.create({
       technician_email: user.email,
       technician_name: user.full_name,
       type,
@@ -147,7 +147,7 @@ export default function Fichaje() {
     // Replace optimistic with real data
     await loadTodayRecords(user.email);
     if (isAdmin) {
-      const recent = await base44.entities.TimeRecord.filter(
+      const recent = await appApi.entities.TimeRecord.filter(
         { work_date: today },
         "-timestamp",
         100
@@ -307,3 +307,4 @@ export default function Fichaje() {
     </AnimatedPage>
   );
 }
+

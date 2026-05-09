@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import PullToRefresh from "../components/PullToRefresh";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,8 +24,8 @@ export default function StockMovements() {
   const [filterType, setFilterType] = useState("all");
 
   const loadData = () => Promise.all([
-    base44.entities.StockMovement.list("-created_date", 500),
-    base44.entities.Material.list("name", 500),
+    appApi.entities.StockMovement.list("-created_date", 500),
+    appApi.entities.Material.list("name", 500),
   ]).then(([m, mats]) => {
     setMovements(m); setMaterials(mats); setLoading(false);
   });
@@ -126,3 +126,4 @@ export default function StockMovements() {
     </PullToRefresh>
   );
 }
+

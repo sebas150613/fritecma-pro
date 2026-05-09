@@ -1,0 +1,71 @@
+{
+  "name": "OrganizationSubscription",
+  "type": "object",
+  "properties": {
+    "organization_id": {
+      "type": "string",
+      "title": "ID Organización"
+    },
+    "organization_name": {
+      "type": "string",
+      "title": "Organización"
+    },
+    "plan_code": {
+      "type": "string",
+      "title": "Plan"
+    },
+    "status": {
+      "type": "string",
+      "title": "Estado",
+      "enum": [
+        "trialing",
+        "active",
+        "past_due",
+        "canceled",
+        "incomplete",
+        "unpaid"
+      ]
+    },
+    "billing_provider": {
+      "type": "string",
+      "title": "Proveedor Billing"
+    },
+    "seat_limit_override": {
+      "type": "number",
+      "title": "Override asientos"
+    },
+    "stripe_customer_id": {
+      "type": "string",
+      "title": "Stripe Customer"
+    },
+    "stripe_subscription_id": {
+      "type": "string",
+      "title": "Stripe Subscription"
+    },
+    "stripe_checkout_session_id": {
+      "type": "string",
+      "title": "Stripe Checkout Session"
+    },
+    "current_period_start": {
+      "type": "string",
+      "title": "Inicio período"
+    },
+    "current_period_end": {
+      "type": "string",
+      "title": "Fin período"
+    },
+    "trial_ends_at": {
+      "type": "string",
+      "title": "Fin prueba"
+    },
+    "cancel_at_period_end": {
+      "type": "boolean",
+      "title": "Cancelar al final del período"
+    }
+  },
+  "required": [
+    "organization_id",
+    "plan_code",
+    "status"
+  ]
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,7 +32,7 @@ export default function AbsenceManagement() {
 
   const loadData = async () => {
     try {
-      const me = await base44.auth.me();
+      const me = await appApi.auth.me();
       setUser(me);
       
       // Only encargado/admin allowed
@@ -42,8 +42,8 @@ export default function AbsenceManagement() {
       }
       
       const [userList, absenceList] = await Promise.all([
-        base44.entities.User.list("full_name", 200),
-        base44.entities.Absence.list("-start_date", 200)
+        appApi.entities.User.list("full_name", 200),
+        appApi.entities.Absence.list("-start_date", 200)
       ]);
       
       setUsers(userList || []);
@@ -71,7 +71,7 @@ export default function AbsenceManagement() {
         created_by_name: user.full_name
       };
       
-      await base44.entities.Absence.create(data);
+      await appApi.entities.Absence.create(data);
       await loadData();
       setDialogOpen(false);
       setForm({ user_email: "", user_name: "", start_date: "", end_date: "", type: "vacaciones", notes: "" });
@@ -85,7 +85,7 @@ export default function AbsenceManagement() {
   const handleDelete = async (id) => {
     if (!confirm("¿Eliminar esta ausencia?")) return;
     try {
-      await base44.entities.Absence.delete(id);
+      await appApi.entities.Absence.delete(id);
       await loadData();
     } catch (error) {
       console.error("Error deleting absence:", error);
@@ -196,3 +196,4 @@ export default function AbsenceManagement() {
     </div>
   );
 }
+

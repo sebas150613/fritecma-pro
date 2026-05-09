@@ -1,0 +1,59 @@
+{
+  "name": "SubscriptionPlan",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "title": "Código"
+    },
+    "name": {
+      "type": "string",
+      "title": "Nombre"
+    },
+    "description": {
+      "type": "string",
+      "title": "Descripción"
+    },
+    "currency": {
+      "type": "string",
+      "title": "Moneda"
+    },
+    "monthly_price_cents": {
+      "type": "number",
+      "title": "Precio mensual"
+    },
+    "seat_limit": {
+      "type": "number",
+      "title": "Límite de usuarios"
+    },
+    "storage_limit_gb": {
+      "type": "number",
+      "title": "Límite almacenamiento"
+    },
+    "ai_requests_month": {
+      "type": "number",
+      "title": "IA mensual"
+    },
+    "stripe_price_id": {
+      "type": "string",
+      "title": "Stripe Price ID"
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Activo",
+      "default": true
+    },
+    "sort_order": {
+      "type": "number",
+      "title": "Orden"
+    },
+    "features": {
+      "type": "array",
+      "title": "Características"
+    }
+  },
+  "required": [
+    "code",
+    "name"
+  ]
+}

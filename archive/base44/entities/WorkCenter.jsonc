@@ -1,0 +1,56 @@
+{
+  "name": "WorkCenter",
+  "type": "object",
+  "properties": {
+    "client_id": {
+      "type": "string",
+      "title": "ID Cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "title": "Nombre Cliente"
+    },
+    "name": {
+      "type": "string",
+      "title": "Nombre del Centro / Sede"
+    },
+    "address": {
+      "type": "string",
+      "title": "Direcci\u00f3n"
+    },
+    "city": {
+      "type": "string",
+      "title": "Ciudad"
+    },
+    "postal_code": {
+      "type": "string",
+      "title": "C\u00f3digo Postal"
+    },
+    "contact_person": {
+      "type": "string",
+      "title": "Persona de Contacto"
+    },
+    "phone": {
+      "type": "string",
+      "title": "Tel\u00e9fono"
+    },
+    "email": {
+      "type": "string",
+      "title": "Email"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notas"
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Activo",
+      "default": true
+    }
+  },
+  "required": [
+    "client_id",
+    "client_name",
+    "name"
+  ]
+}

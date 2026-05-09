@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
@@ -21,7 +21,7 @@ export default function WorkCenterHistory({ center, open, onClose }) {
   useEffect(() => {
     if (open && center?.id) {
       setLoading(true);
-      base44.entities.Intervention.filter({ work_center_id: center.id }, "-date", 100)
+      appApi.entities.Intervention.filter({ work_center_id: center.id }, "-date", 100)
         .then(items => { setInterventions(items); setLoading(false); });
     }
   }, [open, center?.id]);
@@ -71,3 +71,4 @@ export default function WorkCenterHistory({ center, open, onClose }) {
     </Dialog>
   );
 }
+

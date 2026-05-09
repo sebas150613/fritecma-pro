@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,7 +21,7 @@ export default function RectificativaForm({ invoice, intervention, onComplete, o
     setSubmitting(true);
 
     try {
-      const res = await base44.functions.invoke("processVerifactu", {
+      const res = await appApi.functions.invoke("processVerifactu", {
         intervention_id: intervention.id,
         mode: "rectificar_corregida",
         original_invoice_id: invoice.id,
@@ -141,3 +141,4 @@ export default function RectificativaForm({ invoice, intervention, onComplete, o
     </form>
   );
 }
+

@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import PullToRefresh from "../components/PullToRefresh";
-import { ClipboardList, Package, Users, AlertTriangle, Plus, TrendingUp } from "lucide-react";
+import { ClipboardList, Package, AlertTriangle, Plus, TrendingUp } from "lucide-react";
 import LowStockPanel from "../components/LowStockPanel";
 import { Button } from "@/components/ui/button";
 import StatsCard from "../components/StatsCard";
@@ -26,17 +26,17 @@ export default function Dashboard() {
     loadData();
   }, []);
 
-  const loadData = async () => {
-    const me = await base44.auth.me();
+  const loadData = useCallback(async () => {
+    const me = await appApi.auth.me();
     setUser(me);
     const isAdmin = me.role === "admin" || me.role === "superadmin" || me.role === "encargado";
     const isOficina = me.role === "oficina";
 
     let allInterventions;
     if (isAdmin || isOficina) {
-      allInterventions = await base44.entities.Intervention.list("-created_date", 50);
+      allInterventions = await appApi.entities.Intervention.list("-created_date", 50);
     } else {
-      allInterventions = await base44.entities.Intervention.filter(
+      allInterventions = await appApi.entities.Intervention.filter(
         { technician_email: me.email },
         "-created_date",
         50
@@ -44,7 +44,7 @@ export default function Dashboard() {
     }
 
     if (isAdmin || isOficina) {
-      const mats = await base44.entities.Material.list("name", 500);
+      const mats = await appApi.entities.Material.list("name", 500);
       setMaterials(mats);
     }
 
@@ -62,22 +62,29 @@ export default function Dashboard() {
       revenue: totalRevenue,
     });
     setLoading(false);
-  };
+  }, []);
 
-  const loadFichajeStatus = async () => {
+  const loadFichajeStatus = useCallback(async () => {
     if (!user) return;
     const today = moment().format("YYYY-MM-DD");
-    const records = await base44.entities.TimeRecord.filter(
+    const records = await appApi.entities.TimeRecord.filter(
       { technician_email: user.email, work_date: today },
       "-timestamp",
       1
     );
     setFichajeStatus(records[0]?.type || "sin_fichar");
-  };
+  }, [user]);
 
   useEffect(() => {
     if (user) loadFichajeStatus();
-  }, [user]);
+  }, [user, loadFichajeStatus]);
+
+  const isAdmin =
+    user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
+  const isOficina = user?.role === "oficina";
+  const showAlerts = isAdmin || isOficina;
+  const hasCheckedIn = isAdmin || fichajeStatus === "entrada" || fichajeStatus === "reanudacion";
+  const recentInterventions = interventions.slice(0, 6);
 
   if (loading) {
     return (
@@ -86,12 +93,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
-  const isOficina = user?.role === "oficina";
-  const showAlerts = isAdmin || isOficina;
-  const hasCheckedIn = isAdmin || fichajeStatus === "entrada" || fichajeStatus === "reanudacion";
-  const recentInterventions = interventions.slice(0, 6);
 
   return (
     <PullToRefresh onRefresh={loadData}>
@@ -180,3 +181,4 @@ export default function Dashboard() {
     </PullToRefresh>
   );
 }
+

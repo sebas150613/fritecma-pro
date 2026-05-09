@@ -1,0 +1,79 @@
+{
+  "name": "StockMovement",
+  "type": "object",
+  "properties": {
+    "material_id": {
+      "type": "string",
+      "title": "ID Material"
+    },
+    "material_name": {
+      "type": "string",
+      "title": "Nombre Material"
+    },
+    "material_code": {
+      "type": "string",
+      "title": "C\u00f3digo Material"
+    },
+    "quantity": {
+      "type": "number",
+      "title": "Cantidad (negativo = salida)"
+    },
+    "stock_before": {
+      "type": "number",
+      "title": "Stock Antes"
+    },
+    "stock_after": {
+      "type": "number",
+      "title": "Stock Despu\u00e9s"
+    },
+    "movement_type": {
+      "type": "string",
+      "title": "Tipo Movimiento",
+      "enum": [
+        "salida_parte",
+        "entrada_devolucion",
+        "ajuste_manual",
+        "salida_obra",
+        "entrada_obra",
+        "entrada_albaran"
+      ]
+    },
+    "albaran_number": {
+      "type": "string",
+      "title": "N\u00ba Albar\u00e1n"
+    },
+    "intervention_id": {
+      "type": "string",
+      "title": "ID Parte"
+    },
+    "intervention_number": {
+      "type": "string",
+      "title": "N\u00ba Parte"
+    },
+    "supplier_id": {
+      "type": "string",
+      "title": "ID Proveedor"
+    },
+    "supplier_name": {
+      "type": "string",
+      "title": "Proveedor"
+    },
+    "technician_email": {
+      "type": "string",
+      "title": "Email T\u00e9cnico"
+    },
+    "technician_name": {
+      "type": "string",
+      "title": "Nombre T\u00e9cnico"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notas"
+    }
+  },
+  "required": [
+    "material_id",
+    "quantity",
+    "movement_type"
+  ]
+}

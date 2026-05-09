@@ -1,15 +1,14 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Plus, Building2, Package, ArrowDownToLine, Undo2, ChevronsUpDown, AlertTriangle, Trash2, BarChart2 } from "lucide-react";
+import { Plus, Building2, ArrowDownToLine, Undo2, ChevronsUpDown, Trash2, BarChart2 } from "lucide-react";
 import MapLink from "../components/MapLink";
 import ProjectDetailModal from "../components/ProjectDetailModal";
 import { cn } from "@/lib/utils";
@@ -53,11 +52,11 @@ export default function Projects() {
 
   const init = async () => {
     const [u, p, m, c, pm] = await Promise.all([
-      base44.auth.me(),
-      base44.entities.Project.list("-created_date", 200),
-      base44.entities.Material.filter({ is_active: true }, "name", 500),
-      base44.entities.Client.list("name", 200),
-      base44.entities.ProjectMaterial.list("-created_date", 1000),
+      appApi.auth.me(),
+      appApi.entities.Project.list("-created_date", 200),
+      appApi.entities.Material.filter({ is_active: true }, "name", 500),
+      appApi.entities.Client.list("name", 200),
+      appApi.entities.ProjectMaterial.list("-created_date", 1000),
     ]);
     setUser(u); setProjects(p); setMaterials(m); setClients(c); setProjectMaterials(pm);
     setLoading(false);
@@ -65,8 +64,8 @@ export default function Projects() {
 
   const reload = async () => {
     const [p, pm] = await Promise.all([
-      base44.entities.Project.list("-created_date", 200),
-      base44.entities.ProjectMaterial.list("-created_date", 1000),
+      appApi.entities.Project.list("-created_date", 200),
+      appApi.entities.ProjectMaterial.list("-created_date", 1000),
     ]);
     setProjects(p); setProjectMaterials(pm);
   };
@@ -87,8 +86,8 @@ export default function Projects() {
   const saveProject = async () => {
     setSaving(true);
     const data = { ...projectForm };
-    if (projectForm.id) await base44.entities.Project.update(projectForm.id, data);
-    else await base44.entities.Project.create(data);
+    if (projectForm.id) await appApi.entities.Project.update(projectForm.id, data);
+    else await appApi.entities.Project.create(data);
     await reload(); setSaving(false); setProjectModal(false);
   };
 
@@ -108,7 +107,7 @@ export default function Projects() {
     }
 
     // Log in ProjectMaterial
-    await base44.entities.ProjectMaterial.create({
+    await appApi.entities.ProjectMaterial.create({
       project_id: selectedProject.id,
       project_name: selectedProject.name,
       material_id: mat.id,
@@ -125,8 +124,8 @@ export default function Projects() {
     });
 
     // Deduct stock
-    await base44.entities.Material.update(mat.id, { stock_quantity: (mat.stock_quantity || 0) - qty });
-    await base44.entities.StockMovement.create({
+    await appApi.entities.Material.update(mat.id, { stock_quantity: (mat.stock_quantity || 0) - qty });
+    await appApi.entities.StockMovement.create({
       material_id: mat.id,
       material_name: mat.name,
       material_code: mat.code || "",
@@ -151,7 +150,7 @@ export default function Projects() {
     const qty = parseFloat(returnQty);
     const mat = materials.find(m => m.id === returnLine.material_id);
 
-    await base44.entities.ProjectMaterial.create({
+    await appApi.entities.ProjectMaterial.create({
       project_id: selectedProject.id,
       project_name: selectedProject.name,
       material_id: returnLine.material_id,
@@ -168,8 +167,8 @@ export default function Projects() {
 
     // Restore stock
     if (mat) {
-      await base44.entities.Material.update(mat.id, { stock_quantity: (mat.stock_quantity || 0) + qty });
-      await base44.entities.StockMovement.create({
+      await appApi.entities.Material.update(mat.id, { stock_quantity: (mat.stock_quantity || 0) + qty });
+      await appApi.entities.StockMovement.create({
         material_id: mat.id,
         material_name: mat.name,
         material_code: mat.code || "",
@@ -189,7 +188,7 @@ export default function Projects() {
   const deleteProject = async () => {
     if (!deleteProjectTarget) return;
     setDeleting(true);
-    await base44.entities.Project.delete(deleteProjectTarget.id);
+    await appApi.entities.Project.delete(deleteProjectTarget.id);
     await reload();
     setDeleting(false);
     setDeleteProjectTarget(null);
@@ -440,3 +439,4 @@ export default function Projects() {
     </div>
   );
 }
+

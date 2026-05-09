@@ -1,20 +1,19 @@
 import { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Settings, Users, Shield, Trash2, Upload, Key, FileCheck, Loader2 } from "lucide-react";
+import { Settings, Users, Shield, Trash2, Upload, Key, FileCheck, Loader2, Crown, Copy, Building2 } from "lucide-react";
+import OrganizationBillingPanel from "@/components/OrganizationBillingPanel";
 
 const ROLE_LABELS = {
   superadmin: "Super Admin",
   admin: "Admin",
-  encargado: "Encargado",
   oficina: "Oficina",
   ayudante: "Ayudante",
-  user: "Técnico",
   tecnico: "Técnico",
 };
 
@@ -30,7 +29,7 @@ export default function AppSettings() {
   const [certFile, setCertFile] = useState(null);
   const [certPassword, setCertPassword] = useState("");
   const [emisorNif, setEmisorNif] = useState("");
-  const [emisorNombre, setEmisorNombre] = useState("FRITECMA S.L.");
+  const [emisorNombre, setEmisorNombre] = useState("FRIGEST S.L.");
   const [emisorDireccion, setEmisorDireccion] = useState("");
   const [emisorTelefono, setEmisorTelefono] = useState("");
   const [emisorLogo, setEmisorLogo] = useState("");
@@ -39,52 +38,135 @@ export default function AppSettings() {
   const [certSaved, setCertSaved] = useState(false);
   const [certUri, setCertUri] = useState("");
   const [modoProduccion, setModoProduccion] = useState(false);
+  const [lastInviteUrl, setLastInviteUrl] = useState("");
+  const [copiedInviteUrl, setCopiedInviteUrl] = useState(false);
+  const [smtpHost, setSmtpHost] = useState("");
+  const [smtpPort, setSmtpPort] = useState("587");
+  const [smtpSecure, setSmtpSecure] = useState(false);
+  const [smtpUser, setSmtpUser] = useState("");
+  const [smtpPass, setSmtpPass] = useState("");
+  const [smtpPassConfigured, setSmtpPassConfigured] = useState(false);
+  const [emailFrom, setEmailFrom] = useState("");
+  const [emailFromName, setEmailFromName] = useState("");
+  const [emailReplyTo, setEmailReplyTo] = useState("");
+  const [emailEnabled, setEmailEnabled] = useState(true);
+  const [smtpUsesEnvFallback, setSmtpUsesEnvFallback] = useState(false);
+  const [smtpSecretsEncrypted, setSmtpSecretsEncrypted] = useState(false);
+  const [smtpSaving, setSmtpSaving] = useState(false);
+  const [smtpTesting, setSmtpTesting] = useState(false);
+  const [smtpMessage, setSmtpMessage] = useState("");
+  const [ownerOrganizations, setOwnerOrganizations] = useState([]);
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
-    const me = await base44.auth.me();
+    const me = await appApi.auth.me();
     setUser(me);
-    if (me.role === "superadmin") {
-      const allUsers = await base44.entities.User.list("full_name", 100);
+    if (["admin", "superadmin"].includes(me.role) && me.is_hidden_owner !== true) {
+      const allUsers = await appApi.entities.User.list("full_name", 100);
       setUsers(allUsers);
+    } else {
+      setUsers([]);
     }
     setEmisorNif(me.verifactu_nif || "");
-    setEmisorNombre(me.verifactu_nombre || "FRITECMA S.L.");
+    setEmisorNombre(me.verifactu_nombre || "FRIGEST S.L.");
     setEmisorDireccion(me.emisor_direccion || "");
     setEmisorTelefono(me.emisor_telefono || "");
     setEmisorLogo(me.emisor_logo_url || "");
     setCertUri(me.verifactu_cert_uri || "");
     setModoProduccion(me.verifactu_produccion === true);
+    if (me.is_hidden_owner === true) {
+      const [emailSettings, overview] = await Promise.all([
+        appApi.email.getSettings(),
+        appApi.organizations.ownerOverview(),
+      ]);
+      setSmtpHost(emailSettings?.smtp_host || "");
+      setSmtpPort(String(emailSettings?.smtp_port || 587));
+      setSmtpSecure(emailSettings?.smtp_secure === true);
+      setSmtpUser(emailSettings?.smtp_user || "");
+      setSmtpPass("");
+      setSmtpPassConfigured(emailSettings?.smtp_pass_configured === true);
+      setEmailFrom(emailSettings?.email_from || "");
+      setEmailFromName(emailSettings?.email_from_name || "");
+      setEmailReplyTo(emailSettings?.email_reply_to || "");
+      setEmailEnabled(emailSettings?.email_enabled !== false);
+      setSmtpUsesEnvFallback(emailSettings?.uses_env_fallback === true);
+      setSmtpSecretsEncrypted(emailSettings?.secrets_encrypted === true);
+      setOwnerOrganizations(overview?.organizations || []);
+    } else {
+      setOwnerOrganizations([]);
+    }
     setLoading(false);
   };
 
   const handleInvite = async () => {
     if (!inviteEmail) return;
     setInviting(true);
-    await base44.users.inviteUser(inviteEmail, inviteRole === "admin" ? "admin" : "user");
-    // Update role to tecnico after invite if needed
+    const response = await appApi.users.invite(inviteEmail, inviteRole);
+    setLastInviteUrl(response?.invite_url || "");
     setInviteEmail("");
     setInviting(false);
     loadData();
   };
 
   const setUserRole = async (userId, newRole) => {
-    await base44.entities.User.update(userId, { role: newRole });
+    await appApi.entities.User.update(userId, { role: newRole });
     loadData();
   };
 
   const toggleUserActive = async (userId, currentValue) => {
-    await base44.entities.User.update(userId, { is_active: !currentValue });
+    await appApi.entities.User.update(userId, { is_active: !currentValue });
     loadData();
   };
 
   const handleDeleteAccount = async () => {
     if (deleteConfirm !== "ELIMINAR") return;
-    await base44.entities.User.delete(user.id);
-    base44.auth.logout("/");
+    await appApi.entities.User.delete(user.id);
+    appApi.auth.logout("/");
+  };
+
+  const handleSaveSmtp = async () => {
+    setSmtpSaving(true);
+    setSmtpMessage("");
+    try {
+      const response = await appApi.email.updateSettings({
+        smtp_host: smtpHost,
+        smtp_port: Number(smtpPort || 587),
+        smtp_secure: smtpSecure,
+        smtp_user: smtpUser,
+        ...(smtpPass ? { smtp_pass: smtpPass } : {}),
+        email_from: emailFrom,
+        email_from_name: emailFromName,
+        email_reply_to: emailReplyTo,
+        email_enabled: emailEnabled,
+      });
+      setSmtpPass("");
+      setSmtpPassConfigured(response?.smtp_pass_configured === true);
+      setSmtpUsesEnvFallback(response?.uses_env_fallback === true);
+      setSmtpSecretsEncrypted(response?.secrets_encrypted === true);
+      setSmtpMessage("Configuración SMTP guardada.");
+    } finally {
+      setSmtpSaving(false);
+    }
+  };
+
+  const handleSendSmtpTest = async () => {
+    setSmtpTesting(true);
+    setSmtpMessage("");
+    try {
+      const result = await appApi.email.sendTest({ to: user?.email });
+      setSmtpMessage(
+        result?.provider === "smtp"
+          ? "Correo de prueba enviado."
+          : result?.provider === "disabled"
+            ? "El envío de correo está desactivado en la plataforma."
+            : "SMTP no está configurado; el envío se ha quedado en modo stub."
+      );
+    } finally {
+      setSmtpTesting(false);
+    }
   };
 
   if (loading) {
@@ -95,7 +177,7 @@ export default function AppSettings() {
     );
   }
 
-  if (!['admin','superadmin','encargado','oficina'].includes(user?.role)) {
+  if (!["admin", "superadmin", "oficina"].includes(user?.role)) {
     return (
       <div className="p-8 flex flex-col items-center justify-center h-full gap-4">
         <Shield className="h-12 w-12 text-muted-foreground" />
@@ -105,7 +187,9 @@ export default function AppSettings() {
     );
   }
 
-  const isSuperAdmin = user?.role === "superadmin";
+  const canManageUsers = ["admin", "superadmin"].includes(user?.role);
+  const isOwner = user?.is_hidden_owner === true;
+  const canManageClientUsers = canManageUsers && !isOwner;
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6 pb-32 lg:pb-8">
@@ -114,8 +198,8 @@ export default function AppSettings() {
         <h1 className="text-2xl font-bold tracking-tight">Configuración</h1>
       </div>
 
-      {/* User Management — Solo SuperAdmin */}
-      {isSuperAdmin && (
+      {/* User Management */}
+      {canManageClientUsers && (
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2">
           <Users className="h-4 w-4 text-muted-foreground" /> Gestión de Usuarios
@@ -136,15 +220,33 @@ export default function AppSettings() {
               <SelectItem value="tecnico">Técnico</SelectItem>
               <SelectItem value="ayudante">Ayudante</SelectItem>
               <SelectItem value="oficina">Oficina</SelectItem>
-              <SelectItem value="encargado">Encargado</SelectItem>
               <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="superadmin">Super Admin</SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={handleInvite} disabled={inviting} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl">
             Invitar
           </Button>
         </div>
+
+        {lastInviteUrl && (
+          <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+            <p className="text-xs text-muted-foreground">Enlace de activacion del usuario invitado</p>
+            <Input value={lastInviteUrl} readOnly className="rounded-xl font-mono text-xs" />
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              onClick={async () => {
+                await navigator.clipboard.writeText(lastInviteUrl);
+                setCopiedInviteUrl(true);
+                setTimeout(() => setCopiedInviteUrl(false), 3000);
+              }}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              {copiedInviteUrl ? "Enlace copiado" : "Copiar enlace de alta"}
+            </Button>
+          </div>
+        )}
 
         <div className="space-y-2">
           {users.map(u => (
@@ -163,17 +265,16 @@ export default function AppSettings() {
                     {u.is_active !== false ? 'Activo' : 'Bloqueado'}
                   </span>
                 </div>
-                <Select value={u.role || "user"} onValueChange={v => setUserRole(u.id, v)}>
+                <Select value={u.role || "tecnico"} onValueChange={v => setUserRole(u.id, v)}>
                   <SelectTrigger className="h-8 text-xs rounded-lg w-32">
                     <SelectValue>{ROLE_LABELS[u.role] || u.role}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="superadmin">Super Admin</SelectItem>
+                    {u.role === "superadmin" && <SelectItem value="superadmin">Super Admin</SelectItem>}
                     <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="encargado">Encargado</SelectItem>
                     <SelectItem value="oficina">Oficina</SelectItem>
                     <SelectItem value="ayudante">Ayudante</SelectItem>
-                    <SelectItem value="user">Técnico</SelectItem>
+                    <SelectItem value="tecnico">Técnico</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -184,7 +285,7 @@ export default function AppSettings() {
       )}
 
       {/* Verifactu / Datos Empresa + Certificado Digital */}
-      {['admin','superadmin','encargado','oficina'].includes(user?.role) && (
+      {["admin", "superadmin", "oficina"].includes(user?.role) && (
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2">
           <FileCheck className="h-4 w-4 text-accent" /> Configuración Veri*factu (Ley Antifraude)
@@ -198,7 +299,7 @@ export default function AppSettings() {
           </div>
           <div>
             <Label>Nombre / Razón Social *</Label>
-            <Input value={emisorNombre} onChange={e => setEmisorNombre(e.target.value)} placeholder="FRITECMA S.L." className="mt-1 rounded-xl" />
+            <Input value={emisorNombre} onChange={e => setEmisorNombre(e.target.value)} placeholder="FRIGEST S.L." className="mt-1 rounded-xl" />
           </div>
           <div>
             <Label>Dirección Fiscal</Label>
@@ -268,12 +369,12 @@ export default function AppSettings() {
             setSavingCert(true);
             let newCertUri = certUri;
             if (certFile) {
-              const { file_uri } = await base44.integrations.Core.UploadPrivateFile({ file: certFile });
+              const { file_uri } = await appApi.files.uploadPrivate({ file: certFile });
               newCertUri = file_uri;
             }
             let newLogoUrl = emisorLogo;
             if (logoFile) {
-              const { file_url } = await base44.integrations.Core.UploadFile({ file: logoFile });
+              const { file_url } = await appApi.files.uploadPublic({ file: logoFile });
               newLogoUrl = file_url;
               setEmisorLogo(file_url);
               setLogoFile(null);
@@ -284,7 +385,7 @@ export default function AppSettings() {
             updateData.emisor_direccion = emisorDireccion;
             updateData.emisor_telefono = emisorTelefono;
             updateData.emisor_logo_url = newLogoUrl;
-            await base44.auth.updateMe(updateData);
+            await appApi.auth.updateMe(updateData);
             if (newCertUri) setCertUri(newCertUri);
             setCertFile(null);
             setCertSaved(true);
@@ -309,7 +410,7 @@ export default function AppSettings() {
           </div>
           <Switch checked={modoProduccion} onCheckedChange={async (val) => {
             setModoProduccion(val);
-            await base44.auth.updateMe({ verifactu_produccion: val });
+            await appApi.auth.updateMe({ verifactu_produccion: val });
           }} />
         </div>
         {modoProduccion && (
@@ -325,12 +426,184 @@ export default function AppSettings() {
       </div>
       )}
 
+      {isOwner && (
+      <div className="bg-card rounded-2xl border border-amber-300/60 p-5 space-y-4">
+        <h2 className="font-semibold flex items-center gap-2">
+          <Crown className="h-4 w-4 text-amber-600" /> Panel Owner
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div className="rounded-xl border border-border bg-muted/30 p-4">
+            <p className="text-xs text-muted-foreground">Cuenta protegida</p>
+            <p className="font-medium mt-1">{user?.email}</p>
+            <p className="text-xs text-emerald-600 mt-2">Acceso directo disponible desde el login principal</p>
+          </div>
+          <div className="rounded-xl border border-border bg-muted/30 p-4">
+            <p className="text-xs text-muted-foreground">Rol efectivo</p>
+            <p className="font-medium mt-1">Superadmin</p>
+            <p className="text-xs text-emerald-600 mt-2">Panel owner activado</p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+          <div>
+            <p className="text-xs text-muted-foreground">Vista owner</p>
+            <p className="text-sm mt-1">
+              Este panel ya no usa la gestión interna de usuarios de una empresa. Aquí ves las empresas registradas y los usuarios asociados a cada una.
+            </p>
+          </div>
+        </div>
+        <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-4 w-4 text-amber-600" />
+            <h3 className="font-medium">Empresas y usuarios</h3>
+          </div>
+          <div className="space-y-3">
+            {ownerOrganizations.map((organization) => (
+              <div key={organization.id} className="rounded-2xl border border-border bg-background/70 p-4 space-y-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="font-semibold text-sm">{organization.name}</p>
+                    <p className="text-xs text-muted-foreground">{organization.slug || "sin-slug"}</p>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    <p>{organization.user_count} usuarios</p>
+                    <p>Plan: {organization.plan_code || "starter"}</p>
+                  </div>
+                </div>
+
+                {organization.users?.length ? (
+                  <div className="space-y-2">
+                    {organization.users.map((member) => (
+                      <div key={member.membership_id || member.id} className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
+                        <div>
+                          <p className="text-sm font-medium">{member.full_name || member.email}</p>
+                          <p className="text-xs text-muted-foreground">{member.email}</p>
+                        </div>
+                        <div className="text-right text-xs">
+                          <p className="font-medium">{ROLE_LABELS[member.role] || member.role || "Sin rol"}</p>
+                          <p className={member.is_active !== false ? "text-emerald-600" : "text-destructive"}>
+                            {member.is_active !== false ? "Activo" : "Bloqueado"}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Esta empresa no tiene usuarios asociados todavía.</p>
+                )}
+              </div>
+            ))}
+            {!ownerOrganizations.length && (
+              <p className="text-sm text-muted-foreground">No hay empresas registradas para mostrar.</p>
+            )}
+          </div>
+        </div>
+        <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-4">
+          <div>
+            <p className="text-xs text-muted-foreground">SMTP de plataforma</p>
+            <p className="text-sm mt-1">
+              Configura el proveedor de correo saliente desde este panel. Los emails de invitación, verificación y reset usarán esta cuenta.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label>SMTP Host</Label>
+              <Input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.resend.com" className="mt-1 rounded-xl" />
+            </div>
+            <div>
+              <Label>SMTP Port</Label>
+              <Input value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} placeholder="587" className="mt-1 rounded-xl" />
+            </div>
+            <div>
+              <Label>SMTP User</Label>
+              <Input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder="usuario SMTP" className="mt-1 rounded-xl" />
+            </div>
+            <div>
+              <Label>SMTP Password</Label>
+              <Input value={smtpPass} onChange={(e) => setSmtpPass(e.target.value)} type="password" placeholder={smtpPassConfigured ? "••••••••••" : "Contraseña SMTP"} className="mt-1 rounded-xl" />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {smtpPassConfigured ? "Ya hay una contraseña guardada. Solo escribe aquí si quieres reemplazarla." : "Todavía no hay contraseña guardada."}
+              </p>
+            </div>
+            <div>
+              <Label>Email From (dirección)</Label>
+              <Input value={emailFrom} onChange={(e) => setEmailFrom(e.target.value)} placeholder="no-reply@tudominio.com" className="mt-1 rounded-xl" />
+            </div>
+            <div>
+              <Label>Nombre remitente (opcional)</Label>
+              <Input value={emailFromName} onChange={(e) => setEmailFromName(e.target.value)} placeholder="FRIGEST" className="mt-1 rounded-xl" />
+            </div>
+            <div>
+              <Label>Reply-To</Label>
+              <Input value={emailReplyTo} onChange={(e) => setEmailReplyTo(e.target.value)} placeholder="soporte@tudominio.com" className="mt-1 rounded-xl" />
+            </div>
+          </div>
+          <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-background/60">
+            <div>
+              <p className="font-medium text-sm">Envío de correo habilitado</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Si lo desactivas, la plataforma no enviará correo saliente (incluye prueba SMTP y notificaciones automáticas).
+              </p>
+            </div>
+            <Switch checked={emailEnabled} onCheckedChange={setEmailEnabled} />
+          </div>
+          <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-background/60">
+            <div>
+              <p className="font-medium text-sm">Usar conexión segura</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Actívalo si tu proveedor SMTP requiere TLS implícito en el puerto configurado.
+              </p>
+            </div>
+            <Switch checked={smtpSecure} onCheckedChange={setSmtpSecure} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            <div className="rounded-xl border border-border bg-background/60 p-3">
+              <p className="text-muted-foreground">Origen actual</p>
+              <p className="font-medium mt-1">{smtpUsesEnvFallback ? "Variables de entorno" : "Panel de plataforma"}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-background/60 p-3">
+              <p className="text-muted-foreground">Secretos cifrados</p>
+              <p className="font-medium mt-1">{smtpSecretsEncrypted ? "Sí" : "No"}</p>
+            </div>
+          </div>
+          {smtpMessage && (
+            <div className="rounded-xl border border-border bg-background/60 p-3 text-sm">
+              {smtpMessage}
+            </div>
+          )}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              type="button"
+              onClick={handleSaveSmtp}
+              disabled={smtpSaving}
+              className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+            >
+              {smtpSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Guardar SMTP
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleSendSmtpTest}
+              disabled={smtpTesting}
+              className="rounded-xl"
+            >
+              {smtpTesting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Enviar prueba a mi email
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      )}
+
+      <OrganizationBillingPanel user={user} onChange={loadData} ownerOrganizations={ownerOrganizations} />
+
       {/* App Info */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
         <h2 className="font-semibold">Información de la App</h2>
         <div className="space-y-2 text-sm text-muted-foreground">
           <p>Versión: 1.0.0</p>
-          <p>Empresa: FRITECMA</p>
+          <p>Empresa: FRIGEST</p>
           <p>Soporte: Contactar con administrador</p>
         </div>
       </div>
@@ -369,3 +642,4 @@ export default function AppSettings() {
     </div>
   );
 }
+

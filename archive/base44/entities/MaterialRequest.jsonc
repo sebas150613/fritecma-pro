@@ -1,0 +1,82 @@
+{
+  "name": "MaterialRequest",
+  "type": "object",
+  "properties": {
+    "technician_email": {
+      "type": "string",
+      "title": "Email T\u00e9cnico"
+    },
+    "technician_name": {
+      "type": "string",
+      "title": "Nombre T\u00e9cnico"
+    },
+    "request_type": {
+      "type": "string",
+      "title": "Tipo",
+      "enum": [
+        "material",
+        "herramienta",
+        "consumible",
+        "otro"
+      ],
+      "default": "material"
+    },
+    "description": {
+      "type": "string",
+      "title": "Descripci\u00f3n / Referencia"
+    },
+    "quantity": {
+      "type": "number",
+      "title": "Cantidad",
+      "default": 1
+    },
+    "unit": {
+      "type": "string",
+      "title": "Unidad",
+      "default": "ud"
+    },
+    "urgency": {
+      "type": "string",
+      "title": "Urgencia",
+      "enum": [
+        "normal",
+        "urgente",
+        "muy_urgente"
+      ],
+      "default": "normal"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Observaciones"
+    },
+    "status": {
+      "type": "string",
+      "title": "Estado",
+      "enum": [
+        "pendiente",
+        "aprobado",
+        "denegado"
+      ],
+      "default": "pendiente"
+    },
+    "resolved_by": {
+      "type": "string",
+      "title": "Resuelto por (email)"
+    },
+    "resolved_at": {
+      "type": "string",
+      "title": "Fecha Resoluci\u00f3n",
+      "format": "date-time"
+    },
+    "resolution_notes": {
+      "type": "string",
+      "title": "Notas Resoluci\u00f3n"
+    }
+  },
+  "required": [
+    "technician_email",
+    "description",
+    "quantity",
+    "request_type"
+  ]
+}
