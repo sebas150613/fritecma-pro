@@ -17,7 +17,11 @@ import {
   getOrganizationMembershipStore,
   isTenantScopedEntity,
 } from "../lib/tenant.js";
-import { normalizeOrganizationRole, resolveAppRole } from "../lib/roles.js";
+import {
+  canOperateOffice,
+  normalizeOrganizationRole,
+  resolveAppRole,
+} from "../lib/roles.js";
 import { assertSeatAvailableForOrganization } from "../services/billing-service.js";
 
 const router = express.Router();
@@ -40,6 +44,14 @@ const isUserEntity = (entityName) => entityName === "User";
 const isOrganizationEntity = (entityName) => entityName === "Organization";
 const isOrganizationMembershipEntity = (entityName) =>
   entityName === "OrganizationMembership";
+const isUserManagementEntity = (entityName) =>
+  isUserEntity(entityName) || isOrganizationMembershipEntity(entityName);
+
+const assertCanManageUsers = (req) => {
+  if (!canOperateOffice(req.currentUser?.role)) {
+    throw new HttpError(403, "Forbidden");
+  }
+};
 
 const sanitizeUserWritePatch = (currentUser, payload = {}) => {
   const patch = { ...payload };
@@ -247,6 +259,10 @@ router.post(
     const store = getStore(entityName);
     const requestedRole = req.body?.role;
 
+    if (isUserManagementEntity(entityName)) {
+      assertCanManageUsers(req);
+    }
+
     if (
       isUserEntity(entityName) &&
       requestedRole === "superadmin" &&
@@ -264,10 +280,6 @@ router.post(
     }
 
     if (isOrganizationMembershipEntity(entityName)) {
-      if (!["admin", "superadmin", "oficina"].includes(req.currentUser?.role)) {
-        throw new HttpError(403, "Forbidden");
-      }
-
       if ((payload.status || "active") !== "disabled") {
         await assertSeatAvailableForOrganization(req.currentOrganization.id, 1);
       }
@@ -304,6 +316,10 @@ router.patch(
     const existing = existingItems[0] || null;
 
     ensureEntityBelongsToCurrentOrganization(entityName, req, existing);
+
+    if (isUserManagementEntity(entityName)) {
+      assertCanManageUsers(req);
+    }
 
     if (isUserEntity(entityName)) {
       await assertCanAccessTargetUser(
@@ -424,6 +440,10 @@ router.delete(
     const existing = existingItems[0] || null;
 
     ensureEntityBelongsToCurrentOrganization(entityName, req, existing);
+
+    if (isUserManagementEntity(entityName)) {
+      assertCanManageUsers(req);
+    }
 
     if (isUserEntity(entityName)) {
       await assertCanAccessTargetUser(
