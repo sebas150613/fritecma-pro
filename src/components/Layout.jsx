@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
 import { useSessionGuard } from "../hooks/useSessionGuard";
 import { appApi } from "@/api/app-api";
 import AppLogo from "@/components/AppLogo";
@@ -267,20 +266,8 @@ export default function Layout() {
           <div className="w-9 flex-shrink-0" />
         </header>
 
-        {/* Content with animated transitions */}
         <main className="flex-1 overflow-y-auto pb-28 lg:pb-0">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, x: 16 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -16 }}
-              transition={{ duration: 0.15, ease: "easeOut" }}
-              className="h-full"
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
+          <Outlet />
         </main>
       </div>
 
