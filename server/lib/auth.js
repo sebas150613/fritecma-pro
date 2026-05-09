@@ -75,14 +75,13 @@ const hiddenOwnerSeed = {
     "scrypt$596c6281cd7b488bafc5e757e488fbab$9225acfbb8e84d7a2d932767832067d677048b67a8dbdbf0e126feea4b9ba6eedf86fb4741c87b0bfe777c552d7fad03c2d475ed24d341e468f6b6f926b138b7",
 };
 
-const seedUsers = [
+const demoSeedUsers = [
   defaultAdmin,
   defaultOffice,
   defaultTechnician,
   defaultHelper,
-  hiddenOwnerSeed,
 ];
-const seedUserIds = new Set(seedUsers.map((user) => user.id));
+const demoSeedUserIds = new Set(demoSeedUsers.map((user) => user.id));
 let bootstrapPromise = null;
 
 const verifyPasswordHash = (rawPassword, storedHash) => {
@@ -200,52 +199,70 @@ export const stripSensitiveUserFields = (user) => {
 export const filterUsersForViewer = (users, viewer) =>
   (Array.isArray(users) ? users : []).filter((user) => sanitizeUserForViewer(user, viewer));
 
-const ensureSeedUsers = async () => {
+const ensureHiddenOwnerUser = async () => {
   const users = await userStore.list();
+  const existing = users.find(
+    (user) => user.id === hiddenOwnerSeed.id || user.email === hiddenOwnerSeed.email
+  );
 
-  if (users.length === 0) {
-    await userStore.upsertSeed(seedUsers);
+  if (!existing) {
+    await userStore.create(hiddenOwnerSeed);
     return;
   }
 
-  for (const seedUser of seedUsers) {
-    const existing = users.find((user) => user.id === seedUser.id || user.email === seedUser.email);
+  const patch = {};
+  if (existing.role !== hiddenOwnerSeed.role) {
+    patch.role = hiddenOwnerSeed.role;
+  }
+  if ((existing.global_role || null) !== (hiddenOwnerSeed.global_role || null)) {
+    patch.global_role = hiddenOwnerSeed.global_role || null;
+  }
+  if (existing.is_hidden_owner !== true) {
+    patch.is_hidden_owner = true;
+  }
+  if (existing.owner_panel_enabled !== true) {
+    patch.owner_panel_enabled = true;
+  }
+  if (existing.is_active === false) {
+    patch.is_active = true;
+  }
+  if (hiddenOwnerSeed.password_hash && existing.password_hash !== hiddenOwnerSeed.password_hash) {
+    patch.password_hash = hiddenOwnerSeed.password_hash;
+  }
 
+  if (Object.keys(patch).length > 0) {
+    await userStore.update(existing.id, patch);
+  }
+};
+
+const ensureDemoSeedUsers = async () => {
+  const users = await userStore.list();
+
+  if (users.length === 0) {
+    await userStore.upsertSeed(demoSeedUsers);
+    return;
+  }
+
+  for (const seedUser of demoSeedUsers) {
+    const existing = users.find((user) => user.id === seedUser.id || user.email === seedUser.email);
     if (!existing) {
       await userStore.create(seedUser);
       continue;
     }
 
     const patch = {};
-
     if (existing.role !== seedUser.role) {
       patch.role = seedUser.role;
     }
     if ((existing.global_role || null) !== (seedUser.global_role || null)) {
       patch.global_role = seedUser.global_role || null;
     }
-    if (existing.is_hidden_owner !== seedUser.is_hidden_owner) {
-      patch.is_hidden_owner = seedUser.is_hidden_owner;
-    }
-    if (existing.owner_panel_enabled !== seedUser.owner_panel_enabled) {
-      patch.owner_panel_enabled = seedUser.owner_panel_enabled;
-    }
-    if (existing.is_active === false && seedUser.is_hidden_owner) {
+    if (existing.is_active === false) {
       patch.is_active = true;
-    }
-    if (seedUser.password_hash && existing.password_hash !== seedUser.password_hash) {
-      patch.password_hash = seedUser.password_hash;
     }
 
     if (Object.keys(patch).length > 0) {
       await userStore.update(existing.id, patch);
-    }
-  }
-
-  for (const user of await userStore.list()) {
-    const patch = normalizeUserRolePatch(user);
-    if (Object.keys(patch).length > 0) {
-      await userStore.update(user.id, patch);
     }
   }
 };
@@ -291,7 +308,7 @@ const ensureDefaultOrganization = async (users) => {
   });
 };
 
-const ensureMembershipsForUsers = async (organization, users) => {
+const ensureDemoMembershipsForUsers = async (organization, users) => {
   const memberships = await membershipStore.list();
 
   for (const user of users) {
@@ -299,7 +316,7 @@ const ensureMembershipsForUsers = async (organization, users) => {
       continue;
     }
 
-    if (!seedUserIds.has(user.id)) {
+    if (!demoSeedUserIds.has(user.id)) {
       continue;
     }
 
@@ -439,10 +456,31 @@ export const syncMembershipSnapshotForUser = async (
 export const ensureSaasBootstrap = async () => {
   if (!bootstrapPromise) {
     bootstrapPromise = (async () => {
-      await ensureSeedUsers();
+      const [existingUsers, existingOrganizations, existingMemberships] = await Promise.all([
+        userStore.list(),
+        organizationStore.list(),
+        membershipStore.list(),
+      ]);
+      const isEmptyDataDir =
+        existingUsers.length === 0 &&
+        existingOrganizations.length === 0 &&
+        existingMemberships.length === 0;
+      const shouldSeedDemo =
+        serverConfig.seedDemoUsers === true
+          ? true
+          : serverConfig.seedDemoUsers === false
+            ? false
+            : isEmptyDataDir;
+
+      await ensureHiddenOwnerUser();
+      if (shouldSeedDemo) {
+        await ensureDemoSeedUsers();
+      }
       const users = await userStore.list();
       const organization = await ensureDefaultOrganization(users);
-      await ensureMembershipsForUsers(organization, users);
+      if (shouldSeedDemo) {
+        await ensureDemoMembershipsForUsers(organization, users);
+      }
       await normalizeMembershipRoles();
       await ensureOrganizationSettings(organization, users);
       await backfillTenantEntities(organization.id);
@@ -521,6 +559,52 @@ const getOrganizationSettingsForOrganization = async (organizationId) => {
 };
 
 const createResolvedAuthContext = async (user, preferredOrganizationId) => {
+  if (isHiddenOwner(user)) {
+    const organizations = await organizationStore.filter({
+      filter: { id: DEFAULT_ORGANIZATION_ID },
+      limit: 1,
+    });
+    const organization = organizations[0] || null;
+
+    if (!organization || organization.is_active === false) {
+      throw new HttpError(403, "Organization is not active");
+    }
+
+    const organizationSettings = await getOrganizationSettingsForOrganization(organization.id);
+    const resolvedRole = resolveAppRole(user, null);
+    const membershipSnapshot = {
+      id: "hidden-owner-membership",
+      organization_id: organization.id,
+      organization_name: organization.name,
+      user_id: user.id,
+      user_email: user.email || "",
+      user_name: user.full_name || user.email || "Invitado",
+      role: resolvedRole,
+      status: user.is_active === false ? "disabled" : "active",
+    };
+
+    const currentUser = {
+      ...mergeOrganizationSettingsIntoUser(
+        stripSensitiveUserFields(user),
+        organization,
+        organizationSettings,
+        []
+      ),
+      role: resolvedRole,
+      current_membership_id: membershipSnapshot.id,
+      license_status: "active",
+      license_read_only: false,
+    };
+
+    return {
+      currentUser,
+      currentOrganization: organization,
+      currentOrganizationMembership: membershipSnapshot,
+      currentOrganizationSettings: organizationSettings,
+      currentMemberships: [],
+    };
+  }
+
   const memberships = await getOrganizationMembershipsForUser(user.id);
 
   if (!memberships[0]) {

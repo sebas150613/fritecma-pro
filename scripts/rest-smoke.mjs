@@ -15,6 +15,24 @@ const HEADERS = {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const readJsonArray = async (filePath) => {
+  try {
+    const raw = await fs.readFile(filePath, "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+};
+
+const writeJsonArray = async (filePath, data) => {
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf8");
+};
+
 const request = async (pathname, options = {}) => {
   const response = await fetch(`${BASE_URL}${pathname}`, options);
   const contentType = response.headers.get("content-type") || "";
@@ -122,6 +140,7 @@ const createServerProcess = ({ dataDir, uploadsDir }) => {
       APP_SMOKE_OWNER: "true",
       APP_DATA_DIR: dataDir,
       APP_UPLOADS_DIR: uploadsDir,
+      APP_SEED_DEMO_USERS: "true",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -140,6 +159,11 @@ const runSmoke = async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "frigest-rest-smoke-"));
   const tempDataDir = path.join(tempRoot, "data");
   const tempUploadsDir = path.join(tempRoot, "uploads");
+  const tempMembershipsFile = path.join(
+    tempDataDir,
+    "entities",
+    "OrganizationMembership.json"
+  );
 
   // Capture baseline local dev store snapshots to ensure smoke doesn't contaminate.
   const baselineDir = path.join(process.cwd(), "server", "data", "entities");
@@ -822,6 +846,59 @@ const runSmoke = async () => {
     });
     if (!allowedWrite?.id) {
       throw new Error("Expected write to succeed after license activation.");
+    }
+
+    // --- Seed idempotency check (demo memberships must not recreate if disabled) ---
+    const membershipRecords = await readJsonArray(tempMembershipsFile);
+    const removedMembership = membershipRecords.find(
+      (membership) => membership.user_email === "tecnico@local.test"
+    );
+    if (!removedMembership) {
+      throw new Error("Expected demo tecnico membership to exist for seed idempotency check.");
+    }
+    await writeJsonArray(
+      tempMembershipsFile,
+      membershipRecords.filter((membership) => membership.id !== removedMembership.id)
+    );
+
+    server.kill("SIGTERM");
+    await sleep(500);
+
+    const serverRestart = spawn(process.execPath, ["server/index.js"], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        APP_SERVER_HOST: HOST,
+        APP_SERVER_PORT: String(PORT),
+        APP_ID: "local-app",
+        APP_SMOKE_OWNER: "true",
+        APP_DATA_DIR: tempDataDir,
+        APP_UPLOADS_DIR: tempUploadsDir,
+        APP_SEED_DEMO_USERS: "false",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    serverRestart.stdout.on("data", (chunk) => {
+      process.stdout.write(`[rest-smoke:server] ${chunk}`);
+    });
+    serverRestart.stderr.on("data", (chunk) => {
+      process.stderr.write(`[rest-smoke:server] ${chunk}`);
+    });
+
+    try {
+      await waitForHealth();
+      const membershipAfterRestart = await readJsonArray(tempMembershipsFile);
+      const tecnicoMembershipRecreated = membershipAfterRestart.some(
+        (membership) => membership.user_email === "tecnico@local.test"
+      );
+      if (tecnicoMembershipRecreated) {
+        throw new Error(
+          "Expected demo tecnico membership NOT to be recreated when APP_SEED_DEMO_USERS=false."
+        );
+      }
+    } finally {
+      serverRestart.kill("SIGTERM");
+      await sleep(500);
     }
   } finally {
     server.kill("SIGTERM");

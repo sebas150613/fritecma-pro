@@ -17,6 +17,7 @@
     "seed:rest": "node scripts/seed-rest.mjs",
     "smoke:rest": "node scripts/rest-smoke.mjs",
     "clean:local-test-data": "node scripts/clean-local-test-data.mjs",
+    "clean:local-demo-users": "node scripts/clean-local-demo-users.mjs",
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",

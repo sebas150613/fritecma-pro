@@ -46,6 +46,11 @@ const environment = process.env.NODE_ENV || "development";
 const isProduction = environment === "production";
 const appDataDir = String(process.env.APP_DATA_DIR || "").trim();
 const appUploadsDir = String(process.env.APP_UPLOADS_DIR || "").trim();
+const seedDemoUsersRaw = String(process.env.APP_SEED_DEMO_USERS || "")
+  .trim()
+  .toLowerCase();
+const seedDemoUsers =
+  seedDemoUsersRaw === "true" ? true : seedDemoUsersRaw === "false" ? false : null;
 
 if (isProduction && !Object.prototype.hasOwnProperty.call(process.env, "APP_ALLOW_AUTH_BYPASS")) {
   throw new Error(
@@ -98,6 +103,7 @@ export const serverConfig = {
   databaseSsl: process.env.APP_DATABASE_SSL === "true",
   devToken,
   allowAuthBypass,
+  seedDemoUsers,
   publicSignupEnabled: process.env.APP_PUBLIC_SIGNUP_ENABLED !== "false",
   requireEmailVerification: process.env.APP_REQUIRE_EMAIL_VERIFICATION === "true",
   appId: process.env.APP_ID || process.env.VITE_APP_ID || "local-app",
