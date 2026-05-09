@@ -31,7 +31,25 @@ applyEnvFile(path.join(workspaceRoot, ".env.local"), {
   canOverrideLoadedEnv: true,
 });
 
+const environment = process.env.NODE_ENV || "development";
+const isProduction = environment === "production";
+const configuredAuthBypass = process.env.APP_ALLOW_AUTH_BYPASS;
+const allowAuthBypass =
+  configuredAuthBypass === undefined
+    ? !isProduction
+    : configuredAuthBypass === "true";
+const configuredDevToken = String(process.env.APP_DEV_TOKEN || "").trim();
+const devToken = configuredDevToken || (isProduction ? "" : "local-dev-token");
+
+if (isProduction && allowAuthBypass) {
+  throw new Error(
+    "Unsafe production configuration: APP_ALLOW_AUTH_BYPASS must be false when NODE_ENV=production."
+  );
+}
+
 export const serverConfig = {
+  environment,
+  isProduction,
   port: Number(process.env.APP_SERVER_PORT || 3000),
   host: process.env.APP_SERVER_HOST || "127.0.0.1",
   dataDir: path.join(__dirname, "data"),
@@ -40,8 +58,8 @@ export const serverConfig = {
   privateUploadsDir: path.join(__dirname, "uploads", "private"),
   databaseUrl: process.env.DATABASE_URL || "",
   databaseSsl: process.env.APP_DATABASE_SSL === "true",
-  devToken: process.env.APP_DEV_TOKEN || "local-dev-token",
-  allowAuthBypass: process.env.APP_ALLOW_AUTH_BYPASS !== "false",
+  devToken,
+  allowAuthBypass,
   publicSignupEnabled: process.env.APP_PUBLIC_SIGNUP_ENABLED !== "false",
   requireEmailVerification: process.env.APP_REQUIRE_EMAIL_VERIFICATION === "true",
   appId: process.env.APP_ID || process.env.VITE_APP_ID || "local-app",
