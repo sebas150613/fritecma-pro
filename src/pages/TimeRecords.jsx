@@ -3,7 +3,7 @@ import { appApi } from "@/api/app-api";
 import PullToRefresh from "../components/PullToRefresh";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Clock, LogIn, LogOut, Coffee, RefreshCw, Trash2 } from "lucide-react";
+import { Download, Clock, LogIn, LogOut, Coffee, RefreshCw } from "lucide-react";
 import moment from "moment";
 
 const TYPE_ICONS = {
@@ -162,6 +162,12 @@ export default function TimeRecords() {
         </Button>
       </div>
 
+      {isAdmin && (
+        <p className="text-xs text-muted-foreground border border-border rounded-xl px-4 py-3 bg-muted/30">
+          Los fichajes forman parte del histórico laboral y no se eliminan desde esta pantalla. Para corregir errores, se usará un ajuste auditado.
+        </p>
+      )}
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <Select value={selectedMonth} onValueChange={setSelectedMonth}>
@@ -227,17 +233,6 @@ export default function TimeRecords() {
                     );
                   })}
                 </div>
-                {isAdmin && (
-                  <Button size="sm" variant="ghost"
-                    className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 rounded-lg"
-                    onClick={async () => {
-                      if (!window.confirm(`¿Eliminar fichajes del ${moment(s.date).format("DD/MM/YYYY")} de ${s.technician}?`)) return;
-                      await Promise.all(s.records.map(r => appApi.entities.TimeRecord.delete(r.id)));
-                      setRecords(prev => prev.filter(r => !s.records.some(sr => sr.id === r.id)));
-                    }}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                )}
               </div>
             ))}
           </div>
@@ -252,7 +247,6 @@ export default function TimeRecords() {
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Salida</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Horas</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Detalle</th>
-                  {isAdmin && <th className="text-center px-4 py-3 font-semibold text-muted-foreground">Acciones</th>}
                 </tr>
               </thead>
               <tbody>
@@ -280,21 +274,6 @@ export default function TimeRecords() {
                         })}
                       </div>
                     </td>
-                    {isAdmin && (
-                      <td className="px-4 py-3 text-center">
-                        <Button
-                          size="sm" variant="ghost"
-                          className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 rounded-lg"
-                          onClick={async () => {
-                            if (!window.confirm(`¿Eliminar todos los fichajes del ${moment(s.date).format("DD/MM/YYYY")} de ${s.technician}?`)) return;
-                            await Promise.all(s.records.map(r => appApi.entities.TimeRecord.delete(r.id)));
-                            setRecords(prev => prev.filter(r => !s.records.some(sr => sr.id === r.id)));
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </td>
-                    )}
                   </tr>
                 ))}
               </tbody>
@@ -306,4 +285,3 @@ export default function TimeRecords() {
     </PullToRefresh>
   );
 }
-

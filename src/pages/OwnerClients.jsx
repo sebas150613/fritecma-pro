@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, CheckCircle2, Loader2, PauseCircle, PlayCircle, Trash2, UserPlus } from "lucide-react";
+import { Building2, CheckCircle2, Loader2, PauseCircle, PlayCircle, Trash2, UserPlus, AlertTriangle } from "lucide-react";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const ROLE_OPTIONS = [
   { value: "admin", label: "Admin" },
@@ -40,6 +41,8 @@ export default function OwnerClients() {
     temporary_password: "",
   });
   const [inviteUrl, setInviteUrl] = useState("");
+  const [hardDeleteOpen, setHardDeleteOpen] = useState(false);
+  const [hardDeletePhrase, setHardDeletePhrase] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -142,11 +145,39 @@ export default function OwnerClients() {
     }
   };
 
+  const handleHardDeleteOrganization = async () => {
+    if (!selectedOrganization?.id) return;
+    const slug = String(selectedOrganization.slug || "").trim();
+    if (!slug || hardDeletePhrase.trim() !== slug) {
+      setError("Escribe exactamente el slug de la empresa para confirmar.");
+      return;
+    }
+    const ok = window.confirm(
+      "Esta acción eliminará todos los datos de la empresa sin dejar rastro funcional en FRIGEST. No afecta a otras empresas. ¿Continuar?"
+    );
+    if (!ok) return;
+    setBusy("hard-delete-org");
+    setError("");
+    try {
+      await appApi.organizations.hardDeleteOrganization(selectedOrganization.id);
+      setHardDeleteOpen(false);
+      setHardDeletePhrase("");
+      setSelectedId("");
+      await load();
+    } catch (e) {
+      setError(e?.message || "No se pudo eliminar la empresa.");
+    } finally {
+      setBusy("");
+    }
+  };
+
   const handleDeleteUser = async (organizationId, userId) => {
     if (!organizationId || !userId) {
       return;
     }
-    const confirmed = window.confirm("¿Eliminar este usuario de este cliente?");
+    const confirmed = window.confirm(
+      "¿Quitar el acceso de este usuario a esta empresa? Sus registros históricos se conservarán."
+    );
     if (!confirmed) {
       return;
     }
@@ -449,6 +480,38 @@ export default function OwnerClients() {
                 </div>
               </div>
 
+              <div className="rounded-2xl border border-destructive/25 bg-destructive/5 p-5 space-y-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-destructive">Zona de peligro — eliminar empresa</h3>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      La única forma de borrar todos los datos de una empresa es desde aquí. No elimina otras empresas ni usuarios que sigan en otra empresa.
+                    </p>
+                    {me?.current_organization?.id === selectedOrganization.id && (
+                      <p className="text-xs text-amber-800 mt-2">
+                        Cambia de empresa en la sesión antes de borrar esta: es la empresa activa en tu sesión actual.
+                      </p>
+                    )}
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      className="mt-3 rounded-xl"
+                      disabled={
+                        busy !== "" ||
+                        me?.current_organization?.id === selectedOrganization.id
+                      }
+                      onClick={() => {
+                        setHardDeletePhrase("");
+                        setHardDeleteOpen(true);
+                      }}
+                    >
+                      Eliminar empresa definitivamente
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
               <div className="rounded-2xl border border-border bg-card overflow-hidden">
                 <div className="p-4 border-b border-border">
                   <h3 className="font-semibold">Usuarios</h3>
@@ -496,6 +559,47 @@ export default function OwnerClients() {
           )}
         </section>
       </div>
+
+      <Dialog open={hardDeleteOpen} onOpenChange={setHardDeleteOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" /> Eliminar empresa definitivamente
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Esta acción eliminará todos los datos de la empresa sin dejar rastro funcional en FRIGEST. No afecta a otras empresas.
+          </p>
+          <p className="text-xs font-mono bg-muted/50 rounded-lg px-3 py-2">
+            Slug: <span className="font-semibold">{selectedOrganization?.slug || "—"}</span>
+          </p>
+          <div>
+            <Label className="text-xs">Escribe el slug exacto para confirmar</Label>
+            <Input
+              className="mt-1 rounded-xl"
+              value={hardDeletePhrase}
+              onChange={(e) => setHardDeletePhrase(e.target.value)}
+              placeholder={selectedOrganization?.slug || ""}
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" className="rounded-xl" onClick={() => setHardDeleteOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-xl"
+              disabled={busy === "hard-delete-org"}
+              onClick={handleHardDeleteOrganization}
+            >
+              {busy === "hard-delete-org" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Confirmar eliminación
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -384,6 +384,11 @@ export const createRestProvider = () => {
 
         return response;
       },
+      hardDeleteOrganization: (organizationId) =>
+        http.request(
+          `/api/organizations/${encodeURIComponent(organizationId)}/hard-delete`,
+          { method: "DELETE" }
+        ),
     },
     entities: createEntityProxy(http),
     files: {

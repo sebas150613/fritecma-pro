@@ -30,6 +30,7 @@ export type AppApi = {
     activateLicense: (organizationId: string) => Promise<any>;
     listPlans: () => Promise<any[]>;
     switch: (organizationId: string) => Promise<any>;
+    hardDeleteOrganization: (organizationId: string) => Promise<any>;
   };
   entities: Record<string, AppEntityAdapter>;
   files: {

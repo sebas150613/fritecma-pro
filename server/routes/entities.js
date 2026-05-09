@@ -25,6 +25,21 @@ import {
 import { assertSeatAvailableForOrganization } from "../services/billing-service.js";
 import { assertLicenseAllowsWrite } from "../lib/license.js";
 
+const NON_DELETABLE_OPERATIONAL_ENTITIES = new Set([
+  "TimeRecord",
+  "WorkDay",
+  "Intervention",
+  "Invoice",
+  "AuditLog",
+  "GasTransfer",
+  "StockMovement",
+  "MaterialRequest",
+  "Visit",
+]);
+
+const OPERATIONAL_DELETE_FORBIDDEN_MESSAGE =
+  "Esta entidad forma parte del histórico de la empresa y no puede eliminarse individualmente.";
+
 const router = express.Router();
 const stores = new Map();
 const membershipStore = getOrganizationMembershipStore();
@@ -494,6 +509,10 @@ router.delete(
       }
 
       return res.status(204).send();
+    }
+
+    if (NON_DELETABLE_OPERATIONAL_ENTITIES.has(entityName)) {
+      throw new HttpError(403, OPERATIONAL_DELETE_FORBIDDEN_MESSAGE);
     }
 
     const removed = await store.delete(req.params.id);

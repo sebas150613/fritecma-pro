@@ -133,6 +133,9 @@ export const appApi = {
       (provider) => provider.appApi.organizations?.listPlans
     ),
     switch: withProviderMethod((provider) => provider.appApi.organizations?.switch),
+    hardDeleteOrganization: withProviderMethod(
+      (provider) => provider.appApi.organizations?.hardDeleteOrganization
+    ),
   },
   entities: createLazyEntityProxy(),
   files: {

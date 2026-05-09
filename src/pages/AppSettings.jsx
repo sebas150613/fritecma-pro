@@ -201,7 +201,9 @@ export default function AppSettings() {
   };
 
   const deleteOrganizationUser = async (userId) => {
-    const confirmed = window.confirm("¿Eliminar este usuario de este cliente?");
+    const confirmed = window.confirm(
+      "¿Quitar el acceso de este usuario a esta empresa? Sus registros históricos se conservarán."
+    );
     if (!confirmed) {
       return;
     }

@@ -848,6 +848,115 @@ const runSmoke = async () => {
       throw new Error("Expected write to succeed after license activation.");
     }
 
+    // --- Owner hard-delete & operational entity delete guard ---
+    const ownerOrgHard = await request("/api/organizations", {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        name: "Empresa Smoke Hard Delete",
+        slug: "smoke-hard-del",
+        plan_code: "starter",
+      }),
+    });
+    const orgHardId = ownerOrgHard?.organization?.id;
+    if (!orgHardId) {
+      throw new Error("hard-delete org create did not return organization id.");
+    }
+
+    const ownerOrgAdminDeny = await request("/api/organizations", {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        name: "Empresa Smoke Admin Deny",
+        slug: "smoke-adeny",
+        plan_code: "starter",
+      }),
+    });
+    const orgAdminDenyId = ownerOrgAdminDeny?.organization?.id;
+    if (!orgAdminDenyId) {
+      throw new Error("admin-deny org create did not return organization id.");
+    }
+
+    await request(`/api/organizations/${encodeURIComponent(orgHardId)}/users`, {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        email: "hard-delete-admin@local.test",
+        full_name: "Hard Delete Admin",
+        role: "admin",
+        temporary_password: "TempPass123!",
+      }),
+    });
+
+    const hardDelAdminLogin = await loginViaRedirect({
+      pathname: "/api/auth/login",
+      formFields: {
+        email: "hard-delete-admin@local.test",
+        password: "TempPass123!",
+        redirect_uri: `${BASE_URL}/`,
+      },
+    });
+    if (!hardDelAdminLogin.token) {
+      throw new Error(`Expected hard-delete admin login to succeed. location=${hardDelAdminLogin.location}`);
+    }
+
+    const hardDelAdminHeaders = {
+      Authorization: `Bearer ${hardDelAdminLogin.token}`,
+      "X-App-Id": "local-app",
+      "Content-Type": "application/json",
+      "X-Organization-Id": orgHardId,
+    };
+
+    const smokeTimeRecord = await request("/api/entities/TimeRecord", {
+      method: "POST",
+      headers: hardDelAdminHeaders,
+      body: JSON.stringify({
+        technician_email: "hard-delete-admin@local.test",
+        technician_name: "Hard Delete Admin",
+        type: "entrada",
+        timestamp: new Date().toISOString(),
+        work_date: "2026-05-09",
+      }),
+    });
+
+    const trDeleteAttempt = await requestExpectFailure(
+      `/api/entities/TimeRecord/${encodeURIComponent(smokeTimeRecord.id)}`,
+      { method: "DELETE", headers: hardDelAdminHeaders }
+    );
+    if (trDeleteAttempt.status !== 403) {
+      throw new Error(`Expected TimeRecord DELETE to be 403, got ${trDeleteAttempt.status}`);
+    }
+    if (
+      typeof trDeleteAttempt.body !== "object" ||
+      trDeleteAttempt.body?.message !==
+        "Esta entidad forma parte del histórico de la empresa y no puede eliminarse individualmente."
+    ) {
+      throw new Error(`Unexpected TimeRecord delete body: ${JSON.stringify(trDeleteAttempt.body)}`);
+    }
+
+    const adminHardDeleteDenied = await requestExpectFailure(
+      `/api/organizations/${encodeURIComponent(orgAdminDenyId)}/hard-delete`,
+      { method: "DELETE", headers: adminHeaders }
+    );
+    if (adminHardDeleteDenied.status !== 403) {
+      throw new Error(`Expected admin hard-delete to be 403, got ${adminHardDeleteDenied.status}`);
+    }
+
+    await request(`/api/organizations/${encodeURIComponent(orgHardId)}/hard-delete`, {
+      method: "DELETE",
+      headers: ownerHeaders,
+    });
+
+    const ownerOverviewAfterHardDelete = await request("/api/organizations/owner-overview", {
+      headers: ownerHeaders,
+    });
+    const orgHardStillThere = (ownerOverviewAfterHardDelete?.organizations || []).find(
+      (org) => org.id === orgHardId
+    );
+    if (orgHardStillThere) {
+      throw new Error("Expected hard-deleted org to disappear from owner overview.");
+    }
+
     // --- Seed idempotency check (demo memberships must not recreate if disabled) ---
     const membershipRecords = await readJsonArray(tempMembershipsFile);
     const removedMembership = membershipRecords.find(

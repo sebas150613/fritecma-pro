@@ -26,6 +26,7 @@ import {
   getSubscriptionSummary,
   listPlans,
 } from "../services/billing-service.js";
+import { purgeOrganizationCompletely } from "../services/organization-hard-delete.js";
 
 const router = express.Router();
 const organizationStore = getOrganizationStore();
@@ -153,6 +154,39 @@ router.get(
     res.json({
       organizations: organizationsWithUsers,
     });
+  })
+);
+
+router.delete(
+  "/:organizationId/hard-delete",
+  asyncHandler(async (req, res) => {
+    if (!canAccessHiddenUsers(req.currentUser)) {
+      throw new HttpError(403, "Forbidden");
+    }
+
+    const organizationId = String(req.params.organizationId || "").trim();
+    if (!organizationId) {
+      throw new HttpError(400, "organizationId is required");
+    }
+
+    if (organizationId === req.currentOrganization?.id) {
+      throw new HttpError(
+        403,
+        "No se puede eliminar la empresa activa en la sesión actual. Cambia de empresa en la sesión antes de borrarla."
+      );
+    }
+
+    const organizations = await organizationStore.filter({
+      filter: { id: organizationId },
+      limit: 1,
+    });
+    if (!organizations[0]) {
+      throw new HttpError(404, "Organization not found");
+    }
+
+    await purgeOrganizationCompletely(organizationId);
+
+    res.status(204).send();
   })
 );
 
