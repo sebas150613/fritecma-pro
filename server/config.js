@@ -31,6 +31,12 @@ applyEnvFile(path.join(workspaceRoot, ".env.local"), {
   canOverrideLoadedEnv: true,
 });
 
+const parseCsvEnv = (value = "") =>
+  String(value)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
 const environment = process.env.NODE_ENV || "development";
 const isProduction = environment === "production";
 const configuredAuthBypass = process.env.APP_ALLOW_AUTH_BYPASS;
@@ -40,6 +46,7 @@ const allowAuthBypass =
     : configuredAuthBypass === "true";
 const configuredDevToken = String(process.env.APP_DEV_TOKEN || "").trim();
 const devToken = configuredDevToken || (isProduction ? "" : "local-dev-token");
+const allowedOrigins = parseCsvEnv(process.env.APP_ALLOWED_ORIGINS);
 
 if (isProduction && allowAuthBypass) {
   throw new Error(
@@ -47,9 +54,16 @@ if (isProduction && allowAuthBypass) {
   );
 }
 
+if (isProduction && allowedOrigins.length === 0) {
+  throw new Error(
+    "Unsafe production configuration: APP_ALLOWED_ORIGINS must list the allowed frontend origins when NODE_ENV=production."
+  );
+}
+
 export const serverConfig = {
   environment,
   isProduction,
+  allowedOrigins,
   port: Number(process.env.APP_SERVER_PORT || 3000),
   host: process.env.APP_SERVER_HOST || "127.0.0.1",
   dataDir: path.join(__dirname, "data"),
