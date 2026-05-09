@@ -29,7 +29,20 @@ const ensureRuntimeDirs = async () => {
   await fs.mkdir(serverConfig.privateUploadsDir, { recursive: true });
 };
 
-app.use(cors());
+const corsOptions = serverConfig.isProduction
+  ? {
+      origin(origin, callback) {
+        if (!origin || serverConfig.allowedOrigins.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+
+        callback(new Error("Origin is not allowed by CORS policy."));
+      },
+    }
+  : undefined;
+
+app.use(cors(corsOptions));
 app.post(
   "/api/billing/webhook",
   express.raw({ type: "application/json" }),
