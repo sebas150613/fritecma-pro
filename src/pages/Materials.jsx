@@ -8,11 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Package, Edit, Trash2, AlertTriangle, History, ScanLine, Layers } from "lucide-react";
+import { Plus, Search, Package, Edit, Trash2, AlertTriangle, History, ScanLine, Layers, FlaskConical } from "lucide-react";
 import FamiliesManager from "../components/FamiliesManager";
 import AlbaranScanner from "../components/AlbaranScanner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import {
+  gasDisplayLabelFromMaterial,
+  getSyncedKgForGasMaterial,
+  syncGasMaterialStock,
+} from "@/lib/gasMaterialSync";
+import { normalizeGasCompareKey } from "@/lib/refrigerantGases";
 
 const CATEGORIES = {
   gas_refrigerante: "Gas Refrigerante",
@@ -25,6 +31,8 @@ const CATEGORIES = {
 };
 
 const UNITS = { ud: "Unidad", kg: "Kg", m: "Metro", l: "Litro", h: "Hora" };
+
+const BOTTLE_LOCATION_LABELS = { taller: "Taller", furgoneta: "Furgoneta", cliente: "Cliente" };
 
 const emptyMaterial = {
   code: "", name: "", category: "repuesto", unit: "ud",
@@ -51,6 +59,8 @@ export default function Materials() {
   const [families, setFamilies] = useState([]);
   const [subfamilies, setSubfamilies] = useState([]);
   const [familyFilter, setFamilyFilter] = useState("all");
+  const [gasBottles, setGasBottles] = useState([]);
+  const [gasDetailMaterial, setGasDetailMaterial] = useState(null);
 
   const openHistory = async (mat) => {
     setHistoryMaterial(mat);
@@ -67,13 +77,15 @@ export default function Materials() {
   const loadData = async () => {
     const me = await appApi.auth.me();
     setUser(me);
-    const [items, sups, fams, subs] = await Promise.all([
+    const [items, sups, fams, subs, bottles] = await Promise.all([
       appApi.entities.Material.list("name", 500),
       appApi.entities.Supplier.list("name", 200),
       appApi.entities.MaterialFamily.list("name", 200),
       appApi.entities.MaterialSubfamily.list("name", 500),
+      appApi.entities.GasBottle.list("-created_date", 500).catch(() => []),
     ]);
     setMaterials(items);
+    setGasBottles(bottles || []);
     setSuppliers(sups);
     setFamilies(fams);
     setSubfamilies(subs);
@@ -92,15 +104,31 @@ export default function Materials() {
     setDialogOpen(true);
   };
 
-  const openEdit = (mat) => {
-    setEditingMaterial(mat);
-    setForm({ ...mat });
+  const openEdit = async (mat) => {
+    if (mat.category === "gas_refrigerante") {
+      const label = gasDisplayLabelFromMaterial(mat);
+      if (label) await syncGasMaterialStock(label);
+      const refreshed = await appApi.entities.Material.filter({ id: mat.id }, "name", 1);
+      const next = refreshed[0] || mat;
+      setEditingMaterial(next);
+      setForm({ ...next });
+    } else {
+      setEditingMaterial(mat);
+      setForm({ ...mat });
+    }
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     if (editingMaterial) {
-      await appApi.entities.Material.update(editingMaterial.id, form);
+      if (editingMaterial.category === "gas_refrigerante") {
+        const { stock_quantity: _sq, ...rest } = form;
+        await appApi.entities.Material.update(editingMaterial.id, rest);
+        const label = gasDisplayLabelFromMaterial(editingMaterial);
+        if (label) await syncGasMaterialStock(label);
+      } else {
+        await appApi.entities.Material.update(editingMaterial.id, form);
+      }
     } else {
       await appApi.entities.Material.create(form);
     }
@@ -130,8 +158,23 @@ export default function Materials() {
   }, {});
 
   function renderCard(m) {
+    const isGas = m.category === "gas_refrigerante";
+    const syncedKg = isGas ? getSyncedKgForGasMaterial(m, gasBottles) : null;
+    const stockShow = isGas ? syncedKg : m.stock_quantity || 0;
+    const stockLow = isGas ? false : m.stock_quantity <= m.min_stock;
+
     return (
-      <div key={m.id} className="bg-card rounded-2xl border border-border p-5 hover:shadow-md transition-shadow">
+      <div
+        key={m.id}
+        className={cn(
+          "bg-card rounded-2xl border border-border p-5 hover:shadow-md transition-shadow",
+          isGas && "cursor-pointer"
+        )}
+        onClick={() => {
+          if (isGas) setGasDetailMaterial(m);
+        }}
+        role={isGas ? "button" : undefined}
+      >
         <div className="flex items-start justify-between mb-3">
           <div>
             {m.code && <p className="text-xs text-muted-foreground">{m.code}</p>}
@@ -165,23 +208,65 @@ export default function Materials() {
           )}
           <div className="flex justify-between items-center">
             <span className="text-muted-foreground">Stock</span>
-            <span className={cn("font-semibold", m.stock_quantity <= m.min_stock && "text-destructive")}>
-              {m.stock_quantity || 0} {m.unit || "ud"}
-              {m.stock_quantity <= m.min_stock && <AlertTriangle className="inline h-3 w-3 ml-1" />}
+            <span className={cn("font-semibold", stockLow && "text-destructive")}>
+              {stockShow} {m.unit || "ud"}
+              {stockLow && <AlertTriangle className="inline h-3 w-3 ml-1" />}
             </span>
           </div>
+          {isGas && (
+            <p className="text-xs text-muted-foreground leading-snug">
+              Stock gestionado desde Trazabilidad de Gases
+            </p>
+          )}
         </div>
         <div className="flex gap-2 mt-4 pt-3 border-t border-border">
           {!isTecnico && (
-            <Button variant="outline" size="sm" onClick={() => openEdit(m)} className="flex-1 rounded-xl">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                openEdit(m);
+              }}
+              className="flex-1 rounded-xl"
+            >
               <Edit className="h-3 w-3 mr-1" /> Editar
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => openHistory(m)} className="rounded-xl gap-1 text-xs flex-1">
+          {isGas && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setGasDetailMaterial(m);
+              }}
+              className="rounded-xl gap-1 text-xs flex-1"
+            >
+              <FlaskConical className="h-3 w-3" /> Botellas
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              openHistory(m);
+            }}
+            className="rounded-xl gap-1 text-xs flex-1"
+          >
             <History className="h-3 w-3" /> Historial
           </Button>
           {isAdmin && (
-            <Button variant="outline" size="sm" onClick={() => handleDelete(m.id)} className="text-destructive rounded-xl">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(m.id);
+              }}
+              className="text-destructive rounded-xl"
+            >
               <Trash2 className="h-3 w-3" />
             </Button>
           )}
@@ -279,6 +364,60 @@ export default function Materials() {
         </div>
       )}
 
+      {/* Gas bottles detail */}
+      <Dialog open={!!gasDetailMaterial} onOpenChange={(v) => !v && setGasDetailMaterial(null)}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FlaskConical className="h-5 w-5" /> Botellas · {gasDetailMaterial?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            {gasBottles.filter(
+              (b) =>
+                gasDetailMaterial &&
+                normalizeGasCompareKey(b.gas_type) ===
+                  normalizeGasCompareKey(gasDisplayLabelFromMaterial(gasDetailMaterial))
+            ).length === 0 ? (
+              <p className="text-center text-muted-foreground py-6 text-sm">
+                Sin botellas registradas para este gas.
+              </p>
+            ) : (
+              gasBottles
+                .filter(
+                  (b) =>
+                    gasDetailMaterial &&
+                    normalizeGasCompareKey(b.gas_type) ===
+                      normalizeGasCompareKey(gasDisplayLabelFromMaterial(gasDetailMaterial))
+                )
+                .map((b) => (
+                  <div key={b.id} className="rounded-xl border border-border p-3 text-sm space-y-1.5">
+                    <p className="font-mono font-semibold">S/N {b.serial_number}</p>
+                    <p>
+                      Propietario gas:{" "}
+                      <strong>{b.owner_type === "fritecma" ? "FRIGEST" : "Cliente"}</strong>
+                      {b.owner_type === "cliente" && b.owner_client_name && (
+                        <span> · {b.owner_client_name}</span>
+                      )}
+                    </p>
+                    <p>
+                      Ubicación: {BOTTLE_LOCATION_LABELS[b.location_type] || b.location_type}
+                      {b.location_detail ? ` · ${b.location_detail}` : ""}
+                    </p>
+                    <p>
+                      Kg actuales:{" "}
+                      <strong>{(parseFloat(b.carga_actual) || 0).toFixed(2)} kg</strong>
+                    </p>
+                    <p>
+                      Estado: <strong>{b.status}</strong>
+                    </p>
+                  </div>
+                ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* History Dialog */}
       <Dialog open={!!historyMaterial} onOpenChange={(v) => !v && setHistoryMaterial(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -335,9 +474,14 @@ export default function Materials() {
             <DialogTitle>{editingMaterial ? "Editar Material" : "Nuevo Material"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {isTecnico && (
+            {isTecnico && form.category !== "gas_refrigerante" && (
               <div className="p-3 bg-muted/50 rounded-xl text-sm text-muted-foreground">
                 Solo puedes modificar el campo <strong>Stock Actual</strong>.
+              </div>
+            )}
+            {form.category === "gas_refrigerante" && (
+              <div className="p-3 bg-muted/50 rounded-xl text-sm text-muted-foreground">
+                Stock gestionado desde <strong>Trazabilidad de Gases</strong>. No edites kg aquí.
               </div>
             )}
             <div className="grid grid-cols-2 gap-3">
@@ -400,8 +544,19 @@ export default function Materials() {
             )}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Stock Actual {isTecnico && <span className="text-accent font-medium">(editable)</span>}</Label>
-                <Input type="number" value={form.stock_quantity ?? ""} onChange={(e) => setForm(f => ({ ...f, stock_quantity: parseFloat(e.target.value) || 0 }))} className="mt-1" />
+                <Label>
+                  Stock Actual{" "}
+                  {isTecnico && form.category !== "gas_refrigerante" && (
+                    <span className="text-accent font-medium">(editable)</span>
+                  )}
+                </Label>
+                <Input
+                  type="number"
+                  value={form.stock_quantity ?? ""}
+                  onChange={(e) => setForm((f) => ({ ...f, stock_quantity: parseFloat(e.target.value) || 0 }))}
+                  className="mt-1"
+                  disabled={form.category === "gas_refrigerante"}
+                />
               </div>
               <div>
                 <Label>Stock Mínimo</Label>

@@ -11,13 +11,52 @@ import { Link } from "react-router-dom";
 import { Plus, ArrowRightLeft, FlaskConical, History, AlertTriangle, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import moment from "moment";
-
-const GAS_TYPES = ["R449A","R134a","R404A","R410A","R407C","R22","R32","R290","R600a","R744","otro"];
+import GasTypeCombobox from "@/components/GasTypeCombobox";
+import {
+  REFRIGERANT_GAS_CANONICAL_LIST,
+  resolveCanonicalGasLabel,
+  normalizeGasCompareKey,
+  isOfficialGasType,
+  GAS_TYPE_OTHER_LABEL,
+  GAS_OTHER_REQUIRED_MESSAGE,
+} from "@/lib/refrigerantGases";
+import { syncGasMaterialStock } from "@/lib/gasMaterialSync";
 const BOTTLE_TYPES = ["Gas", "Recuperación"];
 const LOCATION_LABELS = { taller: "Taller", furgoneta: "Furgoneta", cliente: "Cliente" };
 const STATUS_COLORS = { activa: "bg-emerald-100 text-emerald-700 border-emerald-200", vacia: "bg-amber-100 text-amber-700 border-amber-200", devuelta: "bg-blue-100 text-blue-700 border-blue-200" };
 
-const EMPTY_BOTTLE = { serial_number: "", gas_type: "R449A", tipo_botella: "Gas", capacity_kg: "", current_kg: "", owner_type: "fritecma", casco_owner: "fritecma", owner_client_id: "", owner_client_name: "", location_type: "taller", location_detail: "", status: "activa", notes: "" };
+const EMPTY_BOTTLE = {
+  serial_number: "",
+  gas_type: "R449A",
+  gas_other_ui: false,
+  gas_other_input: "",
+  tipo_botella: "Gas",
+  capacity_kg: "",
+  current_kg: "",
+  owner_type: "fritecma",
+  casco_owner: "fritecma",
+  owner_client_id: "",
+  owner_client_name: "",
+  location_type: "taller",
+  location_detail: "",
+  status: "activa",
+  notes: "",
+};
+
+const legacyGasList = (bottles) => [...new Set((bottles || []).map((b) => b.gas_type).filter(Boolean))];
+
+const mergedFilterGasOptions = (bottles) => {
+  const legacy = legacyGasList(bottles);
+  const set = new Map();
+  REFRIGERANT_GAS_CANONICAL_LIST.filter((g) => g !== GAS_TYPE_OTHER_LABEL).forEach((g) =>
+    set.set(normalizeGasCompareKey(g), g)
+  );
+  legacy.forEach((g) => {
+    const canon = resolveCanonicalGasLabel(g, legacy);
+    set.set(normalizeGasCompareKey(canon), canon);
+  });
+  return [...set.values()].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }));
+};
 const EMPTY_TRANSFER = { from_bottle_id: "", to_bottle_id: "", kg_transferred: "", new_location_type: "", new_location_detail: "", notes: "" };
 
 export default function GasBottles() {
@@ -85,12 +124,52 @@ export default function GasBottles() {
   }, {});
 
   // Bottle CRUD
-  const openNew = () => { setEditingBottle(null); setBottleForm(EMPTY_BOTTLE); setBottleModal(true); };
-  const openEdit = (b) => { setEditingBottle(b); setBottleForm({ ...b, tipo_botella: b.tipo_botella || "Gas" }); setBottleModal(true); };
+  const openNew = () => {
+    setEditingBottle(null);
+    setBottleForm({ ...EMPTY_BOTTLE });
+    setBottleModal(true);
+  };
+  const openEdit = (b) => {
+    setEditingBottle(b);
+    const leg = legacyGasList(bottles);
+    const gt = b.gas_type || "";
+    const isExplicitOther =
+      normalizeGasCompareKey(gt) === normalizeGasCompareKey(GAS_TYPE_OTHER_LABEL);
+    const isUnknownCustom = gt && !isOfficialGasType(gt);
+    const isOther = Boolean(gt && (isExplicitOther || isUnknownCustom));
+    setBottleForm({
+      ...b,
+      tipo_botella: b.tipo_botella || "Gas",
+      gas_other_ui: isOther,
+      gas_other_input: isOther ? gt : "",
+      gas_type: isOther ? "" : resolveCanonicalGasLabel(gt, leg),
+    });
+    setBottleModal(true);
+  };
 
   const saveBottle = async () => {
     setSaving(true);
     try {
+      const leg = legacyGasList(bottles);
+      let finalGas = bottleForm.gas_type;
+      if (bottleForm.gas_other_ui) {
+        if (!String(bottleForm.gas_other_input || "").trim()) {
+          alert(GAS_OTHER_REQUIRED_MESSAGE);
+          setSaving(false);
+          return;
+        }
+        finalGas = resolveCanonicalGasLabel(bottleForm.gas_other_input, leg);
+      } else {
+        finalGas = resolveCanonicalGasLabel(bottleForm.gas_type || "", leg);
+      }
+      if (!finalGas) {
+        alert(GAS_OTHER_REQUIRED_MESSAGE);
+        setSaving(false);
+        return;
+      }
+
+      const prevGas = editingBottle?.gas_type;
+
       const cargaInicial = parseFloat(bottleForm.carga_inicial) || 0;
       const cargaActual = parseFloat(bottleForm.carga_actual) || 0;
       const tipoBot = bottleForm.tipo_botella && bottleForm.tipo_botella.trim() ? bottleForm.tipo_botella : "Gas";
@@ -98,7 +177,7 @@ export default function GasBottles() {
       
       const data = {
         serial_number: bottleForm.serial_number,
-        gas_type: bottleForm.gas_type,
+        gas_type: finalGas,
         tipo_botella: tipoBot,
         carga_inicial: cargaInicial,
         carga_actual: cargaActual,
@@ -116,7 +195,13 @@ export default function GasBottles() {
       
       if (editingBottle) await appApi.entities.GasBottle.update(editingBottle.id, data);
       else await appApi.entities.GasBottle.create(data);
-      await reload(); setSaving(false); setBottleModal(false);
+      await reload();
+      if (prevGas && normalizeGasCompareKey(prevGas) !== normalizeGasCompareKey(finalGas)) {
+        await syncGasMaterialStock(prevGas);
+      }
+      await syncGasMaterialStock(finalGas);
+      setSaving(false);
+      setBottleModal(false);
     } catch (err) {
       console.error("Error guardando botella:", err);
       setSaving(false);
@@ -125,8 +210,11 @@ export default function GasBottles() {
 
   const deleteBottle = async (id) => {
     if (!confirm("¿Eliminar esta botella?")) return;
+    const target = bottles.find((b) => b.id === id);
+    const gasBefore = target?.gas_type;
     await appApi.entities.GasBottle.delete(id);
     await reload();
+    if (gasBefore) await syncGasMaterialStock(gasBefore);
   };
 
   // Transfer
@@ -177,7 +265,10 @@ export default function GasBottles() {
       notes: transferForm.notes || "",
     });
 
-    await reload(); setSaving(false); setTransferModal(false);
+    await reload();
+    if (fromBottle?.gas_type) await syncGasMaterialStock(fromBottle.gas_type);
+    setSaving(false);
+    setTransferModal(false);
   };
 
   const isTecnico = user?.role === "user" || user?.role === "tecnico";
@@ -213,7 +304,11 @@ export default function GasBottles() {
               <SelectTrigger className="w-40 rounded-xl"><SelectValue placeholder="Gas" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los gases</SelectItem>
-                {GAS_TYPES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                {mergedFilterGasOptions(bottles).map((g) => (
+                  <SelectItem key={g} value={g}>
+                    {g}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Select value={filterOwner} onValueChange={setFilterOwner}>
@@ -338,12 +433,20 @@ export default function GasBottles() {
                   <SelectContent>{BOTTLE_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div>
+              <div className="col-span-2">
                 <Label>Tipo de Gas *</Label>
-                <Select value={bottleForm.gas_type} onValueChange={v => setBottleForm(f => ({ ...f, gas_type: v }))}>
-                  <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent>{GAS_TYPES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}</SelectContent>
-                </Select>
+                <div className="mt-1">
+                  <GasTypeCombobox
+                    value={bottleForm.gas_type}
+                    onChange={(v) => setBottleForm((f) => ({ ...f, gas_type: v }))}
+                    otherUi={bottleForm.gas_other_ui}
+                    onOtherUiChange={(v) => setBottleForm((f) => ({ ...f, gas_other_ui: v }))}
+                    otherDraft={bottleForm.gas_other_input}
+                    onOtherDraftChange={(v) => setBottleForm((f) => ({ ...f, gas_other_input: v }))}
+                    legacyGasTypes={legacyGasList(bottles)}
+                    priorityGasTypes={[]}
+                  />
+                </div>
               </div>
               <div>
                 <Label>Estado (Solo lectura)</Label>

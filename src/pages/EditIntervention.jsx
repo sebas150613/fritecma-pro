@@ -11,8 +11,14 @@ import BackButton from "../components/BackButton";
 import { Save, Loader2, Plus } from "lucide-react";
 import MaterialLineForm from "../components/MaterialLineForm";
 import moment from "moment";
-
-const GAS_TYPES = ["R449A", "R134a", "R404A", "R410A", "R407C", "R22", "R32", "R290", "R600a", "R744", "otro"];
+import GasTypeCombobox from "@/components/GasTypeCombobox";
+import {
+  resolveCanonicalGasLabel,
+  normalizeGasCompareKey,
+  isOfficialGasType,
+  GAS_TYPE_OTHER_LABEL,
+  GAS_OTHER_REQUIRED_MESSAGE,
+} from "@/lib/refrigerantGases";
 
 const STATUS_OPTIONS = [
   { value: "en_curso", label: "En Curso" },
@@ -32,6 +38,7 @@ export default function EditIntervention() {
   const [saving, setSaving] = useState(false);
   const [original, setOriginal] = useState(null);
   const [workCenters, setWorkCenters] = useState([]);
+  const [gasBottleLegacy, setGasBottleLegacy] = useState([]);
 
   const [form, setForm] = useState({
     client_id: "",
@@ -41,6 +48,8 @@ export default function EditIntervention() {
     date: "",
     location_address: "",
     gas_type: "",
+    gas_other_ui: false,
+    gas_other_input: "",
     gas_loaded_kg: 0,
     gas_recovered_kg: 0,
     description: "",
@@ -56,15 +65,18 @@ export default function EditIntervention() {
   }, [id]);
 
   const loadData = async () => {
-    const [me, interventions, materialList, clientList] = await Promise.all([
+    const [me, interventions, materialList, clientList, bottleList] = await Promise.all([
       appApi.auth.me(),
       appApi.entities.Intervention.filter({ id }, "-created_date", 1),
       appApi.entities.Material.filter({ is_active: true }, "name", 500),
       appApi.entities.Client.list("name", 500),
+      appApi.entities.GasBottle.list("-created_date", 200).catch(() => []),
     ]);
     setUser(me);
     setMaterials(materialList);
     setClients(clientList);
+    const leg = [...new Set((bottleList || []).map((b) => b.gas_type).filter(Boolean))];
+    setGasBottleLegacy(leg);
 
     if (interventions.length > 0) {
       const inv = interventions[0];
@@ -73,6 +85,11 @@ export default function EditIntervention() {
         const centers = await appApi.entities.WorkCenter.filter({ client_id: inv.client_id }, "name", 100);
         setWorkCenters(centers);
       }
+      const gt = inv.gas_type || "";
+      const isExplicitOther =
+        normalizeGasCompareKey(gt) === normalizeGasCompareKey(GAS_TYPE_OTHER_LABEL);
+      const isUnknownCustom = gt && !isOfficialGasType(gt);
+      const isOther = Boolean(gt && (isExplicitOther || isUnknownCustom));
       setForm({
         client_id: inv.client_id || "",
         client_name: inv.client_name || "",
@@ -80,7 +97,9 @@ export default function EditIntervention() {
         work_center_name: inv.work_center_name || "",
         date: inv.date ? moment(inv.date).format("YYYY-MM-DDTHH:mm") : "",
         location_address: inv.location_address || "",
-        gas_type: inv.gas_type || "",
+        gas_type: isOther ? "" : resolveCanonicalGasLabel(gt, leg),
+        gas_other_ui: isOther,
+        gas_other_input: isOther ? gt : "",
         gas_loaded_kg: inv.gas_loaded_kg || 0,
         gas_recovered_kg: inv.gas_recovered_kg || 0,
         description: inv.description || "",
@@ -108,6 +127,14 @@ export default function EditIntervention() {
   };
 
   const handleSave = async () => {
+    if (form.gas_other_ui && !String(form.gas_other_input || "").trim()) {
+      alert(GAS_OTHER_REQUIRED_MESSAGE);
+      return;
+    }
+    const finalGas = form.gas_other_ui
+      ? resolveCanonicalGasLabel(form.gas_other_input, gasBottleLegacy)
+      : resolveCanonicalGasLabel(form.gas_type, gasBottleLegacy);
+
     setSaving(true);
     const totals = calcTotals();
     const gasLeak = Math.max(0, (form.gas_loaded_kg || 0) - (form.gas_recovered_kg || 0));
@@ -116,7 +143,7 @@ export default function EditIntervention() {
     const changes = [];
     if (original.description !== form.description) changes.push("descripción");
     if (original.status !== form.status) changes.push(`estado: ${original.status} → ${form.status}`);
-    if (original.gas_type !== form.gas_type) changes.push("tipo de gas");
+    if (original.gas_type !== finalGas) changes.push("tipo de gas");
     if (original.technician_notes !== form.technician_notes) changes.push("notas técnicas");
     if (original.discount_percent !== form.discount_percent) changes.push("descuento");
     const materialsChanged = JSON.stringify(lines) !== original.materials_json;
@@ -129,7 +156,7 @@ export default function EditIntervention() {
       work_center_name: form.work_center_name || undefined,
       date: new Date(form.date).toISOString(),
       location_address: form.location_address,
-      gas_type: form.gas_type || undefined,
+      gas_type: finalGas || undefined,
       gas_loaded_kg: form.gas_loaded_kg,
       gas_recovered_kg: form.gas_recovered_kg,
       gas_leak_kg: gasLeak,
@@ -261,12 +288,18 @@ export default function EditIntervention() {
         <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Gas Refrigerante</h2>
         <div>
           <Label>Tipo de Gas</Label>
-          <Select value={form.gas_type} onValueChange={(v) => setForm(f => ({ ...f, gas_type: v }))}>
-            <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Sin gas" /></SelectTrigger>
-            <SelectContent>
-              {GAS_TYPES.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <div className="mt-1">
+            <GasTypeCombobox
+              value={form.gas_type}
+              onChange={(v) => setForm((f) => ({ ...f, gas_type: v }))}
+              otherUi={form.gas_other_ui}
+              onOtherUiChange={(v) => setForm((f) => ({ ...f, gas_other_ui: v }))}
+              otherDraft={form.gas_other_input}
+              onOtherDraftChange={(v) => setForm((f) => ({ ...f, gas_other_input: v }))}
+              legacyGasTypes={gasBottleLegacy}
+              priorityGasTypes={[]}
+            />
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>

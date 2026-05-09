@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,41 @@ import ClientSelector from "../components/ClientSelector";
 import { Checkbox } from "@/components/ui/checkbox";
 import { validateStockAvailability, deductStockForIntervention } from "../lib/stockUtils";
 import moment from "moment";
+import GasTypeCombobox from "@/components/GasTypeCombobox";
+import {
+  resolveCanonicalGasLabel,
+  normalizeGasCompareKey,
+  GAS_OTHER_REQUIRED_MESSAGE,
+} from "@/lib/refrigerantGases";
+import { syncGasMaterialStock, findGasMaterialForType } from "@/lib/gasMaterialSync";
 
-// GAS_TYPES se cargará dinámicamente desde las botellas en stock
+function buildPriorityGasTypesFromBottles(bottles) {
+  const active = (bottles || []).filter(
+    (b) => b.status === "activa" && (parseFloat(b.carga_actual) || 0) > 0
+  );
+  const weight = {};
+  active.forEach((b) => {
+    const g = b.gas_type;
+    if (!g) return;
+    const k = normalizeGasCompareKey(g);
+    weight[k] = (weight[k] || 0) + (parseFloat(b.carga_actual) || 0);
+  });
+  return Object.entries(weight)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k]) => active.find((x) => normalizeGasCompareKey(x.gas_type) === k)?.gas_type)
+    .filter(Boolean);
+}
+
+function shouldAppendGasMaterialLine(lines, materialId, bottleSerial) {
+  if (!materialId || !bottleSerial) return true;
+  const sn = String(bottleSerial);
+  const obsPat = "Gas cargado desde botella SN";
+  return !lines.some((l) => {
+    if (l.material_id === materialId) return true;
+    const o = String(l.observation || "");
+    return o.includes(obsPat) && o.includes(sn);
+  });
+}
 
 export default function NewIntervention() {
   const navigate = useNavigate();
@@ -32,7 +65,7 @@ export default function NewIntervention() {
   const [checkedIn, setCheckedIn] = useState(null); // null=loading, true/false
   const [showCheckinWarning, setShowCheckinWarning] = useState(false);
   const [sinFichaje, setSinFichaje] = useState(false);
-  const [availableGasTypes, setAvailableGasTypes] = useState([]);
+  const [gasBillingPreview, setGasBillingPreview] = useState(null);
 
   const [clientTarifas, setClientTarifas] = useState(null);
 
@@ -46,6 +79,8 @@ export default function NewIntervention() {
     location_lng: null,
     location_address: "",
     gas_type: "",
+    gas_other_ui: false,
+    gas_other_input: "",
     gas_bottle_id: "",
     gas_loaded_kg: 0,
     gas_recovered_kg: 0,
@@ -72,9 +107,6 @@ export default function NewIntervention() {
     const interval = setInterval(async () => {
       const bottles = await appApi.entities.GasBottle.list("-created_date", 200).catch(() => []);
       setGasBottles(bottles || []);
-      const activeBotles = (bottles || []).filter(b => b.status === "activa" && (b.carga_actual || 0) > 0);
-      const uniqueGases = [...new Set(activeBotles.map(b => b.gas_type))].filter(Boolean).sort();
-      setAvailableGasTypes(uniqueGases);
     }, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -119,11 +151,6 @@ export default function NewIntervention() {
       setMaterials(materialList || []);
       setGasBottles(bottleList || []);
       setUsers(userList || []);
-
-      // Extraer gases únicos de botellas en stock (activas con carga disponible)
-      const activeBotles = (bottleList || []).filter(b => b.status === "activa" && (b.carga_actual || 0) > 0);
-      const uniqueGases = [...new Set(activeBotles.map(b => b.gas_type))].filter(Boolean).sort();
-      setAvailableGasTypes(uniqueGases);
     } catch (error) {
       console.error("Error loading initial data:", error);
       setCheckedIn(true);
@@ -184,32 +211,113 @@ export default function NewIntervention() {
     setLines(lines.filter((_, i) => i !== index));
   };
 
-  const calcTotals = () => {
-    const allLines = [...laborLines, ...lines];
+  const legacyGasKeys = useMemo(
+    () => [...new Set(gasBottles.map((b) => b.gas_type).filter(Boolean))],
+    [gasBottles]
+  );
+
+  const priorityGasTypes = useMemo(() => buildPriorityGasTypesFromBottles(gasBottles), [gasBottles]);
+
+  const resolvedGasType = useMemo(() => {
+    if (form.gas_other_ui) {
+      return resolveCanonicalGasLabel(form.gas_other_input, legacyGasKeys);
+    }
+    return resolveCanonicalGasLabel(form.gas_type, legacyGasKeys);
+  }, [form.gas_type, form.gas_other_ui, form.gas_other_input, legacyGasKeys]);
+
+  const totals = useMemo(() => {
+    const materialLines = [...lines];
+    if (gasBillingPreview) materialLines.push(gasBillingPreview);
+    const allLines = [...laborLines, ...materialLines];
     const subtotal = allLines.reduce((sum, l) => sum + (l.total || 0), 0);
     const discountAmount = subtotal * (form.discount_percent / 100);
     const subtotalAfterDiscount = subtotal - discountAmount;
     const ivaByRate = {};
-    allLines.forEach(l => {
+    allLines.forEach((l) => {
       const rate = l.iva_percent || 21;
       const lineAfterDiscount = (l.total || 0) * (1 - form.discount_percent / 100);
       ivaByRate[rate] = (ivaByRate[rate] || 0) + lineAfterDiscount * (rate / 100);
     });
     const ivaTotal = Object.values(ivaByRate).reduce((s, v) => s + v, 0);
-    return { subtotal, discountAmount, subtotalAfterDiscount, ivaTotal, total: subtotalAfterDiscount + ivaTotal };
-  };
+    return {
+      subtotal,
+      discountAmount,
+      subtotalAfterDiscount,
+      ivaTotal,
+      total: subtotalAfterDiscount + ivaTotal,
+    };
+  }, [laborLines, lines, gasBillingPreview, form.discount_percent]);
 
-  const totals = calcTotals();
-  const availableBottles = form.gas_type
-    ? gasBottles.filter(b => b.status === "activa" && b.gas_type === form.gas_type && (b.carga_actual || 0) > 0)
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      if (form.gas_other_ui && !String(form.gas_other_input || "").trim()) {
+        setGasBillingPreview(null);
+        return;
+      }
+      if (!(form.gas_loaded_kg > 0)) {
+        setGasBillingPreview(null);
+        return;
+      }
+      const fg = resolvedGasType;
+      if (!fg) {
+        setGasBillingPreview(null);
+        return;
+      }
+      const mat = await findGasMaterialForType(fg, null, legacyGasKeys);
+      if (cancelled || !mat) {
+        if (!cancelled) setGasBillingPreview(null);
+        return;
+      }
+      const qty = form.gas_loaded_kg;
+      const unit_p = mat.sell_price || 0;
+      const iv = mat.iva_percent ?? 21;
+      setGasBillingPreview({
+        _id: "__gas_preview__",
+        material_id: mat.id,
+        material_name: mat.name,
+        material_code: mat.code || "",
+        quantity: qty,
+        unit: "kg",
+        unit_price: unit_p,
+        iva_percent: iv,
+        total: qty * unit_p,
+        observation: "",
+      });
+    };
+    const id = setTimeout(run, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [resolvedGasType, form.gas_loaded_kg, form.gas_other_ui, form.gas_other_input, legacyGasKeys]);
+
+  const availableBottles = resolvedGasType
+    ? gasBottles.filter(
+        (b) =>
+          b.status === "activa" &&
+          normalizeGasCompareKey(b.gas_type) === normalizeGasCompareKey(resolvedGasType) &&
+          (parseFloat(b.carga_actual) || 0) > 0
+      )
     : [];
 
   const handleSave = async () => {
     if (!form.client_id) return;
 
-    // Validate stock availability before saving
-    const materialOnlyLines = lines.filter(l => l.material_id && l.material_id !== "__free_text__");
-    const warnings = await validateStockAvailability(materialOnlyLines);
+    if (form.gas_other_ui && !String(form.gas_other_input || "").trim()) {
+      alert(GAS_OTHER_REQUIRED_MESSAGE);
+      return;
+    }
+
+    const finalGasType = form.gas_other_ui
+      ? resolveCanonicalGasLabel(form.gas_other_input, legacyGasKeys)
+      : resolveCanonicalGasLabel(form.gas_type, legacyGasKeys);
+
+    // Validate stock availability before saving (solo líneas introducidas manualmente; el gas se valida por botella)
+    const materialOnlyLinesInput = lines.filter(
+      (l) => l.material_id && l.material_id !== "__free_text__"
+    );
+    const warnings = await validateStockAvailability(materialOnlyLinesInput);
     if (warnings.length > 0) {
       const proceed = window.confirm(
         `⚠️ Stock insuficiente para:\n${warnings.map(w => `• ${w.material_name}: solicitado ${w.requested}, disponible ${w.available}`).join("\n")}\n\n¿Continuar igualmente?`
@@ -219,7 +327,53 @@ export default function NewIntervention() {
 
     setSaving(true);
     const interventionNumber = `FRI-${moment().format("YYMMDD")}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-    const allLines = [...laborLines, ...lines];
+
+    let materialLinesToPersist = [...lines];
+    if (form.gas_bottle_id && form.gas_loaded_kg > 0 && finalGasType) {
+      await syncGasMaterialStock(finalGasType);
+      const gasMat = await findGasMaterialForType(finalGasType, null, legacyGasKeys);
+      const bottle = gasBottles.find((b) => b.id === form.gas_bottle_id);
+      if (gasMat && bottle && shouldAppendGasMaterialLine(materialLinesToPersist, gasMat.id, bottle.serial_number)) {
+        const qty = form.gas_loaded_kg;
+        const unit_p = gasMat.sell_price || 0;
+        const iv = gasMat.iva_percent ?? 21;
+        materialLinesToPersist.push({
+          _id: Date.now() + Math.random(),
+          material_id: gasMat.id,
+          material_name: gasMat.name,
+          material_code: gasMat.code || "",
+          quantity: qty,
+          unit: "kg",
+          unit_price: unit_p,
+          iva_percent: iv,
+          total: qty * unit_p,
+          observation: `Gas cargado desde botella SN ${bottle.serial_number}`,
+        });
+      }
+    }
+
+    const materialLinesForTotals = [...materialLinesToPersist];
+    const allLines = [...laborLines, ...materialLinesForTotals];
+    const persistTotals = (() => {
+      const subtotal = allLines.reduce((sum, l) => sum + (l.total || 0), 0);
+      const discountAmount = subtotal * (form.discount_percent / 100);
+      const subtotalAfterDiscount = subtotal - discountAmount;
+      const ivaByRate = {};
+      allLines.forEach((l) => {
+        const rate = l.iva_percent || 21;
+        const lineAfterDiscount = (l.total || 0) * (1 - form.discount_percent / 100);
+        ivaByRate[rate] = (ivaByRate[rate] || 0) + lineAfterDiscount * (rate / 100);
+      });
+      const ivaTotal = Object.values(ivaByRate).reduce((s, v) => s + v, 0);
+      return {
+        subtotal,
+        discountAmount,
+        subtotalAfterDiscount,
+        ivaTotal,
+        total: subtotalAfterDiscount + ivaTotal,
+      };
+    })();
+
     const data = {
       number: interventionNumber,
       client_id: form.client_id,
@@ -234,7 +388,7 @@ export default function NewIntervention() {
       location_lat: form.location_lat,
       location_lng: form.location_lng,
       location_address: form.location_address,
-      gas_type: form.gas_type || undefined,
+      gas_type: finalGasType || undefined,
       gas_bottle_id: form.gas_bottle_id || undefined,
       gas_bottle_serial: gasBottles.find(b => b.id === form.gas_bottle_id)?.serial_number || undefined,
       gas_loaded_kg: form.gas_loaded_kg,
@@ -242,9 +396,9 @@ export default function NewIntervention() {
       gas_leak_kg: Math.max(0, (form.gas_loaded_kg || 0) - (form.gas_recovered_kg || 0)),
       description: form.description,
       materials_json: JSON.stringify(allLines),
-      subtotal: totals.subtotal,
-      iva_total: totals.ivaTotal,
-      total: totals.total,
+      subtotal: persistTotals.subtotal,
+      iva_total: persistTotals.ivaTotal,
+      total: persistTotals.total,
       discount_percent: form.discount_percent,
       tipo_horario: form.tipo_horario || "normal",
       tarifa_aplicada: form.tarifa_aplicada || null,
@@ -287,13 +441,20 @@ export default function NewIntervention() {
     }
 
     // Deduct stock after saving
+    const materialOnlyLinesPersisted = materialLinesToPersist.filter(
+      (l) => l.material_id && l.material_id !== "__free_text__"
+    );
     await deductStockForIntervention({
-      lines: materialOnlyLines,
+      lines: materialOnlyLinesPersisted,
       interventionId: created.id,
       interventionNumber,
       technicianEmail: user.email,
       technicianName: user.full_name,
     });
+
+    if (finalGasType && form.gas_bottle_id && form.gas_loaded_kg > 0) {
+      await syncGasMaterialStock(finalGasType);
+    }
 
     setSaving(false);
     navigate(`/interventions/${created.id}`);
@@ -428,32 +589,30 @@ export default function NewIntervention() {
         <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Control de Gas Refrigerante</h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
+          <div className="sm:col-span-2">
             <Label>Tipo de Gas</Label>
-            <Select value={form.gas_type} onValueChange={(v) => setForm(f => ({ ...f, gas_type: v, gas_bottle_id: "" }))}>
-              <SelectTrigger className="mt-1 rounded-xl">
-                <SelectValue placeholder="Seleccionar tipo de gas..." />
-              </SelectTrigger>
-              <SelectContent>
-                {availableGasTypes.length === 0 ? (
-                  <SelectItem value="__none__" disabled>Sin gases en stock</SelectItem>
-                ) : (
-                  availableGasTypes.map(g => (
-                    <SelectItem key={g} value={g}>{g}</SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
+            <div className="mt-1">
+              <GasTypeCombobox
+                value={form.gas_type}
+                onChange={(v) => setForm((f) => ({ ...f, gas_type: v, gas_bottle_id: "" }))}
+                otherUi={form.gas_other_ui}
+                onOtherUiChange={(v) => setForm((f) => ({ ...f, gas_other_ui: v, gas_bottle_id: "" }))}
+                otherDraft={form.gas_other_input}
+                onOtherDraftChange={(v) => setForm((f) => ({ ...f, gas_other_input: v, gas_bottle_id: "" }))}
+                legacyGasTypes={legacyGasKeys}
+                priorityGasTypes={priorityGasTypes}
+              />
+            </div>
           </div>
           <div>
             <Label>Botella (S/N)</Label>
-            {!form.gas_type ? (
+            {!resolvedGasType ? (
               <div className="mt-1 px-3 py-2 rounded-xl border border-input bg-muted/50 text-sm text-muted-foreground">
                 Selecciona un tipo de gas primero
               </div>
             ) : availableBottles.length === 0 ? (
               <div className="mt-1 px-3 py-2 rounded-xl border border-destructive bg-destructive/10 text-sm text-destructive">
-                ⚠️ No hay botellas disponibles para este gas
+                No hay botellas activas con carga disponible para este tipo de gas.
               </div>
             ) : (
               <>

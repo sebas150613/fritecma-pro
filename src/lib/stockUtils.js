@@ -19,6 +19,8 @@ export async function validateStockAvailability(lines) {
     if (!mat) continue;
     // Skip mano de obra and desplazamiento (not physical stock)
     if (mat.category === "mano_de_obra" || mat.category === "desplazamiento") continue;
+    // Gas refrigerante: stock viene de trazabilidad de botellas, no del almacén de materiales
+    if (mat.category === "gas_refrigerante") continue;
     const available = mat.stock_quantity || 0;
     if ((line.quantity || 0) > available) {
       warnings.push({ material_name: mat.name, requested: line.quantity, available });
@@ -43,6 +45,7 @@ export async function deductStockForIntervention({ lines, interventionId, interv
     const mat = materials.find(m => m?.id === line.material_id);
     if (!mat) continue;
     if (mat.category === "mano_de_obra" || mat.category === "desplazamiento") continue;
+    if (mat.category === "gas_refrigerante") continue;
 
     const stockBefore = mat.stock_quantity || 0;
     const stockAfter = stockBefore - (line.quantity || 0);
