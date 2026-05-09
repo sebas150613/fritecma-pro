@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import multer from "multer";
 import { serverConfig } from "./config.js";
 import authRoutes from "./routes/auth.js";
+import accountRoutes from "./routes/account.js";
 import entityRoutes from "./routes/entities.js";
 import userRoutes from "./routes/users.js";
 import fileRoutes from "./routes/files.js";
@@ -81,6 +82,7 @@ app.get("/health", (_req, res) => {
 
 app.use("/api/apps/public", publicAppRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/account", accountRoutes);
 app.use("/api/entities", entityRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/organizations", organizationRoutes);
