@@ -18,6 +18,14 @@
       "type": "string",
       "title": "Email proveedor"
     },
+    "submit_method": {
+      "type": "string",
+      "title": "Tramitaci\u00f3n",
+      "enum": [
+        "email",
+        "commercial"
+      ]
+    },
     "status": {
       "type": "string",
       "title": "Estado",
@@ -106,12 +114,12 @@
     "number",
     "supplier_id",
     "supplier_name",
-    "supplier_email",
     "status",
     "lines_json",
     "delivery_type",
     "requested_by_user_id",
     "requested_by_name",
-    "requested_by_email"
+    "requested_by_email",
+    "submit_method"
   ]
 }

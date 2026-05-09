@@ -1017,6 +1017,7 @@ const runSmoke = async () => {
       method: "POST",
       headers: adminHeaders,
       body: JSON.stringify({
+        submit_method: "email",
         supplier_id: poSupplier.id,
         delivery_type: "company_address",
         notes: "Smoke purchase order",
@@ -1029,10 +1030,90 @@ const runSmoke = async () => {
         `Expected purchase order pending_delivery. got=${JSON.stringify(poSendRes)}`
       );
     }
+    if (poSendRes?.order?.submit_method !== "email") {
+      throw new Error(`Expected submit_method email on email PO, got ${poSendRes?.order?.submit_method}`);
+    }
+
+    await request("/api/auth/me", {
+      method: "PATCH",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        pedidos_smtp_enabled: false,
+      }),
+    });
+
+    const poCommercialSupplier = await request("/api/entities/Supplier", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        name: "Proveedor PO solo comercial",
+        category: "general",
+      }),
+    });
+
+    const poCommercialMaterial = await request("/api/entities/Material", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        name: "Material PO comercial",
+        unit: "ud",
+        category: "consumible",
+        supplier_id: poCommercialSupplier.id,
+      }),
+    });
+
+    const poCommercialRes = await request("/api/purchase-orders/send", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        submit_method: "commercial",
+        supplier_id: poCommercialSupplier.id,
+        delivery_type: "company_address",
+        notes: "Smoke PO commercial channel",
+        lines: [{ material_id: poCommercialMaterial.id, quantity: 2 }],
+      }),
+    });
+    const poCommercialId = poCommercialRes?.order?.id;
+    if (
+      !poCommercialId ||
+      poCommercialRes?.order?.status !== "pending_delivery" ||
+      poCommercialRes?.order?.submit_method !== "commercial" ||
+      poCommercialRes?.order?.email_status !== "not_sent_commercial"
+    ) {
+      throw new Error(`Unexpected commercial PO: ${JSON.stringify(poCommercialRes)}`);
+    }
+    if (poCommercialRes?.order?.sent_at) {
+      throw new Error("commercial PO sent_at should be empty");
+    }
+    if (poCommercialRes?.order?.email_message_id) {
+      throw new Error("commercial PO email_message_id should be empty");
+    }
+
+    await request("/api/auth/me", {
+      method: "PATCH",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        pedidos_smtp_enabled: true,
+        pedidos_smtp_host: "smtp.smoke-pedidos.local",
+        pedidos_smtp_port: 587,
+        pedidos_smtp_secure: false,
+        pedidos_smtp_user: "",
+        pedidos_email_from: "compras-po-smoke@local.test",
+        pedidos_email_from_name: "Smoke Compras",
+        pedidos_reply_to: "reply-po-smoke@local.test",
+        pedidos_entrega_direccion: "Polígono Industrial Smoke 1",
+        pedidos_entrega_contacto: "Recepción",
+        pedidos_entrega_telefono: "611222333",
+      }),
+    });
 
     const poListRes = await request("/api/purchase-orders", { headers: adminHeaders });
-    if (!(poListRes?.orders || []).some((o) => o.id === poId)) {
+    const poList = poListRes?.orders || [];
+    if (!poList.some((o) => o.id === poId)) {
       throw new Error("Expected purchase order in list.");
+    }
+    if (!poList.some((o) => o.id === poCommercialId && o.submit_method === "commercial")) {
+      throw new Error("Expected commercial purchase order in list with submit_method commercial.");
     }
 
     const techPoLogin = await loginViaRedirect({

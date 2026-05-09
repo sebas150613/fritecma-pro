@@ -39,6 +39,11 @@ function supplierOrderEmail(supplier) {
   return String(supplier?.email || "").trim();
 }
 
+function parseSubmitMethod(raw) {
+  const s = String(raw ?? "email").trim().toLowerCase();
+  return s === "commercial" ? "commercial" : "email";
+}
+
 export function generatePurchaseOrderNumber() {
   const d = new Date();
   const yy = String(d.getFullYear()).slice(-2);
@@ -127,10 +132,9 @@ router.post(
     const orgId = req.currentOrganization.id;
     const settings = req.currentOrganizationSettings || {};
 
-    assertPedidosSmtpReadyForSend(settings);
+    const submitMethod = parseSubmitMethod(req.body?.submit_method);
 
     const pedidosFrom = String(settings.pedidos_email_from || "").trim();
-    const pedidosFromName = String(settings.pedidos_email_from_name || "").trim();
     const pedidosReply =
       String(settings.pedidos_reply_to || "").trim() || pedidosFrom;
 
@@ -148,12 +152,16 @@ router.post(
       throw new HttpError(404, "Proveedor no encontrado.");
     }
 
-    const targetEmail = supplierOrderEmail(supplier);
-    if (!targetEmail) {
-      throw new HttpError(
-        422,
-        "El proveedor no tiene email de pedidos ni email principal. Complétalo antes de tramitar."
-      );
+    const supplierContactEmail = supplierOrderEmail(supplier);
+
+    if (submitMethod === "email") {
+      assertPedidosSmtpReadyForSend(settings);
+      if (!supplierContactEmail) {
+        throw new HttpError(
+          422,
+          "El proveedor no tiene email de pedidos ni email principal. Complétalo antes de enviar por correo o elige «Pedido realizado al comercial»."
+        );
+      }
     }
 
     const deliveryType = String(req.body?.delivery_type || "").trim();
@@ -258,7 +266,8 @@ router.post(
       orderNumber: number,
       createdAtIso: new Date().toISOString(),
       supplierName: supplier.name || "",
-      supplierEmail: targetEmail,
+      supplierEmail: supplierContactEmail,
+      submitMethod,
       requestedByName:
         req.currentUser?.full_name || req.currentUser?.email || "Usuario",
       requestedByEmail: req.currentUser?.email || "",
@@ -275,6 +284,37 @@ router.post(
     await fs.writeFile(absPath, pdfBuffer);
 
     const pdfGeneratedAt = new Date().toISOString();
+
+    if (submitMethod === "commercial") {
+      const created = await purchaseOrderStore.create({
+        organization_id: orgId,
+        number,
+        supplier_id: supplier.id,
+        supplier_name: supplier.name || "",
+        supplier_email: supplierContactEmail || "",
+        submit_method: "commercial",
+        status: "pending_delivery",
+        lines_json: linesJson,
+        delivery_type: deliveryType,
+        delivery_label: deliveryLabel,
+        delivery_address: deliveryAddress,
+        project_id: projectId || undefined,
+        project_name: projectName || undefined,
+        requested_by_user_id: req.currentUser.id,
+        requested_by_name: req.currentUser?.full_name || req.currentUser?.email || "",
+        requested_by_email: req.currentUser?.email || "",
+        sent_at: "",
+        email_message_id: "",
+        email_status: "not_sent_commercial",
+        issue_notes: "",
+        notes,
+        pdf_filename: relPath,
+        pdf_generated_at: pdfGeneratedAt,
+      });
+
+      res.status(201).json({ order: created, email: null });
+      return;
+    }
 
     const subject = `Pedido ${number} - ${companyName}`;
     const bodyText = [
@@ -305,7 +345,7 @@ router.post(
 
     try {
       emailResult = await sendCompanyPurchaseOrderMail(settings, {
-        to: targetEmail,
+        to: supplierContactEmail,
         subject,
         body: bodyText,
         attachments: [
@@ -334,7 +374,8 @@ router.post(
       number,
       supplier_id: supplier.id,
       supplier_name: supplier.name || "",
-      supplier_email: targetEmail,
+      supplier_email: supplierContactEmail,
+      submit_method: "email",
       status: finalStatus,
       lines_json: linesJson,
       delivery_type: deliveryType,

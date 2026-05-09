@@ -44,6 +44,11 @@ const DELIVERY_LABELS = {
   pickup_store: "Recoger en tienda",
 };
 
+const SUBMIT_METHOD_LABELS = {
+  email: "Email",
+  commercial: "Realizado al comercial",
+};
+
 function parseLines(json) {
   try {
     const p = JSON.parse(json || "[]");
@@ -65,6 +70,7 @@ export default function PurchaseOrders() {
   const [search, setSearch] = useState("");
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [methodDialogOpen, setMethodDialogOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [supplierId, setSupplierId] = useState("");
   const [deliveryType, setDeliveryType] = useState("company_address");
@@ -155,6 +161,8 @@ export default function PurchaseOrders() {
     );
   }, [user]);
 
+  const canSendPurchaseEmail = pedidosConfigured && Boolean(supplierEmailUsed);
+
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
       if (filterStatus !== "all" && o.status !== filterStatus) return false;
@@ -205,23 +213,34 @@ export default function PurchaseOrders() {
     setLines((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const submitOrder = async () => {
+  const validateBasicsForSubmit = () => {
     if (!supplierId) {
       toast.error("Selecciona un proveedor.");
-      return;
-    }
-    if (!supplierEmailUsed) {
-      toast.error("El proveedor no tiene email de pedidos ni email principal.");
-      return;
-    }
-    if (!pedidosConfigured) {
-      toast.error("Configura el SMTP de pedidos de esta empresa antes de tramitar pedidos.");
-      return;
+      return false;
     }
     if (lines.length === 0) {
       toast.error("Añade al menos una línea.");
-      return;
+      return false;
     }
+    if (deliveryType === "project") {
+      if (!projectId) {
+        toast.error("Selecciona una obra.");
+        return false;
+      }
+      const p = projects.find((x) => x.id === projectId);
+      const manual = deliveryAddressManual.trim();
+      const fromProject = String(p?.address || "").trim();
+      if (!fromProject && !manual) {
+        toast.error(
+          "Indica una dirección de entrega (la obra no tiene dirección en ficha)."
+        );
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const buildSendPayload = () => {
     const body = {
       supplier_id: supplierId,
       delivery_type: deliveryType,
@@ -236,11 +255,34 @@ export default function PurchaseOrders() {
       body.project_id = projectId;
       body.delivery_address_manual = deliveryAddressManual.trim() || undefined;
     }
+    return body;
+  };
+
+  const resetOrderForm = async () => {
+    setDialogOpen(false);
+    setMethodDialogOpen(false);
+    setLines([]);
+    setNotes("");
+    setSupplierId("");
+    setDeliveryType("company_address");
+    setProjectId("");
+    setDeliveryAddressManual("");
+    await loadAll();
+  };
+
+  const submitOrderWithMethod = async (submitMethod) => {
+    const body = { ...buildSendPayload(), submit_method: submitMethod };
     setSending(true);
     try {
       try {
         await appApi.purchaseOrders.send(body);
-        toast.success("Pedido tramitado y enviado al proveedor.");
+        if (submitMethod === "email") {
+          toast.success("Pedido tramitado y enviado al proveedor por correo.");
+        } else {
+          toast.success(
+            "Pedido registrado como pendiente de entrega (realizado al comercial, sin envío de correo)."
+          );
+        }
       } catch (e) {
         if (e?.status === 502 && e?.data?.order) {
           toast.error(e?.message || "No se pudo enviar el correo; el pedido quedó registrado.");
@@ -248,19 +290,17 @@ export default function PurchaseOrders() {
           throw e;
         }
       }
-      setDialogOpen(false);
-      setLines([]);
-      setNotes("");
-      setSupplierId("");
-      setDeliveryType("company_address");
-      setProjectId("");
-      setDeliveryAddressManual("");
-      await loadAll();
+      await resetOrderForm();
     } catch (e) {
       toast.error(e?.message || "No se pudo tramitar el pedido.");
     } finally {
       setSending(false);
     }
+  };
+
+  const openMethodChoice = () => {
+    if (!validateBasicsForSubmit()) return;
+    setMethodDialogOpen(true);
   };
 
   const patchStatus = async (orderId, status, issue_notes) => {
@@ -323,7 +363,7 @@ export default function PurchaseOrders() {
             <ShoppingBag className="h-7 w-7 text-accent" /> Pedidos
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Pedidos a proveedor con PDF y correo usando el SMTP propio de la empresa en Configuración → Pedidos (aislado por empresa; no es el SMTP global de plataforma).
+            Registra pedidos con PDF: envío por correo (SMTP propio en Configuración → Pedidos) o solo en aplicación si ya lo gestionaste con el comercial presencial o por teléfono.
           </p>
         </div>
         <Button
@@ -336,8 +376,9 @@ export default function PurchaseOrders() {
 
       {!pedidosConfigured && (
         <div className="rounded-xl border border-amber-300/60 bg-amber-50 text-amber-950 px-4 py-3 text-sm">
-          Configura el SMTP de pedidos de esta empresa en Configuración (correo remitente y servidor SMTP)
-          antes de tramitar pedidos.
+          Para <strong>enviar el pedido por correo</strong> al proveedor necesitas el SMTP de pedidos en
+          Configuración. Si el pedido ya lo hiciste con el comercial (presencial o teléfono), puedes
+          tramitarlo igualmente con «Pedido realizado al comercial» sin SMTP.
         </div>
       )}
 
@@ -397,6 +438,7 @@ export default function PurchaseOrders() {
               <th className="p-3 font-medium">Fecha</th>
               <th className="p-3 font-medium">Creado por</th>
               <th className="p-3 font-medium">Estado</th>
+              <th className="p-3 font-medium">Tramitación</th>
               <th className="p-3 font-medium">Entrega</th>
               <th className="p-3 font-medium">Líneas</th>
               <th className="p-3 font-medium text-right">Acciones</th>
@@ -415,6 +457,11 @@ export default function PurchaseOrders() {
                   <Badge variant="outline" className="font-normal">
                     {STATUS_LABELS[o.status] || o.status}
                   </Badge>
+                </td>
+                <td className="p-3 text-xs">
+                  <span className="text-muted-foreground">
+                    {SUBMIT_METHOD_LABELS[o.submit_method === "commercial" ? "commercial" : "email"]}
+                  </span>
                 </td>
                 <td className="p-3 text-xs">{DELIVERY_LABELS[o.delivery_type] || o.delivery_type}</td>
                 <td className="p-3">{parseLines(o.lines_json).length}</td>
@@ -455,6 +502,9 @@ export default function PurchaseOrders() {
               <Badge variant="outline">{STATUS_LABELS[o.status] || o.status}</Badge>
             </div>
             <p className="font-medium">{o.supplier_name}</p>
+            <p className="text-xs font-medium text-foreground">
+              {SUBMIT_METHOD_LABELS[o.submit_method === "commercial" ? "commercial" : "email"]}
+            </p>
             <p className="text-xs text-muted-foreground">
               {o.created_date ? new Date(o.created_date).toLocaleString("es-ES") : ""} ·{" "}
               {parseLines(o.lines_json).length} líneas · {DELIVERY_LABELS[o.delivery_type]}
@@ -483,7 +533,13 @@ export default function PurchaseOrders() {
         ))}
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setMethodDialogOpen(false);
+        }}
+      >
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl">
           <DialogHeader>
             <DialogTitle>Nuevo pedido</DialogTitle>
@@ -505,13 +561,14 @@ export default function PurchaseOrders() {
               </Select>
               {selectedSupplier && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Email para el pedido:{" "}
+                  Email del proveedor (solo si envías por correo):{" "}
                   <span className="font-medium text-foreground">
                     {supplierEmailUsed || "—"}
                   </span>
                   {!supplierEmailUsed && (
-                    <span className="text-destructive block mt-1">
-                      Sin email: no podrás tramitar hasta completarlo en Proveedores.
+                    <span className="block mt-1 text-amber-800 dark:text-amber-200">
+                      Sin email: usa «Pedido realizado al comercial» o completa el email en Proveedores
+                      para enviar por correo.
                     </span>
                   )}
                 </p>
@@ -641,17 +698,73 @@ export default function PurchaseOrders() {
               />
             </div>
           </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" className="rounded-xl" onClick={() => setDialogOpen(false)}>
+          <DialogFooter className="gap-2 flex-col sm:flex-row">
+            <Button variant="outline" className="rounded-xl w-full sm:w-auto" onClick={() => setDialogOpen(false)}>
               Cerrar
             </Button>
             <Button
-              className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
-              disabled={sending || !supplierEmailUsed || !pedidosConfigured}
-              onClick={submitOrder}
+              className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground w-full sm:w-auto"
+              disabled={sending}
+              onClick={openMethodChoice}
             >
-              {sending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Tramitar pedido
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={methodDialogOpen} onOpenChange={setMethodDialogOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>¿Cómo quieres tramitar este pedido?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Elige si FRIGEST debe enviar el PDF por correo al proveedor o solo registrar el pedido
+            acordado con el comercial.
+          </p>
+          <div className="flex flex-col gap-3 pt-1">
+            <Button
+              type="button"
+              variant="default"
+              className="rounded-xl h-auto min-h-[4rem] py-4 px-4 justify-start text-left whitespace-normal"
+              disabled={sending || !canSendPurchaseEmail}
+              onClick={() => submitOrderWithMethod("email")}
+            >
+              <span className="flex flex-col items-start gap-1 w-full">
+                <span className="font-semibold">Enviar pedido por correo</span>
+                <span className="text-xs font-normal text-muted-foreground leading-snug">
+                  Valida SMTP de la empresa y envía el PDF al email del proveedor.
+                </span>
+              </span>
+            </Button>
+            {!canSendPurchaseEmail ? (
+              <p className="text-xs text-amber-800 dark:text-amber-200 px-0.5">
+                Configura el SMTP de pedidos y el email del proveedor, o usa la opción siguiente.
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              variant="secondary"
+              className="rounded-xl h-auto min-h-[4rem] py-4 px-4 justify-start text-left whitespace-normal"
+              disabled={sending}
+              onClick={() => submitOrderWithMethod("commercial")}
+            >
+              <span className="flex flex-col items-start gap-1 w-full">
+                <span className="font-semibold">Pedido realizado al comercial</span>
+                <span className="text-xs font-normal text-muted-foreground leading-snug">
+                  Sin envío de correo. Queda pendiente de entrega con PDF para archivo interno.
+                </span>
+              </span>
+            </Button>
+          </div>
+          <DialogFooter className="gap-2 sm:justify-start">
+            <Button
+              type="button"
+              variant="ghost"
+              className="rounded-xl"
+              onClick={() => setMethodDialogOpen(false)}
+            >
+              Volver
             </Button>
           </DialogFooter>
         </DialogContent>

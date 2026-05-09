@@ -23,7 +23,10 @@ export async function buildPurchaseOrderPdfBuffer(options) {
     deliveryDetail,
     lines,
     notes,
+    submitMethod,
   } = options;
+
+  const channel = submitMethod === "commercial" ? "commercial" : "email";
 
   let logoBuffer = null;
   if (logoUrl && /^https?:\/\//i.test(String(logoUrl))) {
@@ -55,6 +58,15 @@ export async function buildPurchaseOrderPdfBuffer(options) {
 
     doc.fontSize(16).fillColor("#111").text("Pedido a proveedor");
     doc.moveDown(0.4);
+    if (channel === "commercial") {
+      doc
+        .fontSize(9)
+        .fillColor("#b45309")
+        .text(
+          "Pedido realizado al comercial. No enviado por correo desde FRIGEST."
+        );
+      doc.moveDown(0.5);
+    }
     doc.fontSize(11).fillColor("#333");
     if (companyLegalName) {
       doc.text(companyLegalName);
