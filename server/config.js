@@ -44,6 +44,8 @@ const parsePositiveNumberEnv = (value, fallback) => {
 
 const environment = process.env.NODE_ENV || "development";
 const isProduction = environment === "production";
+const appDataDir = String(process.env.APP_DATA_DIR || "").trim();
+const appUploadsDir = String(process.env.APP_UPLOADS_DIR || "").trim();
 
 if (isProduction && !Object.prototype.hasOwnProperty.call(process.env, "APP_ALLOW_AUTH_BYPASS")) {
   throw new Error(
@@ -88,10 +90,10 @@ export const serverConfig = {
   uploadMaxFileSizeBytes: Math.round(uploadMaxFileSizeMb * 1024 * 1024),
   port: Number(process.env.APP_SERVER_PORT || 3000),
   host: process.env.APP_SERVER_HOST || "127.0.0.1",
-  dataDir: path.join(__dirname, "data"),
-  uploadsDir: path.join(__dirname, "uploads"),
-  publicUploadsDir: path.join(__dirname, "uploads", "public"),
-  privateUploadsDir: path.join(__dirname, "uploads", "private"),
+  dataDir: appDataDir || path.join(__dirname, "data"),
+  uploadsDir: appUploadsDir || path.join(__dirname, "uploads"),
+  publicUploadsDir: path.join(appUploadsDir || path.join(__dirname, "uploads"), "public"),
+  privateUploadsDir: path.join(appUploadsDir || path.join(__dirname, "uploads"), "private"),
   databaseUrl: process.env.DATABASE_URL || "",
   databaseSsl: process.env.APP_DATABASE_SSL === "true",
   devToken,

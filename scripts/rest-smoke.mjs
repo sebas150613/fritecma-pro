@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
@@ -99,7 +100,18 @@ const waitForHealth = async () => {
   throw new Error("REST server did not become healthy in time.");
 };
 
-const createServerProcess = () => {
+const readOptionalFile = async (filePath) => {
+  try {
+    return await fs.readFile(filePath, "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return null;
+    }
+    throw error;
+  }
+};
+
+const createServerProcess = ({ dataDir, uploadsDir }) => {
   const child = spawn(process.execPath, ["server/index.js"], {
     cwd: process.cwd(),
     env: {
@@ -108,6 +120,8 @@ const createServerProcess = () => {
       APP_SERVER_PORT: String(PORT),
       APP_ID: "local-app",
       APP_SMOKE_OWNER: "true",
+      APP_DATA_DIR: dataDir,
+      APP_UPLOADS_DIR: uploadsDir,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -122,21 +136,31 @@ const createServerProcess = () => {
   return child;
 };
 
-const cleanupArtifacts = async () => {
-  const cleanupTargets = [
-    path.join(process.cwd(), "server", "data"),
-    path.join(process.cwd(), "server", "uploads"),
-  ];
-
-  for (const target of cleanupTargets) {
-    await fs.rm(target, { recursive: true, force: true });
-  }
-};
-
 const runSmoke = async () => {
-  await cleanupArtifacts();
+  const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "frigest-rest-smoke-"));
+  const tempDataDir = path.join(tempRoot, "data");
+  const tempUploadsDir = path.join(tempRoot, "uploads");
 
-  const server = createServerProcess();
+  // Capture baseline local dev store snapshots to ensure smoke doesn't contaminate.
+  const baselineDir = path.join(process.cwd(), "server", "data", "entities");
+  const baselineSnapshots = {
+    Organization: await readOptionalFile(path.join(baselineDir, "Organization.json")),
+    User: await readOptionalFile(path.join(baselineDir, "User.json")),
+    OrganizationMembership: await readOptionalFile(
+      path.join(baselineDir, "OrganizationMembership.json")
+    ),
+    OrganizationSubscription: await readOptionalFile(
+      path.join(baselineDir, "OrganizationSubscription.json")
+    ),
+    OrganizationSettings: await readOptionalFile(
+      path.join(baselineDir, "OrganizationSettings.json")
+    ),
+  };
+
+  const server = createServerProcess({
+    dataDir: tempDataDir,
+    uploadsDir: tempUploadsDir,
+  });
 
   try {
     await waitForHealth();
@@ -802,6 +826,32 @@ const runSmoke = async () => {
   } finally {
     server.kill("SIGTERM");
     await sleep(500);
+
+    // Ensure local dev store was not modified by the smoke run.
+    const afterSnapshots = {
+      Organization: await readOptionalFile(path.join(baselineDir, "Organization.json")),
+      User: await readOptionalFile(path.join(baselineDir, "User.json")),
+      OrganizationMembership: await readOptionalFile(
+        path.join(baselineDir, "OrganizationMembership.json")
+      ),
+      OrganizationSubscription: await readOptionalFile(
+        path.join(baselineDir, "OrganizationSubscription.json")
+      ),
+      OrganizationSettings: await readOptionalFile(
+        path.join(baselineDir, "OrganizationSettings.json")
+      ),
+    };
+
+    for (const [key, baseline] of Object.entries(baselineSnapshots)) {
+      const after = afterSnapshots[key];
+      if (baseline !== after) {
+        throw new Error(
+          `Smoke run modified local dev store file: ${key}.json. Refusing to proceed.`
+        );
+      }
+    }
+
+    await fs.rm(tempRoot, { recursive: true, force: true });
   }
 };
 
