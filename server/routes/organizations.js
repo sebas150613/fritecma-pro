@@ -177,6 +177,13 @@ router.get(
 router.post(
   "/",
   asyncHandler(async (req, res) => {
+    if (req.currentUser?.is_hidden_owner !== true) {
+      throw new HttpError(
+        403,
+        "Solo FRIGEST puede crear nuevas empresas desde el panel."
+      );
+    }
+
     const name = String(req.body?.name || "").trim();
     const requestedSlug = String(req.body?.slug || "").trim();
     const planCode = String(req.body?.plan_code || "starter").trim() || "starter";
@@ -216,18 +223,8 @@ router.post(
       plan_code: planCode,
     });
 
-    const isHiddenOwnerRequest = req.currentUser?.is_hidden_owner === true;
-    if (!isHiddenOwnerRequest) {
-      await membershipStore.create({
-        organization_id: organization.id,
-        organization_name: organization.name,
-        user_id: req.currentUser.id,
-        user_email: req.currentUser.email || "",
-        user_name: req.currentUser.full_name || req.currentUser.email || "Invitado",
-        role: "admin",
-        status: "active",
-      });
-    }
+    // Hidden owner creates organizations without memberships/users.
+    const isHiddenOwnerRequest = true;
 
     await organizationSettingsStore.create({
       organization_id: organization.id,
@@ -309,6 +306,18 @@ router.post(
 
     if (existingUser?.is_hidden_owner === true) {
       throw new HttpError(409, "User cannot be added to an organization");
+    }
+
+    if (existingUser) {
+      const otherMemberships = await membershipStore.filter({
+        filter: { user_id: existingUser.id },
+      });
+      const belongsElsewhere = otherMemberships.some(
+        (membership) => membership.organization_id !== organization.id
+      );
+      if (belongsElsewhere) {
+        throw new HttpError(409, "Este usuario ya pertenece a otra empresa.");
+      }
     }
 
     const nextInvitationToken = randomUUID();

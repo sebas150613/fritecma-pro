@@ -435,58 +435,199 @@ const runSmoke = async () => {
       );
     }
 
-    const ownerOrgCreate = await request("/api/organizations", {
+    // Create org A as owner (must start empty)
+    const ownerOrgA = await request("/api/organizations", {
       method: "POST",
       headers: ownerHeaders,
       body: JSON.stringify({
-        name: "Empresa Smoke Owner",
-        slug: "smoke-owner",
+        name: "Empresa Smoke A",
+        slug: "smoke-a",
         plan_code: "starter",
       }),
     });
-    const targetOrgId = ownerOrgCreate?.organization?.id;
-    if (!targetOrgId) {
+    const orgAId = ownerOrgA?.organization?.id;
+    if (!orgAId) {
       throw new Error("Owner org create did not return organization id.");
     }
 
     const ownerOverviewEmpty = await request("/api/organizations/owner-overview", {
       headers: ownerHeaders,
     });
-    const createdOrgOverview = (ownerOverviewEmpty?.organizations || []).find(
-      (org) => org.id === targetOrgId
+    const orgAOverview0 = (ownerOverviewEmpty?.organizations || []).find(
+      (org) => org.id === orgAId
     );
-    if (!createdOrgOverview) {
-      throw new Error("Expected new org to appear in owner overview.");
+    if (!orgAOverview0) {
+      throw new Error("Expected org A to appear in owner overview.");
     }
-    if (createdOrgOverview.user_count !== 0 || (createdOrgOverview.users || []).length !== 0) {
+    if (orgAOverview0.user_count !== 0 || (orgAOverview0.users || []).length !== 0) {
       throw new Error("Expected new org to start with 0 users.");
     }
 
-    const ownerInviteAdmin = await request(`/api/organizations/${encodeURIComponent(targetOrgId)}/users`, {
-      method: "POST",
-      headers: ownerHeaders,
-      body: JSON.stringify({
-        email: "admin-license@local.test",
-        full_name: "Admin License",
-        role: "admin",
-        temporary_password: "TempPass123!",
-      }),
-    });
+    // Create admin user-a in org A
+    const ownerInviteAdminA = await request(
+      `/api/organizations/${encodeURIComponent(orgAId)}/users`,
+      {
+        method: "POST",
+        headers: ownerHeaders,
+        body: JSON.stringify({
+          email: "user-a@local.test",
+          full_name: "Admin A",
+          role: "admin",
+          temporary_password: "TempPass123!",
+        }),
+      }
+    );
 
     const ownerOverviewAfterAdmin = await request("/api/organizations/owner-overview", {
       headers: ownerHeaders,
     });
-    const createdOrgAfterAdmin = (ownerOverviewAfterAdmin?.organizations || []).find(
-      (org) => org.id === targetOrgId
+    const orgAOverview1 = (ownerOverviewAfterAdmin?.organizations || []).find(
+      (org) => org.id === orgAId
     );
-    if (!createdOrgAfterAdmin) {
-      throw new Error("Expected org to appear in owner overview after creating admin.");
+    if (!orgAOverview1) {
+      throw new Error("Expected org A to appear in owner overview after creating admin.");
     }
-    if (createdOrgAfterAdmin.user_count !== 1 || (createdOrgAfterAdmin.users || []).length !== 1) {
-      throw new Error("Expected org to have 1 user after creating admin.");
+    if (orgAOverview1.user_count !== 1 || (orgAOverview1.users || []).length !== 1) {
+      throw new Error("Expected org A to have 1 user after creating admin.");
     }
 
-    const ownerInviteTech = await request(`/api/organizations/${encodeURIComponent(targetOrgId)}/users`, {
+    // Create org B and admin B
+    const ownerOrgB = await request("/api/organizations", {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        name: "Empresa Smoke B",
+        slug: "smoke-b",
+        plan_code: "starter",
+      }),
+    });
+    const orgBId = ownerOrgB?.organization?.id;
+    if (!orgBId) {
+      throw new Error("Owner org B create did not return organization id.");
+    }
+
+    const ownerInviteAdminB = await request(
+      `/api/organizations/${encodeURIComponent(orgBId)}/users`,
+      {
+        method: "POST",
+        headers: ownerHeaders,
+        body: JSON.stringify({
+          email: "admin-b@local.test",
+          full_name: "Admin B",
+          role: "admin",
+          temporary_password: "TempPass123!",
+        }),
+      }
+    );
+
+    // Multi-company restriction: owner cannot add user-a to org B
+    const ownerAddUserAToB = await requestExpectFailure(
+      `/api/organizations/${encodeURIComponent(orgBId)}/users`,
+      {
+        method: "POST",
+        headers: ownerHeaders,
+        body: JSON.stringify({
+          email: "user-a@local.test",
+          full_name: "Admin A",
+          role: "admin",
+        }),
+      }
+    );
+    if (ownerAddUserAToB.status !== 409) {
+      throw new Error("Expected owner multi-company createUser to be blocked with 409.");
+    }
+    if (
+      typeof ownerAddUserAToB.body !== "object" ||
+      ownerAddUserAToB.body?.message !== "Este usuario ya pertenece a otra empresa."
+    ) {
+      throw new Error(
+        `Expected multi-company message. got=${JSON.stringify(ownerAddUserAToB.body)}`
+      );
+    }
+
+    // Admin B cannot create organizations
+    const adminBLogin = await loginViaRedirect({
+      pathname: "/api/auth/login",
+      formFields: {
+        email: "admin-b@local.test",
+        password: "TempPass123!",
+        redirect_uri: `${BASE_URL}/`,
+      },
+    });
+    if (!adminBLogin.token) {
+      throw new Error("Expected admin B login to succeed.");
+    }
+    const adminBHeaders = {
+      Authorization: `Bearer ${adminBLogin.token}`,
+      "X-App-Id": "local-app",
+      "Content-Type": "application/json",
+      "X-Organization-Id": orgBId,
+    };
+    const adminBCreatesOrg = await requestExpectFailure("/api/organizations", {
+      method: "POST",
+      headers: adminBHeaders,
+      body: JSON.stringify({
+        name: "Empresa NO",
+        slug: "nope",
+        plan_code: "starter",
+      }),
+    });
+    if (adminBCreatesOrg.status !== 403) {
+      throw new Error("Expected admin org create to be blocked with 403.");
+    }
+    if (
+      typeof adminBCreatesOrg.body !== "object" ||
+      adminBCreatesOrg.body?.message !==
+        "Solo FRIGEST puede crear nuevas empresas desde el panel."
+    ) {
+      throw new Error(
+        `Expected org-create restriction message. got=${JSON.stringify(adminBCreatesOrg.body)}`
+      );
+    }
+
+    // Invite endpoint also blocks multi-company
+    const adminBInvitesUserA = await requestExpectFailure("/api/users/invite", {
+      method: "POST",
+      headers: adminBHeaders,
+      body: JSON.stringify({
+        email: "user-a@local.test",
+        role: "oficina",
+      }),
+    });
+    if (adminBInvitesUserA.status !== 409) {
+      throw new Error("Expected invite multi-company to be blocked with 409.");
+    }
+    if (
+      typeof adminBInvitesUserA.body !== "object" ||
+      adminBInvitesUserA.body?.message !== "Este usuario ya pertenece a otra empresa."
+    ) {
+      throw new Error(
+        `Expected invite multi-company message. got=${JSON.stringify(adminBInvitesUserA.body)}`
+      );
+    }
+
+    // Re-inviting same user to same org should not duplicate membership
+    await request(`/api/organizations/${encodeURIComponent(orgAId)}/users`, {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        email: "user-a@local.test",
+        full_name: "Admin A",
+        role: "admin",
+      }),
+    });
+    const ownerOverviewAfterReadd = await request("/api/organizations/owner-overview", {
+      headers: ownerHeaders,
+    });
+    const orgAOverviewReadd = (ownerOverviewAfterReadd?.organizations || []).find(
+      (org) => org.id === orgAId
+    );
+    if (!orgAOverviewReadd || orgAOverviewReadd.user_count !== 1) {
+      throw new Error("Expected re-adding same user to same org not to duplicate membership.");
+    }
+
+    // Continue legacy flow on org A (delete + last-admin + license)
+    const ownerInviteTech = await request(`/api/organizations/${encodeURIComponent(orgAId)}/users`, {
       method: "POST",
       headers: ownerHeaders,
       body: JSON.stringify({
@@ -496,7 +637,7 @@ const runSmoke = async () => {
         temporary_password: "TempPass123!",
       }),
     });
-    const ownerInviteHelper = await request(`/api/organizations/${encodeURIComponent(targetOrgId)}/users`, {
+    const ownerInviteHelper = await request(`/api/organizations/${encodeURIComponent(orgAId)}/users`, {
       method: "POST",
       headers: ownerHeaders,
       body: JSON.stringify({
@@ -508,7 +649,7 @@ const runSmoke = async () => {
     });
 
     const ownerInviteTempTech = await request(
-      `/api/organizations/${encodeURIComponent(targetOrgId)}/users`,
+      `/api/organizations/${encodeURIComponent(orgAId)}/users`,
       {
         method: "POST",
         headers: ownerHeaders,
@@ -522,7 +663,7 @@ const runSmoke = async () => {
     );
 
     await request(
-      `/api/organizations/${encodeURIComponent(targetOrgId)}/users/${encodeURIComponent(
+      `/api/organizations/${encodeURIComponent(orgAId)}/users/${encodeURIComponent(
         ownerInviteTempTech?.user?.id
       )}`,
       {
@@ -534,7 +675,7 @@ const runSmoke = async () => {
       headers: ownerHeaders,
     });
     const createdOrgAfterDelete = (ownerOverviewAfterDelete?.organizations || []).find(
-      (org) => org.id === targetOrgId
+      (org) => org.id === orgAId
     );
     if (!createdOrgAfterDelete) {
       throw new Error("Expected org to appear in owner overview after delete.");
@@ -544,8 +685,8 @@ const runSmoke = async () => {
     }
 
     const deleteLastAdminAttempt = await requestExpectFailure(
-      `/api/organizations/${encodeURIComponent(targetOrgId)}/users/${encodeURIComponent(
-        ownerInviteAdmin?.user?.id
+      `/api/organizations/${encodeURIComponent(orgAId)}/users/${encodeURIComponent(
+        ownerInviteAdminA?.user?.id
       )}`,
       {
         method: "DELETE",
@@ -565,7 +706,7 @@ const runSmoke = async () => {
       );
     }
 
-    await request(`/api/organizations/${encodeURIComponent(targetOrgId)}/license/pause`, {
+    await request(`/api/organizations/${encodeURIComponent(orgAId)}/license/pause`, {
       method: "POST",
       headers: ownerHeaders,
       body: JSON.stringify({}),
@@ -602,7 +743,7 @@ const runSmoke = async () => {
     const adminLogin = await loginViaRedirect({
       pathname: "/api/auth/login",
       formFields: {
-        email: "admin-license@local.test",
+        email: "user-a@local.test",
         password: "TempPass123!",
         redirect_uri: `${BASE_URL}/`,
       },
@@ -615,14 +756,14 @@ const runSmoke = async () => {
       Authorization: `Bearer ${adminLogin.token}`,
       "X-App-Id": "local-app",
       "Content-Type": "application/json",
-      "X-Organization-Id": targetOrgId,
+      "X-Organization-Id": orgAId,
     };
 
     const adminMe = await request("/api/auth/me", {
       headers: {
         Authorization: `Bearer ${adminLogin.token}`,
         "X-App-Id": "local-app",
-        "X-Organization-Id": targetOrgId,
+        "X-Organization-Id": orgAId,
       },
     });
     if (adminMe?.license_read_only !== true) {
@@ -644,7 +785,7 @@ const runSmoke = async () => {
       throw new Error(`Expected blocked write message. got=${JSON.stringify(blockedWrite.body)}`);
     }
 
-    await request(`/api/organizations/${encodeURIComponent(targetOrgId)}/license/activate`, {
+    await request(`/api/organizations/${encodeURIComponent(orgAId)}/license/activate`, {
       method: "POST",
       headers: ownerHeaders,
       body: JSON.stringify({}),

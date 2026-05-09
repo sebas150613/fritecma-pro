@@ -270,7 +270,7 @@ export default function OrganizationBillingPanel({ user, onChange, ownerOrganiza
             </p>
           </div>
           <div className="flex gap-2">
-            {canManageBilling && (
+            {canManageBilling && isOwner && (
               <Button
                 type="button"
                 variant="outline"

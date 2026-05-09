@@ -62,6 +62,18 @@ router.post(
     const nextInvitationToken = randomUUID();
 
     if (existingUser) {
+      const otherMemberships = await membershipStore.filter({
+        filter: { user_id: existingUser.id },
+      });
+      const belongsElsewhere = otherMemberships.some(
+        (membership) => membership.organization_id !== req.currentOrganization.id
+      );
+      if (belongsElsewhere) {
+        throw new HttpError(409, "Este usuario ya pertenece a otra empresa.");
+      }
+    }
+
+    if (existingUser) {
       const patch = {
         is_active: true,
         invited_by: req.currentUser?.email || null,
