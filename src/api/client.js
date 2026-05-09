@@ -114,6 +114,15 @@ export const appApi = {
     ),
     current: withProviderMethod((provider) => provider.appApi.organizations?.current),
     create: withProviderMethod((provider) => provider.appApi.organizations?.create),
+    createUser: withProviderMethod(
+      (provider) => provider.appApi.organizations?.createUser
+    ),
+    pauseLicense: withProviderMethod(
+      (provider) => provider.appApi.organizations?.pauseLicense
+    ),
+    activateLicense: withProviderMethod(
+      (provider) => provider.appApi.organizations?.activateLicense
+    ),
     listPlans: withProviderMethod(
       (provider) => provider.appApi.organizations?.listPlans
     ),
