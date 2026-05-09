@@ -10,7 +10,10 @@ import { createJsonEntityStore } from "../lib/json-store.js";
 import { buildTenantFilter } from "../lib/tenant.js";
 import { assertPurchaseOrderAccess } from "../lib/purchase-orders-access.js";
 import { assertLicenseAllowsWrite } from "../lib/license.js";
-import { sendEmail } from "../services/email-service.js";
+import {
+  assertPedidosSmtpReadyForSend,
+  sendCompanyPurchaseOrderMail,
+} from "../services/company-purchase-email-service.js";
 import { buildPurchaseOrderPdfBuffer } from "../services/purchase-order-pdf.js";
 
 const router = express.Router();
@@ -59,6 +62,34 @@ router.get(
   })
 );
 
+router.post(
+  "/test-smtp",
+  asyncHandler(async (req, res) => {
+    assertPurchaseOrderAccess(req);
+    assertLicenseAllowsWrite(req);
+    const settings = req.currentOrganizationSettings || {};
+    assertPedidosSmtpReadyForSend(settings);
+    const to = String(req.body?.to || req.currentUser?.email || "").trim();
+    if (!to) {
+      throw new HttpError(400, "Indica un email de destino o configura email en tu usuario.");
+    }
+    await sendCompanyPurchaseOrderMail(settings, {
+      to,
+      subject: "Prueba SMTP pedidos — FRIGEST",
+      body: [
+        "Este es un correo de prueba del SMTP de pedidos de tu empresa.",
+        "No usa el SMTP global de plataforma FRIGEST.",
+        `Enviado a las ${new Date().toISOString()}`,
+      ].join("\n"),
+    });
+    res.json({
+      ok: true,
+      message:
+        "Correo de prueba de pedidos enviado desde FRIGEST usando el SMTP de esta empresa.",
+    });
+  })
+);
+
 router.get(
   "/:id/pdf",
   asyncHandler(async (req, res) => {
@@ -96,17 +127,12 @@ router.post(
     const orgId = req.currentOrganization.id;
     const settings = req.currentOrganizationSettings || {};
 
+    assertPedidosSmtpReadyForSend(settings);
+
     const pedidosFrom = String(settings.pedidos_email_from || "").trim();
     const pedidosFromName = String(settings.pedidos_email_from_name || "").trim();
     const pedidosReply =
       String(settings.pedidos_reply_to || "").trim() || pedidosFrom;
-
-    if (!pedidosFrom) {
-      throw new HttpError(
-        422,
-        "Configura el correo de pedidos de la empresa antes de tramitar pedidos."
-      );
-    }
 
     const supplierId = String(req.body?.supplier_id || "").trim();
     if (!supplierId) {
@@ -278,13 +304,10 @@ router.post(
     let sendErrorMessage = "";
 
     try {
-      emailResult = await sendEmail({
+      emailResult = await sendCompanyPurchaseOrderMail(settings, {
         to: targetEmail,
         subject,
         body: bodyText,
-        replyTo: pedidosReply || pedidosFrom,
-        fromEmail: pedidosFrom,
-        fromName: pedidosFromName || companyName,
         attachments: [
           {
             filename: `Pedido-${number}.pdf`,
@@ -293,10 +316,10 @@ router.post(
         ],
       });
       emailStatus =
-        emailResult?.provider === "stub"
-          ? "sent_stub"
-          : emailResult?.provider === "disabled"
-            ? "skipped_disabled"
+        emailResult?.provider === "company_smtp_stub"
+          ? "sent_company_stub"
+          : emailResult?.provider === "company_smtp"
+            ? "sent_company"
             : "sent";
     } catch (err) {
       emailStatus = "error";

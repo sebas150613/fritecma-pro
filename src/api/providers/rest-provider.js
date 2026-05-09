@@ -451,6 +451,11 @@ export const createRestProvider = () => {
           method: "PATCH",
           body: payload,
         }),
+      testSmtp: (payload = {}) =>
+        http.request("/api/purchase-orders/test-smtp", {
+          method: "POST",
+          body: payload,
+        }),
     },
     billing: {
       summary: (organizationId) =>

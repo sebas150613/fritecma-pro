@@ -135,7 +135,25 @@ export default function PurchaseOrders() {
       .slice(0, 80);
   }, [materials, materialSearch, supplierId]);
 
-  const pedidosConfigured = Boolean(String(user?.pedidos_email_from || "").trim());
+  const pedidosConfigured = useMemo(() => {
+    if (!user) {
+      return false;
+    }
+    const enabled = user.pedidos_smtp_enabled === true;
+    const host = String(user.pedidos_smtp_host || "").trim();
+    const port = Number(user.pedidos_smtp_port);
+    const from = String(user.pedidos_email_from || "").trim();
+    const smtpUser = String(user.pedidos_smtp_user || "").trim();
+    const passOk = user.pedidos_smtp_pass_configured === true || !smtpUser;
+    return (
+      enabled &&
+      Boolean(host) &&
+      Number.isFinite(port) &&
+      port > 0 &&
+      Boolean(from) &&
+      passOk
+    );
+  }, [user]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
@@ -197,7 +215,7 @@ export default function PurchaseOrders() {
       return;
     }
     if (!pedidosConfigured) {
-      toast.error("Configura el correo de pedidos de la empresa antes de tramitar pedidos.");
+      toast.error("Configura el SMTP de pedidos de esta empresa antes de tramitar pedidos.");
       return;
     }
     if (lines.length === 0) {
@@ -305,7 +323,7 @@ export default function PurchaseOrders() {
             <ShoppingBag className="h-7 w-7 text-accent" /> Pedidos
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Pedidos a proveedor con PDF y correo. El SMTP global es solo infraestructura; la identidad la marca tu empresa en Configuración → Pedidos.
+            Pedidos a proveedor con PDF y correo usando el SMTP propio de la empresa en Configuración → Pedidos (aislado por empresa; no es el SMTP global de plataforma).
           </p>
         </div>
         <Button
@@ -318,7 +336,8 @@ export default function PurchaseOrders() {
 
       {!pedidosConfigured && (
         <div className="rounded-xl border border-amber-300/60 bg-amber-50 text-amber-950 px-4 py-3 text-sm">
-          Configura el correo de pedidos de la empresa en Configuración antes de tramitar pedidos.
+          Configura el SMTP de pedidos de esta empresa en Configuración (correo remitente y servidor SMTP)
+          antes de tramitar pedidos.
         </div>
       )}
 

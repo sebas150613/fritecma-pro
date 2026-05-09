@@ -16,6 +16,7 @@ import {
   buildTenantFilter,
   getOrganizationMembershipStore,
   isTenantScopedEntity,
+  sanitizeOrganizationSettingsForClient,
 } from "../lib/tenant.js";
 import {
   canOperateOffice,
@@ -186,6 +187,13 @@ const sanitizeEntityPayload = async (entityName, value, req) => {
     }
 
     return value;
+  }
+
+  if (entityName === "OrganizationSettings") {
+    if (Array.isArray(value)) {
+      return value.map((item) => sanitizeOrganizationSettingsForClient(item));
+    }
+    return sanitizeOrganizationSettingsForClient(value);
   }
 
   return value;

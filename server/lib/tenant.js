@@ -39,6 +39,12 @@ export const ORGANIZATION_SETTINGS_FIELDS = [
   "pedidos_entrega_contacto",
   "pedidos_entrega_telefono",
   "pedidos_entrega_observaciones",
+  "pedidos_smtp_host",
+  "pedidos_smtp_port",
+  "pedidos_smtp_secure",
+  "pedidos_smtp_user",
+  "pedidos_smtp_pass",
+  "pedidos_smtp_enabled",
 ];
 
 export const getOrganizationStore = () => organizationStore;
@@ -76,6 +82,20 @@ export const sanitizeOrganizationMembership = (membership) => {
   return membership;
 };
 
+/** Respuesta API/cliente: sin contraseña SMTP de pedidos. */
+export const sanitizeOrganizationSettingsForClient = (settings) => {
+  if (!settings || typeof settings !== "object") {
+    return null;
+  }
+  const { pedidos_smtp_pass, ...rest } = settings;
+  return {
+    ...rest,
+    pedidos_smtp_pass_configured: Boolean(
+      typeof pedidos_smtp_pass === "string" && pedidos_smtp_pass.length > 0
+    ),
+  };
+};
+
 export const mergeOrganizationSettingsIntoUser = (
   user,
   organization,
@@ -86,11 +106,13 @@ export const mergeOrganizationSettingsIntoUser = (
     return null;
   }
 
+  const safeSettings = sanitizeOrganizationSettingsForClient(organizationSettings);
+
   return {
     ...user,
-    ...(organizationSettings || {}),
+    ...(safeSettings || {}),
     current_organization: sanitizeOrganizationForViewer(organization),
-    current_organization_settings: organizationSettings || null,
+    current_organization_settings: safeSettings,
     organization_memberships: memberships.map(sanitizeOrganizationMembership),
   };
 };

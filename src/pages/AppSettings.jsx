@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Settings, Users, Shield, Trash2, Upload, Key, FileCheck, Loader2, Crown, Copy, Building2, Coins, Plus, ShoppingBag } from "lucide-react";
 import OrganizationBillingPanel from "@/components/OrganizationBillingPanel";
 import { parseTramosJson, ensureTramoIds } from "@/lib/displacementBilling";
+import { toast } from "sonner";
 
 const ROLE_LABELS = {
   superadmin: "Super Admin",
@@ -80,6 +81,13 @@ export default function AppSettings() {
   const [pedidosEntregaObservaciones, setPedidosEntregaObservaciones] = useState("");
   const [pedidosSaving, setPedidosSaving] = useState(false);
   const [pedidosMessage, setPedidosMessage] = useState("");
+  const [pedidosSmtpEnabled, setPedidosSmtpEnabled] = useState(false);
+  const [pedidosSmtpHost, setPedidosSmtpHost] = useState("");
+  const [pedidosSmtpPort, setPedidosSmtpPort] = useState("587");
+  const [pedidosSmtpSecure, setPedidosSmtpSecure] = useState(false);
+  const [pedidosSmtpUser, setPedidosSmtpUser] = useState("");
+  const [pedidosSmtpPass, setPedidosSmtpPass] = useState("");
+  const [pedidosSmtpTesting, setPedidosSmtpTesting] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -104,6 +112,12 @@ export default function AppSettings() {
     setPedidosEntregaContacto(me.pedidos_entrega_contacto ?? "");
     setPedidosEntregaTelefono(me.pedidos_entrega_telefono ?? "");
     setPedidosEntregaObservaciones(me.pedidos_entrega_observaciones ?? "");
+    setPedidosSmtpEnabled(me.pedidos_smtp_enabled === true);
+    setPedidosSmtpHost(me.pedidos_smtp_host ?? "");
+    setPedidosSmtpPort(String(me.pedidos_smtp_port ?? "587"));
+    setPedidosSmtpSecure(me.pedidos_smtp_secure === true);
+    setPedidosSmtpUser(me.pedidos_smtp_user ?? "");
+    setPedidosSmtpPass("");
     if (["admin", "superadmin"].includes(me.role) && me.is_hidden_owner !== true) {
       const allUsers = await appApi.entities.User.list("full_name", 100);
       setUsers(allUsers);
@@ -311,7 +325,13 @@ export default function AppSettings() {
     setPedidosSaving(true);
     setPedidosMessage("");
     try {
-      await appApi.auth.updateMe({
+      const portNum = parseInt(String(pedidosSmtpPort).trim(), 10);
+      const payload = {
+        pedidos_smtp_enabled: pedidosSmtpEnabled,
+        pedidos_smtp_host: pedidosSmtpHost.trim(),
+        pedidos_smtp_port: Number.isFinite(portNum) && portNum > 0 ? portNum : 587,
+        pedidos_smtp_secure: pedidosSmtpSecure === true,
+        pedidos_smtp_user: pedidosSmtpUser.trim(),
         pedidos_email_from: pedidosEmailFrom.trim(),
         pedidos_email_from_name: pedidosEmailFromName.trim(),
         pedidos_reply_to: pedidosReplyTo.trim(),
@@ -319,13 +339,30 @@ export default function AppSettings() {
         pedidos_entrega_contacto: pedidosEntregaContacto.trim(),
         pedidos_entrega_telefono: pedidosEntregaTelefono.trim(),
         pedidos_entrega_observaciones: pedidosEntregaObservaciones.trim(),
-      });
+      };
+      if (pedidosSmtpPass.trim()) {
+        payload.pedidos_smtp_pass = pedidosSmtpPass.trim();
+      }
+      await appApi.auth.updateMe(payload);
       setPedidosMessage("Datos de pedidos guardados.");
+      setPedidosSmtpPass("");
       await loadData();
     } catch (e) {
       setPedidosMessage(e?.message || "No se pudo guardar.");
     } finally {
       setPedidosSaving(false);
+    }
+  };
+
+  const handleTestPedidosSmtp = async () => {
+    setPedidosSmtpTesting(true);
+    try {
+      const res = await appApi.purchaseOrders.testSmtp({});
+      toast.success(res?.message || "Correo de prueba enviado.");
+    } catch (e) {
+      toast.error(e?.message || "No se pudo enviar la prueba.");
+    } finally {
+      setPedidosSmtpTesting(false);
     }
   };
 
@@ -824,8 +861,67 @@ export default function AppSettings() {
           <ShoppingBag className="h-4 w-4 text-accent" /> Pedidos a proveedor
         </h2>
         <p className="text-xs text-muted-foreground">
-          Correo operativo que verán los proveedores al recibir pedidos. No configura el SMTP global de FRIGEST (solo el panel owner). Si «Respuesta» está vacío, se usará el email de pedidos.
+          Este SMTP solo se usará para enviar pedidos a proveedores de esta empresa. No afecta al correo de plataforma FRIGEST (recuperación de contraseña, invitaciones, etc.), que sigue configurándose solo en el panel owner.
         </p>
+
+        <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-3">
+          <p className="text-sm font-medium">SMTP para pedidos</p>
+          <div className="flex items-center justify-between gap-3">
+            <Label className="text-xs">Activar envío SMTP de pedidos</Label>
+            <Switch checked={pedidosSmtpEnabled} onCheckedChange={setPedidosSmtpEnabled} />
+          </div>
+          <div>
+            <Label className="text-xs">Servidor SMTP</Label>
+            <Input
+              value={pedidosSmtpHost}
+              onChange={(e) => setPedidosSmtpHost(e.target.value)}
+              placeholder="smtp.tu-proveedor.com"
+              className="mt-1 rounded-xl"
+              autoComplete="off"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Puerto</Label>
+              <Input
+                value={pedidosSmtpPort}
+                onChange={(e) => setPedidosSmtpPort(e.target.value)}
+                className="mt-1 rounded-xl"
+              />
+            </div>
+            <div className="flex items-end justify-between gap-2 pb-1">
+              <div>
+                <Label className="text-xs block mb-1">TLS / SSL</Label>
+                <p className="text-[10px] text-muted-foreground">Activa si tu servidor exige conexión segura</p>
+              </div>
+              <Switch checked={pedidosSmtpSecure} onCheckedChange={setPedidosSmtpSecure} />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">Usuario SMTP</Label>
+            <Input
+              value={pedidosSmtpUser}
+              onChange={(e) => setPedidosSmtpUser(e.target.value)}
+              className="mt-1 rounded-xl"
+              autoComplete="off"
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Contraseña SMTP</Label>
+            <Input
+              type="password"
+              value={pedidosSmtpPass}
+              onChange={(e) => setPedidosSmtpPass(e.target.value)}
+              placeholder="Dejar vacío para mantener la contraseña actual"
+              className="mt-1 rounded-xl"
+              autoComplete="new-password"
+            />
+            {user?.pedidos_smtp_pass_configured ? (
+              <p className="text-xs text-muted-foreground mt-1">Contraseña SMTP configurada</p>
+            ) : null}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="sm:col-span-2">
             <Label className="text-xs">Email de pedidos de la empresa</Label>
@@ -894,15 +990,27 @@ export default function AppSettings() {
         {pedidosMessage && (
           <p className="text-xs text-muted-foreground">{pedidosMessage}</p>
         )}
-        <Button
-          type="button"
-          onClick={handleSavePedidos}
-          disabled={pedidosSaving}
-          className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
-        >
-          {pedidosSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          Guardar datos de pedidos
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button
+            type="button"
+            onClick={handleSavePedidos}
+            disabled={pedidosSaving}
+            className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+          >
+            {pedidosSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Guardar datos de pedidos
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-xl"
+            disabled={pedidosSaving || pedidosSmtpTesting}
+            onClick={handleTestPedidosSmtp}
+          >
+            {pedidosSmtpTesting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Enviar prueba de correo de pedidos
+          </Button>
+        </div>
       </div>
       )}
 

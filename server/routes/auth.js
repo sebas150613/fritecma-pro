@@ -16,12 +16,13 @@ import {
   upsertOrganizationSettingsForOrganization,
 } from "../lib/auth.js";
 import { HttpError } from "../lib/http-error.js";
-import { splitOrganizationSettingsPatch } from "../lib/tenant.js";
 import {
   getOrganizationMembershipStore,
   getOrganizationSettingsStore,
   getOrganizationStore,
   normalizeOrganizationSlug,
+  sanitizeOrganizationSettingsForClient,
+  splitOrganizationSettingsPatch,
 } from "../lib/tenant.js";
 import {
   ensureOrganizationSubscription,
@@ -1595,9 +1596,16 @@ router.patch(
   "/me",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const { userPatch, organizationSettingsPatch } = splitOrganizationSettingsPatch(
-      req.body || {}
-    );
+    const split = splitOrganizationSettingsPatch(req.body || {});
+    let organizationSettingsPatch = { ...split.organizationSettingsPatch };
+    if (Object.prototype.hasOwnProperty.call(organizationSettingsPatch, "pedidos_smtp_pass")) {
+      const pw = String(organizationSettingsPatch.pedidos_smtp_pass ?? "").trim();
+      if (!pw) {
+        delete organizationSettingsPatch.pedidos_smtp_pass;
+      }
+    }
+
+    const { userPatch } = split;
     const hasUserPatch = Object.keys(userPatch).length > 0;
     const hasOrganizationSettingsPatch =
       Object.keys(organizationSettingsPatch).length > 0;
@@ -1620,11 +1628,15 @@ router.patch(
         )
       : req.currentOrganizationSettings;
 
+    const sanitizedSettings = sanitizeOrganizationSettingsForClient(
+      updatedOrganizationSettings || req.currentOrganizationSettings
+    );
+
     res.json({
       ...req.currentUser,
-      ...(updatedOrganizationSettings || {}),
       ...stripSensitiveUserFields(updatedUser || req.currentUser),
-      current_organization_settings: updatedOrganizationSettings || null,
+      ...sanitizedSettings,
+      current_organization_settings: sanitizedSettings,
     });
   })
 );

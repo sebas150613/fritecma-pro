@@ -176,6 +176,7 @@ export const appApi = {
     updateStatus: withProviderMethod(
       (provider) => provider.appApi.purchaseOrders?.updateStatus
     ),
+    testSmtp: withProviderMethod((provider) => provider.appApi.purchaseOrders?.testSmtp),
   },
   billing: {
     summary: withProviderMethod((provider) => provider.appApi.billing?.summary),

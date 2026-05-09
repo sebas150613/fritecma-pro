@@ -101,6 +101,30 @@
     "pedidos_entrega_observaciones": {
       "type": "string",
       "title": "Observaciones entrega"
+    },
+    "pedidos_smtp_host": {
+      "type": "string",
+      "title": "SMTP pedidos — servidor"
+    },
+    "pedidos_smtp_port": {
+      "type": "number",
+      "title": "SMTP pedidos — puerto"
+    },
+    "pedidos_smtp_secure": {
+      "type": "boolean",
+      "title": "SMTP pedidos — TLS/SSL"
+    },
+    "pedidos_smtp_user": {
+      "type": "string",
+      "title": "SMTP pedidos — usuario"
+    },
+    "pedidos_smtp_pass": {
+      "type": "string",
+      "title": "SMTP pedidos — contrase\u00f1a"
+    },
+    "pedidos_smtp_enabled": {
+      "type": "boolean",
+      "title": "SMTP pedidos — activado"
     }
   },
   "required": [

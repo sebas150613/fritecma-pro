@@ -141,6 +141,7 @@ const createServerProcess = ({ dataDir, uploadsDir }) => {
       APP_DATA_DIR: dataDir,
       APP_UPLOADS_DIR: uploadsDir,
       APP_SEED_DEMO_USERS: "true",
+      APP_COMPANY_PURCHASE_SMTP_STUB: "true",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -962,6 +963,11 @@ const runSmoke = async () => {
       method: "PATCH",
       headers: adminHeaders,
       body: JSON.stringify({
+        pedidos_smtp_enabled: true,
+        pedidos_smtp_host: "smtp.smoke-pedidos.local",
+        pedidos_smtp_port: 587,
+        pedidos_smtp_secure: false,
+        pedidos_smtp_user: "",
         pedidos_email_from: "compras-po-smoke@local.test",
         pedidos_email_from_name: "Smoke Compras",
         pedidos_reply_to: "reply-po-smoke@local.test",
@@ -969,6 +975,20 @@ const runSmoke = async () => {
         pedidos_entrega_contacto: "Recepción",
         pedidos_entrega_telefono: "611222333",
       }),
+    });
+
+    const mePedidos = await request("/api/auth/me", { headers: adminHeaders });
+    if (Object.prototype.hasOwnProperty.call(mePedidos, "pedidos_smtp_pass")) {
+      throw new Error("pedidos_smtp_pass must not be exposed in /api/auth/me");
+    }
+    if (typeof mePedidos.pedidos_smtp_pass_configured !== "boolean") {
+      throw new Error("Expected pedidos_smtp_pass_configured boolean on /api/auth/me");
+    }
+
+    await request("/api/purchase-orders/test-smtp", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({}),
     });
 
     const poSupplier = await request("/api/entities/Supplier", {
@@ -1123,6 +1143,7 @@ const runSmoke = async () => {
         APP_DATA_DIR: tempDataDir,
         APP_UPLOADS_DIR: tempUploadsDir,
         APP_SEED_DEMO_USERS: "false",
+        APP_COMPANY_PURCHASE_SMTP_STUB: "true",
       },
       stdio: ["ignore", "pipe", "pipe"],
     });

@@ -57,6 +57,7 @@ export type AppApi = {
     list: () => Promise<{ orders: any[] }>;
     send: (payload: any) => Promise<any>;
     updateStatus: (id: string, payload: any) => Promise<any>;
+    testSmtp: (payload?: any) => Promise<any>;
   };
   billing: {
     summary: (organizationId?: string) => Promise<any>;
