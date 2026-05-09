@@ -1,9 +1,21 @@
 import { useEffect, useState } from "react";
-import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { appApi } from "@/api/app-api";
+import { clearRuntimeAccessToken, runtimeConfig } from "@/lib/runtime-config";
 import { Settings, Shield, Trash2 } from "lucide-react";
+
+const buildApiUrl = (path) => {
+  const baseUrl = String(runtimeConfig.apiUrl || "").replace(/\/+$/, "");
+  return baseUrl ? `${baseUrl}${path}` : path;
+};
 
 export default function AccountSettings() {
   const [user, setUser] = useState(null);
@@ -30,8 +42,22 @@ export default function AccountSettings() {
     setError("");
 
     try {
-      await appApi.account.deleteMe();
-      appApi.auth.logout("/");
+      const response = await fetch(buildApiUrl("/api/account/me"), {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
+          ...(runtimeConfig.token ? { Authorization: `Bearer ${runtimeConfig.token}` } : {}),
+          ...(runtimeConfig.appId ? { "X-App-Id": runtimeConfig.appId } : {}),
+        },
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.message || "No se pudo eliminar la cuenta.");
+      }
+
+      clearRuntimeAccessToken();
+      window.location.assign("/");
     } catch (deleteError) {
       setError(deleteError?.message || "No se pudo eliminar la cuenta.");
       setDeleting(false);
