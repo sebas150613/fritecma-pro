@@ -3,6 +3,7 @@ import cors from "cors";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import multer from "multer";
 import { serverConfig } from "./config.js";
 import authRoutes from "./routes/auth.js";
 import entityRoutes from "./routes/entities.js";
@@ -73,9 +74,16 @@ app.use("/api/functions", functionRoutes);
 app.use("/api/billing", billingRoutes);
 
 app.use((error, _req, res, _next) => {
-  const status = error.status || 500;
+  const status =
+    error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE"
+      ? 413
+      : error.status || 500;
+  const message =
+    error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE"
+      ? `File exceeds the maximum allowed size of ${serverConfig.uploadMaxFileSizeMb} MB`
+      : error.message || "Unexpected server error";
   const payload = {
-    message: error.message || "Unexpected server error",
+    message,
     ...(error.data ? { extra_data: error.data } : {}),
   };
 
