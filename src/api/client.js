@@ -104,6 +104,9 @@ export const appApi = {
       (provider) => provider.appApi.auth?.switchOrganization
     ),
   },
+  account: {
+    deleteMe: withProviderMethod((provider) => provider.appApi.account?.deleteMe),
+  },
   users: {
     invite: withProviderMethod((provider) => provider.appApi.users?.invite),
   },
