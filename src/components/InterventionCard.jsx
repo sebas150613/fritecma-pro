@@ -19,7 +19,25 @@ const statusLabels = {
   facturado: "Facturado",
 };
 
-export default React.memo(function InterventionCard({ intervention, isAdmin }) {
+/**
+ * @typedef {Object} InterventionCardProps
+ * @property {Object} intervention
+ * @property {string|number} intervention.id
+ * @property {string=} intervention.number
+ * @property {string=} intervention.client_name
+ * @property {string=} intervention.status
+ * @property {string=} intervention.date
+ * @property {string=} intervention.location_address
+ * @property {string=} intervention.gas_type
+ * @property {number=} intervention.gas_loaded_kg
+ * @property {number=} intervention.gas_recovered_kg
+ * @property {string=} intervention.technician_name
+ * @property {number=} intervention.total
+ * @property {boolean} isAdmin
+ */
+
+/** @param {InterventionCardProps} props */
+function InterventionCard({ intervention, isAdmin }) {
   // Usar constantes para evitar accesos repetitivos a propiedades
   const {
     id,
@@ -42,7 +60,7 @@ export default React.memo(function InterventionCard({ intervention, isAdmin }) {
       <div className="flex items-start justify-between mb-3">
         <div>
           <p className="text-xs text-muted-foreground font-medium">
-            {number || `#${id?.slice(0, 6)}`}
+            {number || `#${String(id).slice(0, 6)}`}
           </p>
           <h3 className="font-semibold text-base mt-0.5 group-hover:text-accent transition-colors">
             {client_name}
@@ -88,4 +106,11 @@ export default React.memo(function InterventionCard({ intervention, isAdmin }) {
       </div>
     </Link>
     );
-}, (prevProps, nextProps) => prevProps.intervention.id === nextProps.intervention.id && prevProps.intervention.status === nextProps.intervention.status);
+}
+
+export default React.memo(
+  InterventionCard,
+  (prevProps, nextProps) =>
+    prevProps.intervention.id === nextProps.intervention.id &&
+    prevProps.intervention.status === nextProps.intervention.status
+);
