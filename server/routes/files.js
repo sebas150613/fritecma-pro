@@ -1,11 +1,31 @@
 import express from "express";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import multer from "multer";
 import { asyncHandler } from "../lib/async-handler.js";
 import { canAccessHiddenUsers, requireAuth } from "../lib/auth.js";
 import { HttpError } from "../lib/http-error.js";
 import { serverConfig } from "../config.js";
+
+const SAFE_EXTENSION_PATTERN = /^\.[a-z0-9]{1,12}$/i;
+
+const getSafeExtension = (originalName = "") => {
+  const extension = path.extname(String(originalName)).toLowerCase();
+  return SAFE_EXTENSION_PATTERN.test(extension) ? extension : "";
+};
+
+const resolveUploadPath = (fileUri) => {
+  const normalized = normalizeFileUri(fileUri);
+  const uploadsRoot = path.resolve(serverConfig.uploadsDir);
+  const absolutePath = path.resolve(uploadsRoot, normalized);
+
+  if (!absolutePath.startsWith(`${uploadsRoot}${path.sep}`)) {
+    throw new HttpError(400, "Invalid file_uri");
+  }
+
+  return absolutePath;
+};
 
 const createStorage = (scopeName, getDir) =>
   multer.diskStorage({
@@ -19,21 +39,26 @@ const createStorage = (scopeName, getDir) =>
       }
     },
     filename: (_req, file, cb) => {
-      const safeName = `${Date.now()}-${file.originalname.replace(/\s+/g, "-")}`;
+      const extension = getSafeExtension(file.originalname);
+      cb(null, `${Date.now()}-${randomUUID()}${extension}`);
       void scopeName;
-      cb(null, safeName);
     },
   });
 
+const uploadLimits = {
+  fileSize: serverConfig.uploadMaxFileSizeBytes,
+};
 const publicUpload = multer({
   storage: createStorage("public", (req) =>
     path.join(serverConfig.publicUploadsDir, req.currentOrganization.id)
   ),
+  limits: uploadLimits,
 });
 const privateUpload = multer({
   storage: createStorage("private", (req) =>
     path.join(serverConfig.privateUploadsDir, req.currentOrganization.id)
   ),
+  limits: uploadLimits,
 });
 const router = express.Router();
 
@@ -47,6 +72,8 @@ const assertFileAccess = (req, fileUri) => {
   if (!normalized) {
     throw new HttpError(400, "file_uri is required");
   }
+
+  resolveUploadPath(normalized);
 
   if (canAccessHiddenUsers(req.currentUser)) {
     return normalized;
@@ -109,7 +136,7 @@ router.get(
   "/access",
   asyncHandler(async (req, res) => {
     const normalized = assertFileAccess(req, req.query.file_uri?.toString());
-    const absolutePath = path.join(serverConfig.uploadsDir, normalized);
+    const absolutePath = resolveUploadPath(normalized);
 
     await fs.access(absolutePath);
     res.sendFile(absolutePath);
@@ -120,7 +147,7 @@ router.post(
   "/signed-url",
   asyncHandler(async (req, res) => {
     const normalized = assertFileAccess(req, req.body?.file_uri);
-    const absolutePath = path.join(serverConfig.uploadsDir, normalized);
+    const absolutePath = resolveUploadPath(normalized);
 
     await fs.access(absolutePath);
 
