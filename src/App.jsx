@@ -29,7 +29,21 @@ import MaterialRequests from './pages/MaterialRequests';
 import AbsenceManagement from './pages/AbsenceManagement';
 import Calendar from './pages/Calendar';
 import OwnerClients from './pages/OwnerClients';
+const normalizeRole = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 
+const resolveUserRole = (user) =>
+  normalizeRole(
+    user?.role ||
+      user?.current_membership?.role ||
+      user?.membership?.role ||
+      user?.current_organization_membership?.role ||
+      ""
+  );
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, user } = useAuth();
 
