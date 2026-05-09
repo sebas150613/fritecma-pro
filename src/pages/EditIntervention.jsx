@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,14 @@ import {
   GAS_TYPE_OTHER_LABEL,
   GAS_OTHER_REQUIRED_MESSAGE,
 } from "@/lib/refrigerantGases";
+import {
+  parseTramosJson,
+  ensureTramoIds,
+  findTramoById,
+  upsertDisplacementMaterialLine,
+  stripDisplacementLines,
+  computeTotalsFromLines,
+} from "@/lib/displacementBilling";
 
 const STATUS_OPTIONS = [
   { value: "en_curso", label: "En Curso" },
@@ -59,6 +67,8 @@ export default function EditIntervention() {
   });
 
   const [lines, setLines] = useState([]);
+  const [depCantidad, setDepCantidad] = useState(0);
+  const [depTramoId, setDepTramoId] = useState("");
 
   useEffect(() => {
     loadData();
@@ -108,22 +118,15 @@ export default function EditIntervention() {
         status: inv.status || "pendiente_revision",
       });
       setLines(inv.materials_json ? JSON.parse(inv.materials_json) : []);
+      setDepCantidad(inv.desplazamientos_cantidad ?? 0);
+      setDepTramoId(inv.desplazamiento_tramo_id || "");
     }
     setLoading(false);
   };
 
-  const calcTotals = () => {
-    const subtotal = lines.reduce((sum, l) => sum + (l.total || 0), 0);
-    const discountAmount = subtotal * (form.discount_percent / 100);
-    const subtotalAfterDiscount = subtotal - discountAmount;
-    const ivaByRate = {};
-    lines.forEach(l => {
-      const rate = l.iva_percent || 21;
-      const lineAfterDiscount = (l.total || 0) * (1 - form.discount_percent / 100);
-      ivaByRate[rate] = (ivaByRate[rate] || 0) + lineAfterDiscount * (rate / 100);
-    });
-    const ivaTotal = Object.values(ivaByRate).reduce((s, v) => s + v, 0);
-    return { subtotal, discountAmount, subtotalAfterDiscount, ivaTotal, total: subtotalAfterDiscount + ivaTotal };
+  const calcTotals = (linesArg) => {
+    const list = linesArg ?? lines;
+    return computeTotalsFromLines(list, form.discount_percent || 0);
   };
 
   const handleSave = async () => {
@@ -136,7 +139,23 @@ export default function EditIntervention() {
       : resolveCanonicalGasLabel(form.gas_type, gasBottleLegacy);
 
     setSaving(true);
-    const totals = calcTotals();
+    const tramosOrg = ensureTramoIds(parseTramosJson(user?.desplazamiento_tramos_json));
+    const tramoSel = depTramoId ? findTramoById(tramosOrg, depTramoId) : null;
+    let outLines = [...lines];
+    const cant = Math.max(0, parseInt(String(depCantidad), 10) || 0);
+    const canDep =
+      user?.role === "admin" ||
+      user?.role === "superadmin" ||
+      user?.role === "oficina" ||
+      user?.role === "encargado";
+    if (canDep) {
+      if (cant > 0 && tramoSel) {
+        outLines = upsertDisplacementMaterialLine(outLines, { cantidad: cant, tramo: tramoSel });
+      } else if (cant === 0) {
+        outLines = stripDisplacementLines(outLines);
+      }
+    }
+    const totals = calcTotals(outLines);
     const gasLeak = Math.max(0, (form.gas_loaded_kg || 0) - (form.gas_recovered_kg || 0));
 
     // Build changes summary for audit
@@ -148,6 +167,27 @@ export default function EditIntervention() {
     if (original.discount_percent !== form.discount_percent) changes.push("descuento");
     const materialsChanged = JSON.stringify(lines) !== original.materials_json;
     if (materialsChanged) changes.push("materiales/líneas");
+
+    let dispPatch = {};
+    if (canDep && cant > 0 && tramoSel) {
+      dispPatch = {
+        desplazamientos_cantidad: cant,
+        desplazamiento_tramo_id: tramoSel.id,
+        desplazamiento_tramo_nombre: tramoSel.nombre,
+        desplazamiento_precio_unitario: tramoSel.precio,
+        desplazamiento_total: cant * tramoSel.precio,
+        desplazamiento_pendiente_tarifa: false,
+      };
+    } else if (canDep && cant === 0) {
+      dispPatch = {
+        desplazamientos_cantidad: 0,
+        desplazamiento_tramo_id: undefined,
+        desplazamiento_tramo_nombre: undefined,
+        desplazamiento_precio_unitario: undefined,
+        desplazamiento_total: undefined,
+        desplazamiento_pendiente_tarifa: false,
+      };
+    }
 
     await appApi.entities.Intervention.update(id, {
       client_id: form.client_id,
@@ -164,10 +204,11 @@ export default function EditIntervention() {
       technician_notes: form.technician_notes,
       discount_percent: form.discount_percent,
       status: form.status,
-      materials_json: JSON.stringify(lines),
+      materials_json: JSON.stringify(outLines),
       subtotal: totals.subtotal,
       iva_total: totals.ivaTotal,
       total: totals.total,
+      ...dispPatch,
     });
 
     await appApi.entities.AuditLog.create({
@@ -184,6 +225,29 @@ export default function EditIntervention() {
     setSaving(false);
     navigate(`/interventions/${id}`);
   };
+
+  const canEditPrices =
+    user?.role === "admin" ||
+    user?.role === "superadmin" ||
+    user?.role === "oficina" ||
+    user?.role === "encargado";
+  const canManageDep = canEditPrices;
+  const tramosOrg = ensureTramoIds(parseTramosJson(user?.desplazamiento_tramos_json));
+
+  const previewLines = useMemo(() => {
+    if (!canManageDep) return lines;
+    const tramoSel = depTramoId ? findTramoById(tramosOrg, depTramoId) : null;
+    const cant = Math.max(0, parseInt(String(depCantidad), 10) || 0);
+    if (cant > 0 && tramoSel) {
+      return upsertDisplacementMaterialLine(lines, { cantidad: cant, tramo: tramoSel });
+    }
+    if (cant === 0) {
+      return stripDisplacementLines(lines);
+    }
+    return lines;
+  }, [lines, depCantidad, depTramoId, tramosOrg, canManageDep]);
+
+  const totals = calcTotals(previewLines);
 
   if (loading) {
     return (
@@ -208,7 +272,6 @@ export default function EditIntervention() {
     );
   }
 
-  const totals = calcTotals();
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   return (
@@ -320,6 +383,46 @@ export default function EditIntervention() {
         <Textarea placeholder="Notas técnicas..." value={form.technician_notes} onChange={(e) => setForm(f => ({ ...f, technician_notes: e.target.value }))} rows={2} className="rounded-xl" />
       </div>
 
+      {canManageDep && (
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+            Desplazamiento
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+            <div>
+              <Label className="text-xs">Número de desplazamientos</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={depCantidad}
+                onChange={(e) => setDepCantidad(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                className="mt-1 rounded-xl"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="text-xs">Tramo</Label>
+              <Select value={depTramoId || "__none__"} onValueChange={(v) => setDepTramoId(v === "__none__" ? "" : v)}>
+                <SelectTrigger className="mt-1 rounded-xl">
+                  <SelectValue placeholder="Tramo…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Sin tramo —</SelectItem>
+                  {tramosOrg.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.nombre} · {t.precio.toFixed(2)} €
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Al guardar el parte se actualizarán la línea de desplazamiento en materiales y los totales.
+          </p>
+        </div>
+      )}
+
       {/* Materiales */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <div className="flex items-center justify-between">
@@ -337,7 +440,7 @@ export default function EditIntervention() {
               materials={materials}
               onUpdate={(idx, updated) => { const l = [...lines]; l[idx] = updated; setLines(l); }}
               onRemove={(idx) => setLines(lines.filter((_, j) => j !== idx))}
-              isAdmin={isAdmin}
+              isAdmin={canEditPrices}
             />
           ))}
         </div>

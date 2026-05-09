@@ -4,7 +4,7 @@ import { queryClientInstance } from '@/lib/query-client'
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/app-auth';
-import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import UserNotRegisteredError from './components/UserNotRegisteredError';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Interventions from './pages/Interventions';
@@ -51,7 +51,7 @@ const AuthenticatedApp = () => {
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
       </div>
     );
   }
@@ -100,7 +100,9 @@ const AuthenticatedApp = () => {
 };
 
 const SettingsRoute = ({ user }) => {
-  if (["tecnico", "ayudante"].includes(user?.role)) {
+  const role = resolveUserRole(user);
+
+  if (["tecnico", "ayudante", "user"].includes(role)) {
     return <AccountSettings />;
   }
 

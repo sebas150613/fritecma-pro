@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Clock, Users, AlertCircle } from "lucide-react";
+import { getTarifa1Oficial, getTarifaOficialAyudante } from "@/lib/organizationTariffs";
 
 const SCHEDULE_TYPES = [
   { value: "normal",   label: "Normal (horario laboral)" },
@@ -25,17 +26,14 @@ function calcHours(start, end) {
   return mins > 0 ? Math.round((mins / 60) * 100) / 100 : 0;
 }
 
-function getTarifa(clientTarifas, tipoHorario) {
-  const map = {
-    normal:   clientTarifas?.tarifa_normal   ?? 45,
-    extra:    clientTarifas?.tarifa_extra    ?? 60,
-    nocturno: clientTarifas?.tarifa_nocturna ?? 70,
-    festivo:  clientTarifas?.tarifa_festiva  ?? 80,
-  };
-  return map[tipoHorario] ?? 45;
-}
-
-export default function LaborSection({ materials, isAdmin, onLaborLines, currentUser, allUsers = [], clientTarifas = null }) {
+export default function LaborSection({
+  materials,
+  isAdmin: _isAdmin = false,
+  onLaborLines,
+  currentUser,
+  allUsers = [],
+  organizationTarifas = null,
+}) {
   const [startTime, setStartTime]   = useState("");
   const [endTime, setEndTime]       = useState("");
   const [tipoHorario, setTipoHorario] = useState("");
@@ -43,18 +41,19 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
   const [customCount, setCustomCount] = useState(2);
   const [helperEmail, setHelperEmail] = useState("");
   const [extraOperators, setExtraOperators] = useState([]);
-  const [adminPriceOverride, setAdminPriceOverride] = useState(null); // null = use client tarifa
+  const [adminPriceOverride, setAdminPriceOverride] = useState(null);
 
-  // Derived values
+  const profile = organizationTarifas || {};
   const operatorCount = mode === "1_oficial" ? 1 : mode === "oficial_ayudante" ? 2 : customCount;
-  const baseRate = adminPriceOverride !== null ? adminPriceOverride : getTarifa(clientTarifas, tipoHorario);
+  const oficialRate = adminPriceOverride !== null
+    ? adminPriceOverride
+    : getTarifa1Oficial(profile, tipoHorario);
+  const oficialAyudanteRate = adminPriceOverride !== null
+    ? adminPriceOverride
+    : getTarifaOficialAyudante(profile, tipoHorario);
 
   const moMaterials = materials.filter(m => m.category === "mano_de_obra");
   const defaultMO   = moMaterials[0] || {};
-  const ayudanteMO  = moMaterials[1] || moMaterials[0] || {};
-  const ayudanteRate = isAdmin && adminPriceOverride !== null
-    ? adminPriceOverride * 0.8
-    : getTarifa(clientTarifas, tipoHorario) * 0.8;
 
   const handleModeChange = (newMode) => {
     setMode(newMode);
@@ -63,11 +62,9 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
   };
 
   useEffect(() => {
-    // Reset admin override when tarifa type changes
     setAdminPriceOverride(null);
   }, [tipoHorario]);
 
-  // Sync extra operators array size
   useEffect(() => {
     const additional = Math.max(0, customCount - 1);
     setExtraOperators(prev => {
@@ -85,41 +82,29 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
   useEffect(() => {
     if (hours <= 0 || !tipoHorario) { onLaborLines([]); return; }
 
-    const rate = baseRate;
-    const ayRate = mode === "oficial_ayudante" ? ayudanteRate : rate;
-
     let lines = [];
     if (mode === "1_oficial") {
       lines = [{
         material_id: defaultMO.id || "", material_name: defaultMO.name || "Mano de Obra",
         unit: defaultMO.unit || "h", iva_percent: defaultMO.iva_percent || 21,
-        quantity: hours, unit_price: rate, total: hours * rate,
+        quantity: hours, unit_price: oficialRate, total: hours * oficialRate,
         observation: `${principalName} · ${startTime}–${endTime} · ${SCHEDULE_TYPES.find(s=>s.value===tipoHorario)?.label}`,
         _isLabor: true, _tipoHorario: tipoHorario,
       }];
     } else if (mode === "oficial_ayudante") {
       const helperName = helperEmail ? getUserName(helperEmail) : "Ayudante";
-      lines = [
-        {
-          material_id: defaultMO.id || "", material_name: defaultMO.name || "Mano de Obra",
-          unit: defaultMO.unit || "h", iva_percent: defaultMO.iva_percent || 21,
-          quantity: hours, unit_price: rate, total: hours * rate,
-          observation: `${principalName} · ${startTime}–${endTime} · ${SCHEDULE_TYPES.find(s=>s.value===tipoHorario)?.label}`,
-          _isLabor: true, _tipoHorario: tipoHorario,
-        },
-        {
-          material_id: ayudanteMO.id || "", material_name: ayudanteMO.name || "Mano de Obra – Ayudante",
-          unit: ayudanteMO.unit || "h", iva_percent: ayudanteMO.iva_percent || 21,
-          quantity: hours, unit_price: ayRate, total: hours * ayRate,
-          observation: `${helperName} · ${startTime}–${endTime} · ${SCHEDULE_TYPES.find(s=>s.value===tipoHorario)?.label}`,
-          _isLabor: true, _tipoHorario: tipoHorario,
-        },
-      ];
+      lines = [{
+        material_id: defaultMO.id || "", material_name: defaultMO.name || "Mano de Obra",
+        unit: defaultMO.unit || "h", iva_percent: defaultMO.iva_percent || 21,
+        quantity: hours, unit_price: oficialAyudanteRate, total: hours * oficialAyudanteRate,
+        observation: `Oficial + Ayudante · ${principalName} + ${helperName} · ${startTime}–${endTime} · ${SCHEDULE_TYPES.find(s=>s.value===tipoHorario)?.label}`,
+        _isLabor: true, _tipoHorario: tipoHorario, _laborMode: "oficial_ayudante",
+      }];
     } else {
       lines = [{
         material_id: defaultMO.id || "", material_name: defaultMO.name || "Mano de Obra",
         unit: defaultMO.unit || "h", iva_percent: defaultMO.iva_percent || 21,
-        quantity: hours, unit_price: rate, total: hours * rate,
+        quantity: hours, unit_price: oficialRate, total: hours * oficialRate,
         observation: `${principalName} · ${startTime}–${endTime} · ${SCHEDULE_TYPES.find(s=>s.value===tipoHorario)?.label}`,
         _isLabor: true, _tipoHorario: tipoHorario,
       }];
@@ -128,7 +113,7 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
         lines.push({
           material_id: defaultMO.id || "", material_name: defaultMO.name || "Mano de Obra",
           unit: defaultMO.unit || "h", iva_percent: defaultMO.iva_percent || 21,
-          quantity: hours, unit_price: rate, total: hours * rate,
+          quantity: hours, unit_price: oficialRate, total: hours * oficialRate,
           observation: `${name} · ${startTime}–${endTime} · ${SCHEDULE_TYPES.find(s=>s.value===tipoHorario)?.label}`,
           _isLabor: true, _tipoHorario: tipoHorario,
         });
@@ -136,9 +121,18 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
     }
 
     onLaborLines(lines);
-  }, [startTime, endTime, tipoHorario, mode, baseRate, ayudanteRate, customCount, helperEmail, extraOperators.join(","), hours]);
-
-  const tarifaCargada = clientTarifas !== null;
+  }, [
+    startTime,
+    endTime,
+    tipoHorario,
+    mode,
+    oficialRate,
+    oficialAyudanteRate,
+    customCount,
+    helperEmail,
+    extraOperators.join(","),
+    hours,
+  ]);
 
   return (
     <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
@@ -146,13 +140,11 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
         <Clock className="h-4 w-4" /> Mano de Obra
       </h2>
 
-      {/* Técnico principal (readonly) */}
       <div>
         <Label>Técnico Principal</Label>
         <Input value={principalName} disabled className="mt-1 rounded-xl bg-muted/50" />
       </div>
 
-      {/* Time range */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 items-end">
         <div>
           <Label>Hora Inicio</Label>
@@ -176,7 +168,6 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
         </div>
       </div>
 
-      {/* Tipo de Horario — OBLIGATORIO */}
       <div>
         <Label className="flex items-center gap-1">
           Tipo de Horario <span className="text-destructive">*</span>
@@ -194,14 +185,11 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
             <AlertCircle className="h-3 w-3" /> Obligatorio: selecciona el tipo de horario para registrar las horas
           </p>
         )}
-        {!tarifaCargada && (
-          <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
-            <AlertCircle className="h-3 w-3" /> Sin tarifas configuradas en el cliente — se usarán valores por defecto
-          </p>
-        )}
+        <p className="text-xs text-muted-foreground mt-1.5">
+          Tarifas de operarios según la empresa (Configuración → Tarifas). Si no hay valores personalizados, se usan los importes por defecto.
+        </p>
       </div>
 
-      {/* Operator mode */}
       <div>
         <Label className="flex items-center gap-2"><Users className="h-3.5 w-3.5" /> Tipo de Operarios</Label>
         <Select value={mode} onValueChange={handleModeChange}>
@@ -214,7 +202,6 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
         </Select>
       </div>
 
-      {/* Nº Operarios — solo lectura excepto en custom */}
       <div>
         <Label>Nº de Operarios</Label>
         <Input
@@ -226,7 +213,6 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
         />
       </div>
 
-      {/* Oficial + Ayudante: selector */}
       {mode === "oficial_ayudante" && (
         <div>
           <Label>Ayudante / Segundo Técnico</Label>
@@ -243,7 +229,6 @@ export default function LaborSection({ materials, isAdmin, onLaborLines, current
         </div>
       )}
 
-      {/* Custom: selectores adicionales */}
       {mode === "custom" && (
         <div className="space-y-3">
           {extraOperators.map((email, i) => (

@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import BackButton from "../components/BackButton";
@@ -12,6 +14,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { cn } from "@/lib/utils";
 import moment from "moment";
 import { generateInvoicePdf } from "../utils/generateInvoicePdf";
+import {
+  parseTramosJson,
+  ensureTramoIds,
+  findTramoById,
+  upsertDisplacementMaterialLine,
+  stripDisplacementLines,
+  computeTotalsFromLines,
+} from "@/lib/displacementBilling";
 
 const statusColors = {
 en_curso: "bg-blue-100 text-blue-700",
@@ -66,6 +76,9 @@ export default function InterventionDetail() {
   const [rectMotivoAnular, setRectMotivoAnular] = useState("");
   const [adminTipoHorario, setAdminTipoHorario] = useState('');
   const [adminTarifaOverride, setAdminTarifaOverride] = useState('');
+  const [depCantidad, setDepCantidad] = useState(0);
+  const [depTramoId, setDepTramoId] = useState("");
+  const [depSaving, setDepSaving] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -84,6 +97,12 @@ export default function InterventionDetail() {
     if (invoiceList.length > 0) setInvoice(invoiceList[0]);
     setLoading(false);
   };
+
+  useEffect(() => {
+    if (!intervention) return;
+    setDepCantidad(intervention.desplazamientos_cantidad ?? 0);
+    setDepTramoId(intervention.desplazamiento_tramo_id || "");
+  }, [intervention?.id, intervention?.desplazamientos_cantidad, intervention?.desplazamiento_tramo_id]);
 
   const updateStatus = async (status) => {
     await appApi.entities.Intervention.update(id, { status });
@@ -131,6 +150,10 @@ export default function InterventionDetail() {
   };
 
   const handleValidateOption = async (mode) => {
+    if (mode === "facturar" && intervention?.desplazamiento_pendiente_tarifa) {
+      alert("Pendiente asignar tramo de desplazamiento antes de facturar.");
+      return;
+    }
     setValidating(true);
     try {
       const payload = { intervention_id: id, mode };
@@ -180,6 +203,60 @@ export default function InterventionDetail() {
   const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
   const isOficina = user?.role === "oficina";
   const canEdit = isAdmin || isOficina;
+  const isFieldStaff = ["tecnico", "ayudante", "user"].includes(user?.role);
+  const tramosOrg = ensureTramoIds(parseTramosJson(user?.desplazamiento_tramos_json));
+
+  const applyDisplacementReview = async () => {
+    if (!intervention || isLocked) return;
+    const cant = Math.max(0, parseInt(String(depCantidad), 10) || 0);
+    const linesRaw = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
+    let nextLines = Array.isArray(linesRaw) ? linesRaw : [];
+    const tramo = depTramoId ? findTramoById(tramosOrg, depTramoId) : null;
+
+    if (cant === 0) {
+      nextLines = stripDisplacementLines(nextLines);
+      const totals = computeTotalsFromLines(nextLines, intervention.discount_percent || 0);
+      setDepSaving(true);
+      await appApi.entities.Intervention.update(intervention.id, {
+        materials_json: JSON.stringify(nextLines),
+        subtotal: totals.subtotal,
+        iva_total: totals.ivaTotal,
+        total: totals.total,
+        desplazamientos_cantidad: 0,
+        desplazamiento_tramo_id: undefined,
+        desplazamiento_tramo_nombre: undefined,
+        desplazamiento_precio_unitario: undefined,
+        desplazamiento_total: undefined,
+        desplazamiento_pendiente_tarifa: false,
+      });
+      setDepSaving(false);
+      await loadData();
+      return;
+    }
+
+    if (!tramo) {
+      alert("Selecciona un tramo de desplazamiento.");
+      return;
+    }
+
+    nextLines = upsertDisplacementMaterialLine(nextLines, { cantidad: cant, tramo });
+    const totals = computeTotalsFromLines(nextLines, intervention.discount_percent || 0);
+    setDepSaving(true);
+    await appApi.entities.Intervention.update(intervention.id, {
+      materials_json: JSON.stringify(nextLines),
+      subtotal: totals.subtotal,
+      iva_total: totals.ivaTotal,
+      total: totals.total,
+      desplazamientos_cantidad: cant,
+      desplazamiento_tramo_id: tramo.id,
+      desplazamiento_tramo_nombre: tramo.nombre,
+      desplazamiento_precio_unitario: tramo.precio,
+      desplazamiento_total: cant * tramo.precio,
+      desplazamiento_pendiente_tarifa: false,
+    });
+    setDepSaving(false);
+    await loadData();
+  };
   const invoiceAceptada = invoice?.verifactu_status === 'aceptado';
   const isAnulado = intervention?.status === 'anulado';
   const isLocked = intervention?.status === "facturado" || intervention?.status === "completado" || invoiceAceptada || isAnulado;
@@ -493,6 +570,65 @@ export default function InterventionDetail() {
           </div>
           )}
 
+      {intervention.desplazamiento_pendiente_tarifa &&
+        (intervention.desplazamientos_cantidad ?? 0) > 0 && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Pendiente asignar tramo de desplazamiento ({intervention.desplazamientos_cantidad}{" "}
+            desplazamiento{(intervention.desplazamientos_cantidad || 0) === 1 ? "" : "s"}).
+          </div>
+        )}
+
+      {canEdit && !isLocked && (
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+            Desplazamiento (revisión)
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+            <div>
+              <Label className="text-xs">Número de desplazamientos</Label>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={depCantidad}
+                onChange={(e) => setDepCantidad(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                className="mt-1 rounded-xl"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label className="text-xs">Tramo</Label>
+              <Select value={depTramoId || "__none__"} onValueChange={(v) => setDepTramoId(v === "__none__" ? "" : v)}>
+                <SelectTrigger className="mt-1 rounded-xl">
+                  <SelectValue placeholder="Seleccionar tramo…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Sin tramo —</SelectItem>
+                  {tramosOrg.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.nombre} · {t.precio.toFixed(2)} €
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!tramosOrg.length && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Configura tramos en Configuración → Tarifas.
+                </p>
+              )}
+            </div>
+          </div>
+          <Button
+            type="button"
+            onClick={applyDisplacementReview}
+            disabled={depSaving}
+            className="rounded-xl"
+          >
+            {depSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Actualizar desplazamiento y totales
+          </Button>
+        </div>
+      )}
+
       {/* Info */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
         <div className="flex items-center gap-2 text-sm">
@@ -577,11 +713,22 @@ export default function InterventionDetail() {
                 <div>
                   <p className="text-sm font-medium">{m.material_name || "Material"}</p>
                   <p className="text-xs text-muted-foreground">
-                    {m.quantity} {m.unit || "ud"} × {(m.unit_price || 0).toFixed(2)}€
-                    {m.observation && ` — ${m.observation}`}
+                    {m._isDisplacementLine && isFieldStaff ? (
+                      <>
+                        {m.quantity} {m.unit || "ud"} · importe gestionado en oficina
+                        {m.observation && ` — ${m.observation}`}
+                      </>
+                    ) : (
+                      <>
+                        {m.quantity} {m.unit || "ud"} × {(m.unit_price || 0).toFixed(2)}€
+                        {m.observation && ` — ${m.observation}`}
+                      </>
+                    )}
                   </p>
                 </div>
-                <p className="font-semibold text-sm">{(m.total || 0).toFixed(2)} €</p>
+                <p className="font-semibold text-sm">
+                  {m._isDisplacementLine && isFieldStaff ? "—" : `${(m.total || 0).toFixed(2)} €`}
+                </p>
               </div>
             ))}
           </div>

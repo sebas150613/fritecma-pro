@@ -23,6 +23,15 @@ export const ORGANIZATION_SETTINGS_FIELDS = [
   "emisor_direccion",
   "emisor_telefono",
   "emisor_logo_url",
+  "tarifa_1_oficial_normal",
+  "tarifa_1_oficial_extra",
+  "tarifa_1_oficial_nocturna",
+  "tarifa_1_oficial_festiva",
+  "tarifa_oficial_ayudante_normal",
+  "tarifa_oficial_ayudante_extra",
+  "tarifa_oficial_ayudante_nocturna",
+  "tarifa_oficial_ayudante_festiva",
+  "desplazamiento_tramos_json",
 ];
 
 export const getOrganizationStore = () => organizationStore;

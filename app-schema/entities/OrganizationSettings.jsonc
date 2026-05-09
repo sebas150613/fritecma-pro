@@ -37,6 +37,42 @@
     "emisor_logo_url": {
       "type": "string",
       "title": "Logo"
+    },
+    "tarifa_1_oficial_normal": {
+      "type": "number",
+      "title": "Tarifa 1 oficial — horario normal (\u20ac/h)"
+    },
+    "tarifa_1_oficial_extra": {
+      "type": "number",
+      "title": "Tarifa 1 oficial — horas extra (\u20ac/h)"
+    },
+    "tarifa_1_oficial_nocturna": {
+      "type": "number",
+      "title": "Tarifa 1 oficial — nocturno (\u20ac/h)"
+    },
+    "tarifa_1_oficial_festiva": {
+      "type": "number",
+      "title": "Tarifa 1 oficial — festivo (\u20ac/h)"
+    },
+    "tarifa_oficial_ayudante_normal": {
+      "type": "number",
+      "title": "Oficial + ayudante — horario normal (\u20ac/h)"
+    },
+    "tarifa_oficial_ayudante_extra": {
+      "type": "number",
+      "title": "Oficial + ayudante — horas extra (\u20ac/h)"
+    },
+    "tarifa_oficial_ayudante_nocturna": {
+      "type": "number",
+      "title": "Oficial + ayudante — nocturno (\u20ac/h)"
+    },
+    "tarifa_oficial_ayudante_festiva": {
+      "type": "number",
+      "title": "Oficial + ayudante — festivo (\u20ac/h)"
+    },
+    "desplazamiento_tramos_json": {
+      "type": "string",
+      "title": "Tramos de desplazamiento (JSON)"
     }
   },
   "required": [

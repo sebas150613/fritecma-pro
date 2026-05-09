@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Settings, Users, Shield, Trash2, Upload, Key, FileCheck, Loader2, Crown, Copy, Building2 } from "lucide-react";
+import { Settings, Users, Shield, Trash2, Upload, Key, FileCheck, Loader2, Crown, Copy, Building2, Coins, Plus } from "lucide-react";
 import OrganizationBillingPanel from "@/components/OrganizationBillingPanel";
+import { parseTramosJson, ensureTramoIds } from "@/lib/displacementBilling";
 
 const ROLE_LABELS = {
   superadmin: "Super Admin",
@@ -59,6 +60,17 @@ export default function AppSettings() {
   const [editableUsers, setEditableUsers] = useState({});
   const [savingUserId, setSavingUserId] = useState("");
   const [userManagementError, setUserManagementError] = useState("");
+  const [tarifa1Normal, setTarifa1Normal] = useState("");
+  const [tarifa1Extra, setTarifa1Extra] = useState("");
+  const [tarifa1Noct, setTarifa1Noct] = useState("");
+  const [tarifa1Fest, setTarifa1Fest] = useState("");
+  const [tarifaOaNormal, setTarifaOaNormal] = useState("");
+  const [tarifaOaExtra, setTarifaOaExtra] = useState("");
+  const [tarifaOaNoct, setTarifaOaNoct] = useState("");
+  const [tarifaOaFest, setTarifaOaFest] = useState("");
+  const [despTramos, setDespTramos] = useState([]);
+  const [tarifasSaving, setTarifasSaving] = useState(false);
+  const [tarifasMessage, setTarifasMessage] = useState("");
 
   useEffect(() => {
     loadData();
@@ -67,6 +79,15 @@ export default function AppSettings() {
   const loadData = async () => {
     const me = await appApi.auth.me();
     setUser(me);
+    setTarifa1Normal(me.tarifa_1_oficial_normal ?? "");
+    setTarifa1Extra(me.tarifa_1_oficial_extra ?? "");
+    setTarifa1Noct(me.tarifa_1_oficial_nocturna ?? "");
+    setTarifa1Fest(me.tarifa_1_oficial_festiva ?? "");
+    setTarifaOaNormal(me.tarifa_oficial_ayudante_normal ?? "");
+    setTarifaOaExtra(me.tarifa_oficial_ayudante_extra ?? "");
+    setTarifaOaNoct(me.tarifa_oficial_ayudante_nocturna ?? "");
+    setTarifaOaFest(me.tarifa_oficial_ayudante_festiva ?? "");
+    setDespTramos(ensureTramoIds(parseTramosJson(me.desplazamiento_tramos_json)));
     if (["admin", "superadmin"].includes(me.role) && me.is_hidden_owner !== true) {
       const allUsers = await appApi.entities.User.list("full_name", 100);
       setUsers(allUsers);
@@ -244,7 +265,7 @@ export default function AppSettings() {
     );
   }
 
-  if (!["admin", "superadmin", "oficina"].includes(user?.role)) {
+  if (!["admin", "superadmin", "oficina", "encargado"].includes(user?.role)) {
     return (
       <div className="p-8 flex flex-col items-center justify-center h-full gap-4">
         <Shield className="h-12 w-12 text-muted-foreground" />
@@ -257,6 +278,36 @@ export default function AppSettings() {
   const canManageUsers = ["admin", "superadmin"].includes(user?.role);
   const isOwner = user?.is_hidden_owner === true;
   const canManageClientUsers = canManageUsers && !isOwner;
+  const canEditTarifas = ["admin", "superadmin", "oficina", "encargado"].includes(user?.role);
+
+  const parseTarifaInput = (v) => {
+    const x = parseFloat(String(v ?? "").replace(",", "."));
+    return Number.isFinite(x) && x >= 0 ? x : undefined;
+  };
+
+  const handleSaveTarifas = async () => {
+    setTarifasSaving(true);
+    setTarifasMessage("");
+    try {
+      await appApi.auth.updateMe({
+        tarifa_1_oficial_normal: parseTarifaInput(tarifa1Normal),
+        tarifa_1_oficial_extra: parseTarifaInput(tarifa1Extra),
+        tarifa_1_oficial_nocturna: parseTarifaInput(tarifa1Noct),
+        tarifa_1_oficial_festiva: parseTarifaInput(tarifa1Fest),
+        tarifa_oficial_ayudante_normal: parseTarifaInput(tarifaOaNormal),
+        tarifa_oficial_ayudante_extra: parseTarifaInput(tarifaOaExtra),
+        tarifa_oficial_ayudante_nocturna: parseTarifaInput(tarifaOaNoct),
+        tarifa_oficial_ayudante_festiva: parseTarifaInput(tarifaOaFest),
+        desplazamiento_tramos_json: JSON.stringify(ensureTramoIds(despTramos)),
+      });
+      setTarifasMessage("Tarifas guardadas.");
+      await loadData();
+    } catch (e) {
+      setTarifasMessage(e?.message || "No se pudo guardar.");
+    } finally {
+      setTarifasSaving(false);
+    }
+  };
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6 pb-32 lg:pb-8">
@@ -574,6 +625,152 @@ export default function AppSettings() {
             🧪 <strong>Modo Sandbox activo.</strong> Los envíos a la AEAT son simulados. El hash se genera correctamente para poder verificar el flujo. Activa el toggle para pasar a producción real.
           </p>
         )}
+      </div>
+      )}
+
+      {canEditTarifas && (
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+        <h2 className="font-semibold flex items-center gap-2">
+          <Coins className="h-4 w-4 text-accent" /> Tarifas
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Aplica a la empresa suscriptora de la aplicación. Las tarifas de la ficha de clientes finales no sustituyen estos valores en mano de obra.
+        </p>
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2">1 oficial (€/h)</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Normal</Label>
+              <Input value={tarifa1Normal} onChange={(e) => setTarifa1Normal(e.target.value)} placeholder="45" className="mt-1 rounded-xl" />
+            </div>
+            <div>
+              <Label className="text-xs">Extra</Label>
+              <Input value={tarifa1Extra} onChange={(e) => setTarifa1Extra(e.target.value)} placeholder="60" className="mt-1 rounded-xl" />
+            </div>
+            <div>
+              <Label className="text-xs">Nocturno</Label>
+              <Input value={tarifa1Noct} onChange={(e) => setTarifa1Noct(e.target.value)} placeholder="70" className="mt-1 rounded-xl" />
+            </div>
+            <div>
+              <Label className="text-xs">Festivo</Label>
+              <Input value={tarifa1Fest} onChange={(e) => setTarifa1Fest(e.target.value)} placeholder="80" className="mt-1 rounded-xl" />
+            </div>
+          </div>
+        </div>
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-2">Oficial + ayudante (€/h)</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Normal</Label>
+              <Input value={tarifaOaNormal} onChange={(e) => setTarifaOaNormal(e.target.value)} placeholder="81" className="mt-1 rounded-xl" />
+            </div>
+            <div>
+              <Label className="text-xs">Extra</Label>
+              <Input value={tarifaOaExtra} onChange={(e) => setTarifaOaExtra(e.target.value)} placeholder="108" className="mt-1 rounded-xl" />
+            </div>
+            <div>
+              <Label className="text-xs">Nocturno</Label>
+              <Input value={tarifaOaNoct} onChange={(e) => setTarifaOaNoct(e.target.value)} placeholder="126" className="mt-1 rounded-xl" />
+            </div>
+            <div>
+              <Label className="text-xs">Festivo</Label>
+              <Input value={tarifaOaFest} onChange={(e) => setTarifaOaFest(e.target.value)} placeholder="144" className="mt-1 rounded-xl" />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Si dejas vacío un campo de oficial + ayudante, se usará tarifa 1 oficial × 1,8 para ese tipo de horario.
+          </p>
+        </div>
+        <div className="space-y-3 pt-2 border-t border-border">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium text-sm">Tramos de desplazamiento</p>
+              <p className="text-xs text-muted-foreground">Nombre, descripción opcional y precio por aplicación del tramo.</p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-xl shrink-0"
+              onClick={() =>
+                setDespTramos([
+                  ...despTramos,
+                  { id: `tramo-${Date.now()}`, nombre: "", descripcion: "", precio: 0 },
+                ])
+              }
+            >
+              <Plus className="h-4 w-4 mr-1" /> Añadir tramo
+            </Button>
+          </div>
+          {despTramos.map((row, idx) => (
+            <div key={row.id} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end border border-border rounded-xl p-3 bg-muted/20">
+              <div className="sm:col-span-4">
+                <Label className="text-xs">Nombre</Label>
+                <Input
+                  value={row.nombre}
+                  onChange={(e) => {
+                    const n = [...despTramos];
+                    n[idx] = { ...n[idx], nombre: e.target.value };
+                    setDespTramos(n);
+                  }}
+                  placeholder="Ej: Palma"
+                  className="mt-1 rounded-xl"
+                />
+              </div>
+              <div className="sm:col-span-5">
+                <Label className="text-xs">Descripción</Label>
+                <Input
+                  value={row.descripcion}
+                  onChange={(e) => {
+                    const n = [...despTramos];
+                    n[idx] = { ...n[idx], descripcion: e.target.value };
+                    setDespTramos(n);
+                  }}
+                  className="mt-1 rounded-xl"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <Label className="text-xs">Precio (€)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={row.precio}
+                  onChange={(e) => {
+                    const n = [...despTramos];
+                    n[idx] = { ...n[idx], precio: Math.max(0, parseFloat(e.target.value) || 0) };
+                    setDespTramos(n);
+                  }}
+                  className="mt-1 rounded-xl"
+                />
+              </div>
+              <div className="sm:col-span-1 flex justify-end pb-0.5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-xl text-destructive hover:text-destructive"
+                  onClick={() => setDespTramos(despTramos.filter((_, i) => i !== idx))}
+                  aria-label="Eliminar tramo"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+        {tarifasMessage && (
+          <p className="text-xs text-muted-foreground">{tarifasMessage}</p>
+        )}
+        <Button
+          type="button"
+          onClick={handleSaveTarifas}
+          disabled={tarifasSaving}
+          className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+        >
+          {tarifasSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+          Guardar tarifas
+        </Button>
       </div>
       )}
 

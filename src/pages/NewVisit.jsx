@@ -11,6 +11,7 @@ import { Plus, MapPin, Loader2, Save } from "lucide-react";
 import BackButton from "../components/BackButton";
 import MaterialLineForm from "../components/MaterialLineForm";
 import LaborSection from "../components/LaborSection";
+import { buildOrganizationTariffProfile } from "@/lib/organizationTariffs";
 import { validateStockAvailability, deductStockForIntervention } from "../lib/stockUtils";
 import moment from "moment";
 
@@ -208,7 +209,11 @@ export default function NewVisit() {
   };
 
   const totals = calcTotals();
-  const isAdmin = user?.role === "admin";
+  const canEditPrices =
+    user?.role === "admin" ||
+    user?.role === "superadmin" ||
+    user?.role === "oficina" ||
+    user?.role === "encargado";
   const availableBottles = gasBottles.filter(b => b.status === "activa" && (!form.gas_type || b.gas_type === form.gas_type) && (b.current_kg || 0) > 0);
 
   if (!intervention && !saving) {
@@ -315,7 +320,14 @@ export default function NewVisit() {
       </div>
 
       {/* Labor */}
-      <LaborSection materials={materials} isAdmin={isAdmin} onLaborLines={setLaborLines} currentUser={user} allUsers={users} />
+      <LaborSection
+        materials={materials}
+        isAdmin={canEditPrices}
+        onLaborLines={setLaborLines}
+        currentUser={user}
+        allUsers={users}
+        organizationTarifas={buildOrganizationTariffProfile(user)}
+      />
 
       {/* Materiales */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
@@ -333,12 +345,12 @@ export default function NewVisit() {
               <MaterialLineForm key={line._id || i} line={line} index={i} materials={materials}
                 onUpdate={(idx, updated) => { const l = [...lines]; l[idx] = updated; setLines(l); }}
                 onRemove={(idx) => setLines(lines.filter((_, j) => j !== idx))}
-                isAdmin={isAdmin}
+                isAdmin={canEditPrices}
               />
             ))}
           </div>
         )}
-        {(lines.length > 0 || laborLines.length > 0) && isAdmin && (
+        {(lines.length > 0 || laborLines.length > 0) && canEditPrices && (
           <div className="border-t border-border pt-4 space-y-1">
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span>{totals.subtotal.toFixed(2)} €</span></div>
             <div className="flex justify-between text-sm"><span className="text-muted-foreground">IVA</span><span>{totals.ivaTotal.toFixed(2)} €</span></div>
@@ -386,7 +398,7 @@ export default function NewVisit() {
       <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-card/80 backdrop-blur-xl border-t border-border p-4">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div>
-            {isAdmin && (
+            {canEditPrices && (
               <>
                 <p className="text-sm text-muted-foreground">Total visita</p>
                 <p className="text-2xl font-bold">{totals.total.toFixed(2)} €</p>

@@ -22,6 +22,14 @@ import {
   GAS_OTHER_REQUIRED_MESSAGE,
 } from "@/lib/refrigerantGases";
 import { syncGasMaterialStock, findGasMaterialForType } from "@/lib/gasMaterialSync";
+import { buildOrganizationTariffProfile } from "@/lib/organizationTariffs";
+import {
+  parseTramosJson,
+  ensureTramoIds,
+  findTramoById,
+  upsertDisplacementMaterialLine,
+  computeTotalsFromLines,
+} from "@/lib/displacementBilling";
 
 function buildPriorityGasTypesFromBottles(bottles) {
   const active = (bottles || []).filter(
@@ -67,7 +75,7 @@ export default function NewIntervention() {
   const [sinFichaje, setSinFichaje] = useState(false);
   const [gasBillingPreview, setGasBillingPreview] = useState(null);
 
-  const [clientTarifas, setClientTarifas] = useState(null);
+  const [organizationTarifas, setOrganizationTarifas] = useState(null);
 
   const [form, setForm] = useState({
     client_id: "",
@@ -95,6 +103,8 @@ export default function NewIntervention() {
     helper_name: "",
     tipo_horario: "",
     tarifa_aplicada: null,
+    desplazamientos_cantidad: 0,
+    desplazamiento_tramo_id: "",
   });
 
   const [lines, setLines] = useState([]);
@@ -115,6 +125,7 @@ export default function NewIntervention() {
     try {
       const me = await appApi.auth.me();
       setUser(me);
+      setOrganizationTarifas(buildOrganizationTariffProfile(me));
       const isAdmin = me.role === "admin";
 
       if (!isAdmin) {
@@ -180,13 +191,6 @@ export default function NewIntervention() {
     if (!client) return;
     const centers = await appApi.entities.WorkCenter.filter({ client_id: clientId }, "name", 100);
     setWorkCenters(centers);
-    // Store client tarifas for LaborSection
-    setClientTarifas({
-      tarifa_normal:   client.tarifa_normal   ?? 45,
-      tarifa_extra:    client.tarifa_extra    ?? 60,
-      tarifa_nocturna: client.tarifa_nocturna ?? 70,
-      tarifa_festiva:  client.tarifa_festiva  ?? 80,
-    });
     setForm(f => ({
       ...f,
       client_id: client.id,
@@ -225,10 +229,31 @@ export default function NewIntervention() {
     return resolveCanonicalGasLabel(form.gas_type, legacyGasKeys);
   }, [form.gas_type, form.gas_other_ui, form.gas_other_input, legacyGasKeys]);
 
+  const tramosOptions = useMemo(
+    () => ensureTramoIds(parseTramosJson(user?.desplazamiento_tramos_json)),
+    [user?.desplazamiento_tramos_json]
+  );
+
+  const canAssignTramoUi =
+    user?.role === "admin" ||
+    user?.role === "superadmin" ||
+    user?.role === "oficina" ||
+    user?.role === "encargado";
+
   const totals = useMemo(() => {
     const materialLines = [...lines];
     if (gasBillingPreview) materialLines.push(gasBillingPreview);
-    const allLines = [...laborLines, ...materialLines];
+    let allLines = [...laborLines, ...materialLines];
+    const cantPrev = Math.max(0, parseInt(String(form.desplazamientos_cantidad ?? 0), 10) || 0);
+    if (canAssignTramoUi && cantPrev > 0 && form.desplazamiento_tramo_id) {
+      const tr = findTramoById(tramosOptions, form.desplazamiento_tramo_id);
+      if (tr) {
+        allLines = upsertDisplacementMaterialLine(allLines, {
+          cantidad: cantPrev,
+          tramo: tr,
+        });
+      }
+    }
     const subtotal = allLines.reduce((sum, l) => sum + (l.total || 0), 0);
     const discountAmount = subtotal * (form.discount_percent / 100);
     const subtotalAfterDiscount = subtotal - discountAmount;
@@ -246,7 +271,16 @@ export default function NewIntervention() {
       ivaTotal,
       total: subtotalAfterDiscount + ivaTotal,
     };
-  }, [laborLines, lines, gasBillingPreview, form.discount_percent]);
+  }, [
+    laborLines,
+    lines,
+    gasBillingPreview,
+    form.discount_percent,
+    form.desplazamientos_cantidad,
+    form.desplazamiento_tramo_id,
+    tramosOptions,
+    canAssignTramoUi,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -353,26 +387,39 @@ export default function NewIntervention() {
     }
 
     const materialLinesForTotals = [...materialLinesToPersist];
-    const allLines = [...laborLines, ...materialLinesForTotals];
-    const persistTotals = (() => {
-      const subtotal = allLines.reduce((sum, l) => sum + (l.total || 0), 0);
-      const discountAmount = subtotal * (form.discount_percent / 100);
-      const subtotalAfterDiscount = subtotal - discountAmount;
-      const ivaByRate = {};
-      allLines.forEach((l) => {
-        const rate = l.iva_percent || 21;
-        const lineAfterDiscount = (l.total || 0) * (1 - form.discount_percent / 100);
-        ivaByRate[rate] = (ivaByRate[rate] || 0) + lineAfterDiscount * (rate / 100);
-      });
-      const ivaTotal = Object.values(ivaByRate).reduce((s, v) => s + v, 0);
-      return {
-        subtotal,
-        discountAmount,
-        subtotalAfterDiscount,
-        ivaTotal,
-        total: subtotalAfterDiscount + ivaTotal,
-      };
-    })();
+    let allLines = [...laborLines, ...materialLinesForTotals];
+
+    const cantDesp = Math.max(0, parseInt(String(form.desplazamientos_cantidad ?? 0), 10) || 0);
+    const canAssignTramo = ["admin", "superadmin", "oficina", "encargado"].includes(user?.role);
+    const tramosCfg = ensureTramoIds(parseTramosJson(user?.desplazamiento_tramos_json));
+    const tramoSel =
+      form.desplazamiento_tramo_id && canAssignTramo
+        ? findTramoById(tramosCfg, form.desplazamiento_tramo_id)
+        : null;
+
+    let desplazamiento_pendiente_tarifa = false;
+    let desplazamiento_tramo_id;
+    let desplazamiento_tramo_nombre;
+    let desplazamiento_precio_unitario;
+    let desplazamiento_total;
+
+    if (cantDesp > 0) {
+      if (canAssignTramo && tramoSel) {
+        allLines = upsertDisplacementMaterialLine(allLines, {
+          cantidad: cantDesp,
+          tramo: tramoSel,
+        });
+        desplazamiento_pendiente_tarifa = false;
+        desplazamiento_tramo_id = tramoSel.id;
+        desplazamiento_tramo_nombre = tramoSel.nombre;
+        desplazamiento_precio_unitario = tramoSel.precio;
+        desplazamiento_total = cantDesp * tramoSel.precio;
+      } else {
+        desplazamiento_pendiente_tarifa = true;
+      }
+    }
+
+    const persistTotals = computeTotalsFromLines(allLines, form.discount_percent);
 
     const data = {
       number: interventionNumber,
@@ -411,6 +458,16 @@ export default function NewIntervention() {
       technician_notes: sinFichaje
         ? `[SIN FICHAJE PREVIO] ${form.technician_notes || ""}`
         : form.technician_notes,
+      desplazamientos_cantidad: cantDesp,
+      ...(desplazamiento_tramo_id
+        ? {
+            desplazamiento_tramo_id,
+            desplazamiento_tramo_nombre,
+            desplazamiento_precio_unitario,
+            desplazamiento_total,
+          }
+        : {}),
+      desplazamiento_pendiente_tarifa,
     };
 
     const created = await appApi.entities.Intervention.create(data);
@@ -469,6 +526,9 @@ export default function NewIntervention() {
   }
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const canSeeBillingTotals =
+    isAdmin || user?.role === "oficina" || user?.role === "encargado";
+  const isFieldStaff = ["tecnico", "ayudante", "user"].includes(user?.role);
 
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6 pb-48">
@@ -682,17 +742,79 @@ export default function NewIntervention() {
       {/* Labor Section */}
       <LaborSection
         materials={materials}
-        isAdmin={isAdmin}
+        isAdmin={canSeeBillingTotals}
         onLaborLines={(lines) => {
           setLaborLines(lines);
           if (lines.length > 0 && lines[0]._tipoHorario) {
-            setForm(f => ({ ...f, tipo_horario: lines[0]._tipoHorario, tarifa_aplicada: lines[0].unit_price }));
+            setForm(f => ({
+              ...f,
+              tipo_horario: lines[0]._tipoHorario,
+              tarifa_aplicada: lines[0].unit_price,
+            }));
           }
         }}
         currentUser={user}
         allUsers={users}
-        clientTarifas={clientTarifas}
+        organizationTarifas={organizationTarifas}
       />
+
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+          Desplazamiento
+        </h2>
+        <div>
+          <Label>Número de desplazamientos</Label>
+          <Input
+            type="number"
+            min="0"
+            step="1"
+            value={form.desplazamientos_cantidad}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                desplazamientos_cantidad: Math.max(0, parseInt(e.target.value, 10) || 0),
+              }))
+            }
+            className="mt-1 rounded-xl max-w-[200px]"
+          />
+          {isFieldStaff && (
+            <p className="text-xs text-muted-foreground mt-1.5">
+              Solo indica cuántos desplazamientos aplican. Oficina asignará el tramo y el importe.
+            </p>
+          )}
+        </div>
+        {canAssignTramoUi && (
+          <div>
+            <Label>Tramo de desplazamiento (opcional al crear)</Label>
+            <Select
+              value={form.desplazamiento_tramo_id || "__none__"}
+              onValueChange={(v) =>
+                setForm((f) => ({
+                  ...f,
+                  desplazamiento_tramo_id: v === "__none__" ? "" : v,
+                }))
+              }
+            >
+              <SelectTrigger className="mt-1 rounded-xl">
+                <SelectValue placeholder="Definir después en revisión…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— Decidir en oficina —</SelectItem>
+                {tramosOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.nombre} ({t.precio.toFixed(2)} €)
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!tramosOptions.length && (
+              <p className="text-xs text-amber-700 mt-1.5">
+                No hay tramos configurados. Añádelos en Configuración → Tarifas → Tramos de desplazamiento.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Material Lines */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
@@ -724,7 +846,7 @@ export default function NewIntervention() {
         )}
 
         {/* Totals */}
-        {(lines.length > 0 || laborLines.length > 0) && isAdmin && (
+        {(lines.length > 0 || laborLines.length > 0) && canSeeBillingTotals && (
           <div className="border-t border-border pt-4 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
@@ -805,7 +927,7 @@ export default function NewIntervention() {
       <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-card/80 backdrop-blur-xl border-t border-border p-4 pb-20 lg:pb-4">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div>
-            {isAdmin && (
+            {canSeeBillingTotals && (
               <>
                 <p className="text-sm text-muted-foreground">Total</p>
                 <p className="text-2xl font-bold">{totals.total.toFixed(2)} €</p>

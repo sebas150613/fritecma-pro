@@ -216,6 +216,32 @@
       "title": "Informaci\u00f3n de Rectificaci\u00f3n",
       "description": "Log de usuario y fecha de la rectificaci\u00f3n (Solo lectura - escrito por el sistema)",
       "readOnly": true
+    },
+    "desplazamientos_cantidad": {
+      "type": "number",
+      "title": "N\u00famero de desplazamientos",
+      "default": 0
+    },
+    "desplazamiento_tramo_id": {
+      "type": "string",
+      "title": "ID tramo desplazamiento"
+    },
+    "desplazamiento_tramo_nombre": {
+      "type": "string",
+      "title": "Nombre tramo desplazamiento"
+    },
+    "desplazamiento_precio_unitario": {
+      "type": "number",
+      "title": "Precio unitario desplazamiento (\u20ac)"
+    },
+    "desplazamiento_total": {
+      "type": "number",
+      "title": "Importe total desplazamiento (\u20ac)"
+    },
+    "desplazamiento_pendiente_tarifa": {
+      "type": "boolean",
+      "title": "Desplazamiento pendiente de tramo",
+      "default": false
     }
   },
   "required": [
