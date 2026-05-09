@@ -13,6 +13,7 @@ import InterventionDetail from './pages/InterventionDetail';
 import Materials from './pages/Materials';
 import Clients from './pages/Clients';
 import AppSettings from './pages/AppSettings';
+import AccountSettings from './pages/AccountSettings';
 import TimeRecords from './pages/TimeRecords';
 import GasBottles from './pages/GasBottles';
 import StockMovements from './pages/StockMovements';
@@ -67,7 +68,7 @@ const AuthenticatedApp = () => {
         <Route path="/workday-report" element={<WorkDayReport />} />
         <Route path="/materials" element={<Materials />} />
         <Route path="/clients" element={<Clients />} />
-        <Route path="/settings" element={<AppSettings />} />
+        <Route path="/settings" element={<SettingsRoute user={user} />} />
         <Route path="/time-records" element={<TimeRecords />} />
         <Route path="/gas-bottles" element={<GasBottles />} />
         <Route path="/stock-movements" element={<StockMovements />} />
@@ -82,6 +83,14 @@ const AuthenticatedApp = () => {
       </Route>
     </Routes>
   );
+};
+
+const SettingsRoute = ({ user }) => {
+  if (["tecnico", "ayudante"].includes(user?.role)) {
+    return <AccountSettings />;
+  }
+
+  return <AppSettings />;
 };
 
 const HiddenOwnerRouteGate = ({ user, children }) => {
