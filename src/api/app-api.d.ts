@@ -24,6 +24,9 @@ export type AppApi = {
     ownerOverview: () => Promise<any>;
     current: () => Promise<any>;
     create: (payload: any) => Promise<any>;
+    createUser: (organizationId: string, payload: any) => Promise<any>;
+    pauseLicense: (organizationId: string) => Promise<any>;
+    activateLicense: (organizationId: string) => Promise<any>;
     listPlans: () => Promise<any[]>;
     switch: (organizationId: string) => Promise<any>;
   };

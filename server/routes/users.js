@@ -14,6 +14,7 @@ import { normalizeOrganizationRole } from "../lib/roles.js";
 import { assertSeatAvailableForOrganization } from "../services/billing-service.js";
 import { sendInvitationEmail } from "../services/account-security-service.js";
 import { serverConfig } from "../config.js";
+import { requireWritableLicense } from "../lib/license.js";
 
 const router = express.Router();
 const userStore = getUserStore();
@@ -34,6 +35,7 @@ router.use(requireAuth);
 
 router.post(
   "/invite",
+  requireWritableLicense,
   asyncHandler(async (req, res) => {
     if (!["admin", "superadmin"].includes(req.currentUser?.role)) {
       throw new HttpError(403, "Forbidden");

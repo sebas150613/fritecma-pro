@@ -27,6 +27,7 @@ import StockBatchEntry from './pages/StockBatchEntry';
 import MaterialRequests from './pages/MaterialRequests';
 import AbsenceManagement from './pages/AbsenceManagement';
 import Calendar from './pages/Calendar';
+import OwnerClients from './pages/OwnerClients';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, user } = useAuth();
@@ -76,6 +77,7 @@ const AuthenticatedApp = () => {
         <Route path="/material-requests" element={<MaterialRequests />} />
         <Route path="/absences" element={<AbsenceManagement />} />
         <Route path="/calendar" element={<Calendar />} />
+        <Route path="/owner/clients" element={<OwnerClients />} />
         <Route path="*" element={<PageNotFound />} />
       </Route>
     </Routes>
@@ -85,7 +87,10 @@ const AuthenticatedApp = () => {
 const HiddenOwnerRouteGate = ({ user, children }) => {
   const location = useLocation();
 
-  if (user?.is_hidden_owner === true && location.pathname !== '/settings') {
+  if (
+    user?.is_hidden_owner === true &&
+    !["/settings", "/owner/clients"].some((allowed) => location.pathname.startsWith(allowed))
+  ) {
     return <Navigate to="/settings" replace />;
   }
 

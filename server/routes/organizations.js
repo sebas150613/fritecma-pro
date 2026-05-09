@@ -1,7 +1,9 @@
 import express from "express";
+import { randomUUID } from "node:crypto";
 import { asyncHandler } from "../lib/async-handler.js";
 import {
   canAccessHiddenUsers,
+  createPasswordHash,
   createSessionForUser,
   getOrganizationMembershipsForOrganization,
   getUserStore,
@@ -17,8 +19,10 @@ import {
   normalizeOrganizationSlug,
 } from "../lib/tenant.js";
 import {
+  assertSeatAvailableForOrganization,
   ensureOrganizationSubscription,
   getPlanByCode,
+  getOrganizationSubscriptionStore,
   getSubscriptionSummary,
   listPlans,
 } from "../services/billing-service.js";
@@ -28,6 +32,7 @@ const organizationStore = getOrganizationStore();
 const membershipStore = getOrganizationMembershipStore();
 const organizationSettingsStore = getOrganizationSettingsStore();
 const userStore = getUserStore();
+const organizationSubscriptionStore = getOrganizationSubscriptionStore();
 
 router.use(requireAuth);
 
@@ -89,11 +94,58 @@ router.get(
             )
           );
 
+        const summary = await getSubscriptionSummary(organization.id).catch(() => null);
+        const billing = summary
+          ? {
+              subscription: {
+                status: summary.subscription?.status || "active",
+                plan_code: summary.subscription?.plan_code || organization.plan_code || null,
+              },
+              plan: {
+                name: summary.plan?.name || null,
+                monthly_price_cents:
+                  summary.plan?.monthly_price_cents ?? null,
+              },
+              limits: {
+                seat_limit: summary.limits?.seat_limit ?? null,
+                storage_limit_gb: summary.limits?.storage_limit_gb ?? null,
+                ai_requests_month: summary.limits?.ai_requests_month ?? null,
+              },
+              usage: {
+                active_seats: summary.usage?.active_seats ?? organizationUsers.length,
+                storage_used_gb:
+                  summary.usage?.storage_used_gb ?? null,
+                ai_requests_month:
+                  summary.usage?.ai_requests_month ?? null,
+              },
+            }
+          : {
+              subscription: {
+                status: "active",
+                plan_code: organization.plan_code || null,
+              },
+              plan: {
+                name: null,
+                monthly_price_cents: null,
+              },
+              limits: {
+                seat_limit: null,
+                storage_limit_gb: null,
+                ai_requests_month: null,
+              },
+              usage: {
+                active_seats: organizationUsers.length,
+                storage_used_gb: null,
+                ai_requests_month: null,
+              },
+            };
+
         return {
           ...organization,
           is_current: organization.id === req.currentOrganization?.id,
           user_count: organizationUsers.length,
           users: organizationUsers,
+          billing,
         };
       })
     );
@@ -186,16 +238,17 @@ router.post(
       trialDays: selectedPlan.code === "starter" ? 15 : 0,
     });
 
-    const createdSession = req.authSessionToken
+    const isHiddenOwnerRequest = req.currentUser?.is_hidden_owner === true;
+    const createdSession = req.authSessionToken || isHiddenOwnerRequest
       ? null
       : await createSessionForUser(req.currentUser.id, {
           organizationId: organization.id,
           allowHiddenOwner: req.currentUser?.is_hidden_owner === true,
         });
-    const context = req.authSessionToken
+    const context = req.authSessionToken && !isHiddenOwnerRequest
       ? await updateSessionOrganization(req.authSessionToken, organization.id)
       : {
-          currentUser: createdSession.user,
+          currentUser: createdSession?.user || req.currentUser,
         };
     const summary = await getSubscriptionSummary(organization.id);
 
@@ -204,6 +257,218 @@ router.post(
       ...(createdSession ? { access_token: createdSession.token } : {}),
       organization,
       billing: summary,
+    });
+  })
+);
+
+router.post(
+  "/:organizationId/users",
+  asyncHandler(async (req, res) => {
+    if (!canAccessHiddenUsers(req.currentUser)) {
+      throw new HttpError(403, "Forbidden");
+    }
+
+    const organizationId = String(req.params.organizationId || "").trim();
+    if (!organizationId) {
+      throw new HttpError(400, "organizationId is required");
+    }
+
+    const organizations = await organizationStore.filter({
+      filter: { id: organizationId },
+      limit: 1,
+    });
+    const organization = organizations[0] || null;
+    if (!organization) {
+      throw new HttpError(404, "Organization not found");
+    }
+
+    const email = String(req.body?.email || "")
+      .trim()
+      .toLowerCase();
+    const fullName = String(req.body?.full_name || "").trim();
+    const desiredRole = String(req.body?.role || "").trim().toLowerCase();
+    const temporaryPassword = req.body?.temporary_password
+      ? String(req.body.temporary_password)
+      : "";
+
+    if (!email) {
+      throw new HttpError(400, "email is required");
+    }
+
+    if (!["admin", "oficina", "encargado", "tecnico", "ayudante"].includes(desiredRole)) {
+      throw new HttpError(422, "role is not valid");
+    }
+
+    const existingUsers = await userStore.filter({
+      filter: { email },
+      limit: 1,
+    });
+    const existingUser = existingUsers[0] || null;
+
+    if (existingUser?.is_hidden_owner === true) {
+      throw new HttpError(409, "User cannot be added to an organization");
+    }
+
+    const nextInvitationToken = randomUUID();
+    let userRecord = existingUser;
+
+    if (existingUser) {
+      const patch = {
+        is_active: true,
+        role: desiredRole,
+        full_name: fullName || existingUser.full_name || email,
+      };
+
+      if (temporaryPassword) {
+        patch.password_hash = createPasswordHash(temporaryPassword);
+        patch.invitation_token = null;
+      } else if (!existingUser.password_hash) {
+        patch.invitation_token = nextInvitationToken;
+      }
+
+      userRecord = await userStore.update(existingUser.id, patch);
+    } else {
+      userRecord = await userStore.create({
+        email,
+        role: desiredRole,
+        full_name: fullName || email || "Invitado",
+        is_active: true,
+        ...(temporaryPassword
+          ? { password_hash: createPasswordHash(temporaryPassword) }
+          : { invitation_token: nextInvitationToken }),
+      });
+    }
+
+    const memberships = await membershipStore.filter({
+      filter: {
+        organization_id: organization.id,
+        user_id: userRecord.id,
+      },
+      limit: 1,
+    });
+    const existingMembership = memberships[0] || null;
+    const willConsumeSeat =
+      !existingMembership || existingMembership.status === "disabled";
+
+    if (willConsumeSeat) {
+      await assertSeatAvailableForOrganization(organization.id, 1);
+    }
+
+    const membershipPayload = {
+      organization_id: organization.id,
+      organization_name: organization.name,
+      user_id: userRecord.id,
+      user_email: userRecord.email || email,
+      user_name: userRecord.full_name || userRecord.email || "Invitado",
+      role: desiredRole,
+      status: userRecord.is_active === false ? "disabled" : "active",
+    };
+
+    const membership = existingMembership
+      ? await membershipStore.update(existingMembership.id, membershipPayload)
+      : await membershipStore.create(membershipPayload);
+
+    const inviteUrl = userRecord.invitation_token
+      ? `${req.protocol}://${req.get("host")}/api/auth/accept-invite?token=${encodeURIComponent(
+          userRecord.invitation_token
+        )}&redirect_uri=${encodeURIComponent(
+          `${req.protocol}://${req.get("host")}/`
+        )}`
+      : null;
+
+    res.status(existingUser ? 200 : 201).json({
+      user: {
+        ...stripSensitiveUserFields(userRecord),
+        role: desiredRole,
+      },
+      membership: {
+        id: membership.id,
+        organization_id: membership.organization_id,
+        status: membership.status,
+        role: membership.role,
+      },
+      invite_url: inviteUrl,
+    });
+  })
+);
+
+router.post(
+  "/:organizationId/license/pause",
+  asyncHandler(async (req, res) => {
+    if (!canAccessHiddenUsers(req.currentUser)) {
+      throw new HttpError(403, "Forbidden");
+    }
+
+    const organizationId = String(req.params.organizationId || "").trim();
+    if (!organizationId) {
+      throw new HttpError(400, "organizationId is required");
+    }
+
+    const subscriptionItems = await organizationSubscriptionStore.filter({
+      filter: { organization_id: organizationId },
+      limit: 1,
+    });
+    const subscription = subscriptionItems[0] || null;
+    if (!subscription) {
+      throw new HttpError(404, "Organization subscription not found");
+    }
+
+    const updated = await organizationSubscriptionStore.update(subscription.id, {
+      status: "paused",
+    });
+
+    res.json({
+      subscription: {
+        organization_id: updated.organization_id,
+        plan_code: updated.plan_code,
+        status: updated.status,
+      },
+    });
+  })
+);
+
+router.post(
+  "/:organizationId/license/activate",
+  asyncHandler(async (req, res) => {
+    if (!canAccessHiddenUsers(req.currentUser)) {
+      throw new HttpError(403, "Forbidden");
+    }
+
+    const organizationId = String(req.params.organizationId || "").trim();
+    if (!organizationId) {
+      throw new HttpError(400, "organizationId is required");
+    }
+
+    const subscriptionItems = await organizationSubscriptionStore.filter({
+      filter: { organization_id: organizationId },
+      limit: 1,
+    });
+    const subscription = subscriptionItems[0] || null;
+    if (!subscription) {
+      throw new HttpError(404, "Organization subscription not found");
+    }
+
+    const updated = await organizationSubscriptionStore.update(subscription.id, {
+      status: "active",
+    });
+
+    const organizationItems = await organizationStore.filter({
+      filter: { id: organizationId },
+      limit: 1,
+    });
+    const organization = organizationItems[0] || null;
+    if (organization && updated.plan_code && organization.plan_code !== updated.plan_code) {
+      await organizationStore.update(organization.id, {
+        plan_code: updated.plan_code,
+      });
+    }
+
+    res.json({
+      subscription: {
+        organization_id: updated.organization_id,
+        plan_code: updated.plan_code,
+        status: updated.status,
+      },
     });
   })
 );

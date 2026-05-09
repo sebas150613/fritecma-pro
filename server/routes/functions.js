@@ -3,6 +3,7 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { requireAuth } from "../lib/auth.js";
 import { getFunctionDefinition } from "../lib/function-registry.js";
 import { HttpError, notImplemented } from "../lib/http-error.js";
+import { requireWritableLicense } from "../lib/license.js";
 import { sendEmail } from "../services/email-service.js";
 import {
   processVerifactu,
@@ -36,6 +37,7 @@ router.use(requireAuth);
 
 router.post(
   "/:name",
+  requireWritableLicense,
   asyncHandler(async (req, res) => {
     const currentUser = req.currentUser;
     const payload = req.body || {};

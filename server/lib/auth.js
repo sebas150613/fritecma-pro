@@ -18,6 +18,11 @@ import {
   normalizeOrganizationRole,
   resolveAppRole,
 } from "./roles.js";
+import { getOrganizationSubscription } from "../services/billing-service.js";
+import {
+  LICENSE_READ_ONLY_MESSAGE,
+  isLicenseRestrictedStatus,
+} from "./license.js";
 
 const userStore = createJsonEntityStore("User");
 const sessionStore = createJsonFileStore("auth-sessions.json", {});
@@ -533,6 +538,17 @@ const createResolvedAuthContext = async (user, preferredOrganizationId) => {
   }
 
   const organizationSettings = await getOrganizationSettingsForOrganization(organization.id);
+  const resolvedRole = resolveAppRole(user, selectedMembership);
+  const subscription = isHiddenOwner(user)
+    ? null
+    : await getOrganizationSubscription(organization.id);
+  const licenseStatus = subscription?.status || "active";
+  const licenseIsRestricted = isLicenseRestrictedStatus(licenseStatus);
+
+  if (licenseIsRestricted && ["tecnico", "ayudante"].includes(resolvedRole)) {
+    throw new HttpError(403, "No se puede iniciar sesión actualmente.");
+  }
+
   const currentUser = {
     ...mergeOrganizationSettingsIntoUser(
       stripSensitiveUserFields(user),
@@ -540,8 +556,14 @@ const createResolvedAuthContext = async (user, preferredOrganizationId) => {
       organizationSettings,
       memberships
     ),
-    role: resolveAppRole(user, selectedMembership),
+    role: resolvedRole,
     current_membership_id: selectedMembership.id,
+    license_status: licenseStatus,
+    license_read_only:
+      licenseIsRestricted && ["admin", "oficina", "encargado", "superadmin"].includes(resolvedRole),
+    ...(licenseIsRestricted
+      ? { license_message: LICENSE_READ_ONLY_MESSAGE }
+      : {}),
   };
 
   return {
@@ -575,12 +597,26 @@ const resolveAuthenticatedBaseUser = async (req) => {
   }
 
   if (token && token === serverConfig.devToken) {
+    if (
+      !serverConfig.isProduction &&
+      process.env.APP_SMOKE_OWNER === "true" &&
+      String(req.headers["x-smoke-owner"] || "").toLowerCase() === "true"
+    ) {
+      return {
+        user: hiddenOwnerSeed,
+        sessionToken: null,
+        session: null,
+      };
+    }
+
     return {
       user: visibleUsers.find((user) => user.is_active !== false) || defaultAdmin,
-      sessionToken: token,
+      sessionToken: null,
       session: null,
     };
   }
+
+  void req;
 
   if (!token && serverConfig.allowAuthBypass) {
     return {

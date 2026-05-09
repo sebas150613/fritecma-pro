@@ -7,6 +7,7 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { canAccessHiddenUsers, requireAuth } from "../lib/auth.js";
 import { HttpError } from "../lib/http-error.js";
 import { serverConfig } from "../config.js";
+import { requireWritableLicense } from "../lib/license.js";
 
 const SAFE_EXTENSION_PATTERN = /^\.[a-z0-9]{1,12}$/i;
 
@@ -111,6 +112,7 @@ router.use(requireAuth);
 
 router.post(
   "/public",
+  requireWritableLicense,
   publicUpload.single("file"),
   asyncHandler(async (req, res) => {
     if (!req.file) {
@@ -123,6 +125,7 @@ router.post(
 
 router.post(
   "/private",
+  requireWritableLicense,
   privateUpload.single("file"),
   asyncHandler(async (req, res) => {
     if (!req.file) {

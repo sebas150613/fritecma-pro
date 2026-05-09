@@ -87,7 +87,8 @@ const ayudanteLinks = [
 ];
 
 const ownerLinks = [
-  { to: "/settings", label: "Panel Owner", icon: Settings },
+  { to: "/owner/clients", label: "Clientes", icon: Building2 },
+  { to: "/settings", label: "Ajustes", icon: Settings },
 ];
 
 const TAB_ROOTS = ["/", "/interventions", "/fichaje", "/settings"];
@@ -267,6 +268,13 @@ export default function Layout() {
         </header>
 
         <main className="flex-1 overflow-y-auto pb-28 lg:pb-0">
+          {user?.license_read_only === true && (
+            <div className="sticky top-0 z-40 border-b border-amber-200/70 bg-amber-50 text-amber-900">
+              <div className="mx-auto max-w-6xl px-4 py-3 text-sm font-medium">
+                {user?.license_message || "Licencia caducada. Contacte con FRIGEST para renovación."}
+              </div>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

@@ -23,6 +23,7 @@ import {
   resolveAppRole,
 } from "../lib/roles.js";
 import { assertSeatAvailableForOrganization } from "../services/billing-service.js";
+import { assertLicenseAllowsWrite } from "../lib/license.js";
 
 const router = express.Router();
 const stores = new Map();
@@ -254,6 +255,7 @@ router.post(
 router.post(
   "/:entity",
   asyncHandler(async (req, res) => {
+    assertLicenseAllowsWrite(req);
     const entityName = req.params.entity;
     assertEntityAccessAllowed(entityName, req);
     const store = getStore(entityName);
@@ -306,6 +308,7 @@ router.post(
 router.patch(
   "/:entity/:id",
   asyncHandler(async (req, res) => {
+    assertLicenseAllowsWrite(req);
     const entityName = req.params.entity;
     assertEntityAccessAllowed(entityName, req);
     const store = getStore(entityName);
@@ -430,6 +433,7 @@ router.patch(
 router.delete(
   "/:entity/:id",
   asyncHandler(async (req, res) => {
+    assertLicenseAllowsWrite(req);
     const entityName = req.params.entity;
     assertEntityAccessAllowed(entityName, req);
     const store = getStore(entityName);

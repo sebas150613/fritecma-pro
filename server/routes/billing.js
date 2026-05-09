@@ -2,6 +2,7 @@ import express from "express";
 import { asyncHandler } from "../lib/async-handler.js";
 import { requireAuth } from "../lib/auth.js";
 import { HttpError } from "../lib/http-error.js";
+import { requireWritableLicense } from "../lib/license.js";
 import {
   assignPlanToOrganization,
   createBillingPortalSession,
@@ -53,6 +54,7 @@ router.get(
 
 router.post(
   "/checkout",
+  requireWritableLicense,
   asyncHandler(async (req, res) => {
     requireBillingAdmin(req.currentUser);
 

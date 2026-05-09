@@ -13,7 +13,6 @@ const planStore = createJsonEntityStore("SubscriptionPlan");
 const subscriptionStore = createJsonEntityStore("OrganizationSubscription");
 const membershipStore = getOrganizationMembershipStore();
 const organizationStore = getOrganizationStore();
-const userStore = getUserStore();
 
 const DEFAULT_PLAN_SEEDS = [
   {
@@ -235,7 +234,7 @@ export const getSeatUsage = async (organizationId) => {
   const memberships = await membershipStore.filter({
     filter: { organization_id: organizationId },
   });
-  const users = await userStore.list();
+  const users = await getUserStore().list();
   const hiddenOwnerIds = new Set(
     users.filter((user) => user.is_hidden_owner === true).map((user) => user.id)
   );
@@ -271,6 +270,8 @@ export const getSubscriptionSummary = async (organizationId) => {
     plan,
     usage: {
       active_seats: seatUsage,
+      storage_used_gb: null,
+      ai_requests_month: null,
     },
     limits: {
       seat_limit: seatLimit,

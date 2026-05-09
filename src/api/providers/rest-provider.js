@@ -335,6 +335,27 @@ export const createRestProvider = () => {
 
         return response;
       },
+      createUser: (organizationId, payload) =>
+        http.request(`/api/organizations/${encodeURIComponent(organizationId)}/users`, {
+          method: "POST",
+          body: payload,
+        }),
+      pauseLicense: (organizationId) =>
+        http.request(
+          `/api/organizations/${encodeURIComponent(organizationId)}/license/pause`,
+          {
+            method: "POST",
+            body: {},
+          }
+        ),
+      activateLicense: (organizationId) =>
+        http.request(
+          `/api/organizations/${encodeURIComponent(organizationId)}/license/activate`,
+          {
+            method: "POST",
+            body: {},
+          }
+        ),
       listPlans: () => http.request("/api/organizations/plans"),
       switch: async (organizationId) => {
         const response = await http.request("/api/organizations/switch", {

@@ -32,6 +32,58 @@ const request = async (pathname, options = {}) => {
   return body;
 };
 
+const requestExpectFailure = async (pathname, options = {}) => {
+  const response = await fetch(`${BASE_URL}${pathname}`, options);
+  const contentType = response.headers.get("content-type") || "";
+  const body = contentType.includes("application/json")
+    ? await response.json()
+    : await response.text();
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    body,
+    headers: response.headers,
+  };
+};
+
+const parseAccessTokenFromRedirect = (locationHeader) => {
+  if (!locationHeader) {
+    return null;
+  }
+  const url = new URL(locationHeader, BASE_URL);
+  return url.searchParams.get("access_token");
+};
+
+const loginViaRedirect = async ({ pathname, formFields }) => {
+  const body = new URLSearchParams(formFields || {}).toString();
+  const result = await requestExpectFailure(pathname, {
+    method: "POST",
+    redirect: "manual",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+    },
+    body,
+  });
+
+  const location = result.headers.get("location") || "";
+  const token = parseAccessTokenFromRedirect(location);
+  return {
+    status: result.status,
+    location,
+    token,
+  };
+};
+
+const parseAuthErrorFromLocation = (locationHeader) => {
+  if (!locationHeader) {
+    return "";
+  }
+  const url = new URL(locationHeader, BASE_URL);
+  return url.searchParams.get("error") || "";
+};
+
 const waitForHealth = async () => {
   for (let attempt = 0; attempt < 30; attempt += 1) {
     try {
@@ -55,6 +107,7 @@ const createServerProcess = () => {
       APP_SERVER_HOST: HOST,
       APP_SERVER_PORT: String(PORT),
       APP_ID: "local-app",
+      APP_SMOKE_OWNER: "true",
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -360,6 +413,166 @@ const runSmoke = async () => {
     };
 
     console.log(JSON.stringify(summary, null, 2));
+
+    // --- Owner / license flow ---
+    const ownerHeaders = {
+      Authorization: "Bearer local-dev-token",
+      "X-App-Id": "local-app",
+      "Content-Type": "application/json",
+      "X-Smoke-Owner": "true",
+    };
+
+    const ownerMeProbe = await requestExpectFailure("/api/auth/me", {
+      headers: ownerHeaders,
+    });
+    if (ownerMeProbe.status !== 200) {
+      throw new Error(
+        `Owner token probe failed (${ownerMeProbe.status}): ${
+          typeof ownerMeProbe.body === "string"
+            ? ownerMeProbe.body
+            : JSON.stringify(ownerMeProbe.body)
+        }`
+      );
+    }
+
+    const ownerOrgCreate = await request("/api/organizations", {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        name: "Empresa Smoke Owner",
+        slug: "smoke-owner",
+        plan_code: "starter",
+      }),
+    });
+    const targetOrgId = ownerOrgCreate?.organization?.id;
+    if (!targetOrgId) {
+      throw new Error("Owner org create did not return organization id.");
+    }
+
+    const ownerInviteAdmin = await request(`/api/organizations/${encodeURIComponent(targetOrgId)}/users`, {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        email: "admin-license@local.test",
+        full_name: "Admin License",
+        role: "admin",
+        temporary_password: "TempPass123!",
+      }),
+    });
+    const ownerInviteTech = await request(`/api/organizations/${encodeURIComponent(targetOrgId)}/users`, {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        email: "tech-license@local.test",
+        full_name: "Tech License",
+        role: "tecnico",
+        temporary_password: "TempPass123!",
+      }),
+    });
+    const ownerInviteHelper = await request(`/api/organizations/${encodeURIComponent(targetOrgId)}/users`, {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        email: "helper-license@local.test",
+        full_name: "Helper License",
+        role: "ayudante",
+        temporary_password: "TempPass123!",
+      }),
+    });
+
+    await request(`/api/organizations/${encodeURIComponent(targetOrgId)}/license/pause`, {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({}),
+    });
+
+    const techLogin = await loginViaRedirect({
+      pathname: "/api/auth/login",
+      formFields: {
+        email: "tech-license@local.test",
+        password: "TempPass123!",
+        redirect_uri: `${BASE_URL}/`,
+      },
+    });
+    if (parseAuthErrorFromLocation(techLogin.location) !== "No se puede iniciar sesión actualmente.") {
+      throw new Error(
+        `Expected tech login to be blocked with exact message. location=${techLogin.location}`
+      );
+    }
+
+    const helperLogin = await loginViaRedirect({
+      pathname: "/api/auth/login",
+      formFields: {
+        email: "helper-license@local.test",
+        password: "TempPass123!",
+        redirect_uri: `${BASE_URL}/`,
+      },
+    });
+    if (parseAuthErrorFromLocation(helperLogin.location) !== "No se puede iniciar sesión actualmente.") {
+      throw new Error(
+        `Expected helper login to be blocked with exact message. location=${helperLogin.location}`
+      );
+    }
+
+    const adminLogin = await loginViaRedirect({
+      pathname: "/api/auth/login",
+      formFields: {
+        email: "admin-license@local.test",
+        password: "TempPass123!",
+        redirect_uri: `${BASE_URL}/`,
+      },
+    });
+    if (!adminLogin.token) {
+      throw new Error(`Expected admin login to succeed. location=${adminLogin.location}`);
+    }
+
+    const adminHeaders = {
+      Authorization: `Bearer ${adminLogin.token}`,
+      "X-App-Id": "local-app",
+      "Content-Type": "application/json",
+      "X-Organization-Id": targetOrgId,
+    };
+
+    const adminMe = await request("/api/auth/me", {
+      headers: {
+        Authorization: `Bearer ${adminLogin.token}`,
+        "X-App-Id": "local-app",
+        "X-Organization-Id": targetOrgId,
+      },
+    });
+    if (adminMe?.license_read_only !== true) {
+      throw new Error("Expected admin to have license_read_only=true while paused.");
+    }
+
+    const blockedWrite = await requestExpectFailure("/api/entities/Client", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({ name: "Blocked client" }),
+    });
+    if (blockedWrite.status !== 403) {
+      throw new Error(`Expected write to be blocked with 403, got ${blockedWrite.status}`);
+    }
+    if (
+      typeof blockedWrite.body !== "object" ||
+      blockedWrite.body?.message !== "Licencia caducada. Contacte con FRIGEST para renovación."
+    ) {
+      throw new Error(`Expected blocked write message. got=${JSON.stringify(blockedWrite.body)}`);
+    }
+
+    await request(`/api/organizations/${encodeURIComponent(targetOrgId)}/license/activate`, {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({}),
+    });
+
+    const allowedWrite = await request("/api/entities/Client", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({ name: "Allowed client" }),
+    });
+    if (!allowedWrite?.id) {
+      throw new Error("Expected write to succeed after license activation.");
+    }
   } finally {
     server.kill("SIGTERM");
     await sleep(500);
