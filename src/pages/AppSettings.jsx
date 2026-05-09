@@ -177,7 +177,7 @@ export default function AppSettings() {
     } finally {
       setSavingUserId("");
     }
-  };;
+  };
 
   const deleteOrganizationUser = async (userId) => {
     const confirmed = window.confirm("¿Eliminar este usuario de este cliente?");
