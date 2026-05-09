@@ -56,10 +56,15 @@ export default function GasTypeCombobox({
   const allSelectable = useMemo(() => {
     const extra = (legacyGasTypes || []).filter(Boolean);
     const merged = new Map();
+    const otherKey = normalizeGasCompareKey(GAS_TYPE_OTHER_LABEL);
     const add = (label) => {
       const canon = resolveCanonicalGasLabel(label, extra);
       const k = normalizeGasCompareKey(canon);
-      if (!k || k === normalizeGasCompareKey(GAS_TYPE_OTHER_LABEL)) return;
+      if (!k) return;
+      if (k === otherKey) {
+        if (!merged.has(otherKey)) merged.set(otherKey, GAS_TYPE_OTHER_LABEL);
+        return;
+      }
       if (!merged.has(k)) merged.set(k, canon);
     };
     priorityGasTypes.forEach(add);

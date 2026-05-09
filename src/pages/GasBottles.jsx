@@ -110,7 +110,9 @@ export default function GasBottles() {
   // Filtered bottles
   const filtered = bottles.filter(b => {
     const matchSearch = b.serial_number?.toLowerCase().includes(search.toLowerCase()) || b.gas_type?.toLowerCase().includes(search.toLowerCase()) || b.owner_client_name?.toLowerCase().includes(search.toLowerCase());
-    const matchGas = filterGas === "all" || b.gas_type === filterGas;
+    const matchGas =
+      filterGas === "all" ||
+      normalizeGasCompareKey(b.gas_type) === normalizeGasCompareKey(filterGas);
     const matchOwner = filterOwner === "all" || b.owner_type === filterOwner;
     return matchSearch && matchGas && matchOwner;
   });
@@ -230,7 +232,12 @@ export default function GasBottles() {
     if (transferForm.from_bottle_id === transferForm.to_bottle_id) return setTransferError("Las botellas deben ser distintas.");
     if (!kg || kg <= 0) return setTransferError("Indica los Kg a traspasar.");
     if (fromBottle && kg > (fromBottle.carga_actual || 0)) return setTransferError(`La botella origen solo tiene ${fromBottle.carga_actual} kg.`);
-    if (fromBottle && toBottle && fromBottle.gas_type !== toBottle.gas_type) return setTransferError("Las botellas deben contener el mismo tipo de gas.");
+    if (
+      fromBottle &&
+      toBottle &&
+      normalizeGasCompareKey(fromBottle.gas_type) !== normalizeGasCompareKey(toBottle.gas_type)
+    )
+      return setTransferError("Las botellas deben contener el mismo tipo de gas.");
 
     setSaving(true);
     const now = new Date().toISOString();
