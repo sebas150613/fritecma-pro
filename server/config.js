@@ -37,6 +37,11 @@ const parseCsvEnv = (value = "") =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+const parsePositiveNumberEnv = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
 const environment = process.env.NODE_ENV || "development";
 const isProduction = environment === "production";
 const configuredAuthBypass = process.env.APP_ALLOW_AUTH_BYPASS;
@@ -47,6 +52,10 @@ const allowAuthBypass =
 const configuredDevToken = String(process.env.APP_DEV_TOKEN || "").trim();
 const devToken = configuredDevToken || (isProduction ? "" : "local-dev-token");
 const allowedOrigins = parseCsvEnv(process.env.APP_ALLOWED_ORIGINS);
+const uploadMaxFileSizeMb = parsePositiveNumberEnv(
+  process.env.APP_UPLOAD_MAX_FILE_SIZE_MB,
+  25
+);
 
 if (isProduction && allowAuthBypass) {
   throw new Error(
@@ -64,6 +73,8 @@ export const serverConfig = {
   environment,
   isProduction,
   allowedOrigins,
+  uploadMaxFileSizeMb,
+  uploadMaxFileSizeBytes: Math.round(uploadMaxFileSizeMb * 1024 * 1024),
   port: Number(process.env.APP_SERVER_PORT || 3000),
   host: process.env.APP_SERVER_HOST || "127.0.0.1",
   dataDir: path.join(__dirname, "data"),
