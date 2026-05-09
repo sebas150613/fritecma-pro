@@ -259,7 +259,7 @@ router.post(
     const store = getStore(entityName);
     const requestedRole = req.body?.role;
 
-    if (isUserManagementEntity(entityName)) {
+    if (isUserEntity(entityName) || isOrganizationMembershipEntity(entityName)) {
       assertCanManageUsers(req);
     }
 
@@ -317,7 +317,7 @@ router.patch(
 
     ensureEntityBelongsToCurrentOrganization(entityName, req, existing);
 
-    if (isUserManagementEntity(entityName)) {
+    if (isUserEntity(entityName) || isOrganizationMembershipEntity(entityName)) {
       assertCanManageUsers(req);
     }
 

@@ -19,8 +19,9 @@ const resolveUploadPath = (fileUri) => {
   const normalized = normalizeFileUri(fileUri);
   const uploadsRoot = path.resolve(serverConfig.uploadsDir);
   const absolutePath = path.resolve(uploadsRoot, normalized);
+  const relativePath = path.relative(uploadsRoot, absolutePath);
 
-  if (!absolutePath.startsWith(`${uploadsRoot}${path.sep}`)) {
+  if (!normalized || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
     throw new HttpError(400, "Invalid file_uri");
   }
 
@@ -40,7 +41,7 @@ const createStorage = (scopeName, getDir) =>
     },
     filename: (_req, file, cb) => {
       const extension = getSafeExtension(file.originalname);
-      cb(null, `${Date.now()}-${randomUUID()}${extension}`);
+      cb(null, `${randomUUID()}${extension}`);
       void scopeName;
     },
   });

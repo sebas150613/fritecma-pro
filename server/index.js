@@ -50,6 +50,18 @@ const corsOptions = serverConfig.isProduction
   : undefined;
 
 app.use(cors(corsOptions));
+app.use((req, res, next) => {
+  if (!serverConfig.isProduction || !req.headers.origin) {
+    next();
+    return;
+  }
+
+  if (!serverConfig.allowedOrigins.includes(req.headers.origin)) {
+    return res.status(403).json({ message: "Origin is not allowed by CORS policy." });
+  }
+
+  next();
+});
 app.post(
   "/api/billing/webhook",
   express.raw({ type: "application/json" }),

@@ -44,6 +44,13 @@ const parsePositiveNumberEnv = (value, fallback) => {
 
 const environment = process.env.NODE_ENV || "development";
 const isProduction = environment === "production";
+
+if (isProduction && !Object.prototype.hasOwnProperty.call(process.env, "APP_ALLOW_AUTH_BYPASS")) {
+  throw new Error(
+    "Unsafe production configuration: APP_ALLOW_AUTH_BYPASS must be explicitly set to false when NODE_ENV=production."
+  );
+}
+
 const configuredAuthBypass = process.env.APP_ALLOW_AUTH_BYPASS;
 const allowAuthBypass =
   configuredAuthBypass === undefined
@@ -61,6 +68,10 @@ if (isProduction && allowAuthBypass) {
   throw new Error(
     "Unsafe production configuration: APP_ALLOW_AUTH_BYPASS must be false when NODE_ENV=production."
   );
+}
+
+if (isProduction && !configuredDevToken && devToken !== "") {
+  throw new Error("Unsafe production configuration: APP_DEV_TOKEN must be empty when NODE_ENV=production.");
 }
 
 if (isProduction && allowedOrigins.length === 0) {
