@@ -10,6 +10,7 @@ const IGNORED_DIRS = new Set([
   ".vite",
 ]);
 
+/** Paths where Base44 mentions are expected (historical archive, tooling, lockfile metadata). */
 const LEGACY_ALLOWED_PREFIXES = [
   "archive/base44/",
   "README.md",
@@ -19,6 +20,18 @@ const LEGACY_ALLOWED_PREFIXES = [
   "scripts/audit-entity-parity.mjs",
   "scripts/audit-function-parity.mjs",
 ];
+
+/** Application/runtime roots that must stay Base44-free (matches only unexpected hits). */
+const isActiveApplicationPath = (relativePath) => {
+  const n = relativePath.replace(/\\/g, "/");
+  return (
+    n.startsWith("src/") ||
+    n.startsWith("server/") ||
+    n === "vite.config.js" ||
+    n === "vite.config.ts" ||
+    n === "vite.config.mjs"
+  );
+};
 
 const PATTERNS = [
   "@base44/sdk",
@@ -90,6 +103,9 @@ const main = async () => {
   }
 
   const unexpected = findings.filter((item) => !item.allowed);
+  const unexpectedActive = unexpected.filter((item) =>
+    isActiveApplicationPath(item.path)
+  );
 
   if (unexpected.length === 0) {
     console.log(
@@ -97,7 +113,8 @@ const main = async () => {
         {
           ok: true,
           unexpected_references: 0,
-          total_legacy_references: findings.length,
+          unexpected_active_hits: 0,
+          total_scanned_hits: findings.length,
         },
         null,
         2
@@ -111,8 +128,10 @@ const main = async () => {
       {
         ok: false,
         unexpected_references: unexpected.length,
-        total_legacy_references: findings.length,
+        unexpected_active_hits: unexpectedActive.length,
+        total_scanned_hits: findings.length,
         unexpected,
+        unexpected_active: unexpectedActive,
       },
       null,
       2
