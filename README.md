@@ -69,6 +69,12 @@ Run the REST smoke test: `npm run smoke:rest`
 
 Before a production release or deployment, run **`npm run release:check`**. It runs in order: runtime config contract, Base44 audit, security-hardening and auth-storage/header contracts, Node tests, lint, typecheck, build, REST smoke test, and **`npm audit`** (fails if any vulnerability is reported).
 
+**Production environment checklist**
+
+On the **server or staging** (with real env vars injected), run **`npm run check:production-env`**. It applies production rules (`--production`), validates **`NODE_ENV`**, **`APP_ALLOW_AUTH_BYPASS=false`** (explicit), empty **`APP_DEV_TOKEN`**, non-wildcard **`APP_ALLOWED_ORIGINS`** (prefer **`https://`** for non-local origins), **`APP_TRUST_PROXY`** parsing, **`APP_SERVER_HOST`** vs bypass (same rules as `server/config.js`), Stripe/AI/DATABASE presence where relevant, and never prints secret values. For a dry local run without production env, use **`node scripts/production-env-check.mjs`** (relaxed). This check is **not** part of **`release:check`** / CI because CI does not load production secrets.
+
+Expected highlights for real production: **`NODE_ENV=production`**, **`APP_ALLOWED_ORIGINS`** = comma-separated **`https://…`** frontend origins (no `*`), **`APP_ALLOW_AUTH_BYPASS=false`**, **`APP_DEV_TOKEN`** empty, **`APP_TRUST_PROXY=false`** off the Node port or **`1`/`true`** behind a trusted reverse proxy, **`DATABASE_URL`** set when using PostgreSQL, Stripe and OpenAI variables if those features are live. Port is **`APP_SERVER_PORT`** (default 3000 in `server/config.js`).
+
 Audit remaining Base44 references: `npm run audit:base44`
 
 Audit REST entity parity against the archived legacy entity set: `npm run audit:entities`
