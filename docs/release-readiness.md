@@ -13,7 +13,7 @@ The following are implemented and enforced in automation where noted:
 - Security headers + **Content-Security-Policy-Report-Only** (not blocking).
 - Browser token storage helpers + logout clearing token keys and session activity marker (`src/lib/auth-storage.js`).
 - **OrganizationSettings** sensitive fields are **encrypted at rest** (`enc:v1:…`, `server/lib/secret-crypto.js` + helpers in `server/lib/tenant.js`) using **`APP_SETTINGS_SECRET`** (≥ 32 chars in production per `check:production-env`). Responses to the client still use **`sanitizeOrganizationSettingsForClient`** (no secret values; **`*_configured`** flags only). **`req.currentOrganizationSettings`** holds **decrypted** values in memory for SMTP pedidos and internal use.
-- `npm run release:check` (full gate before merge via Actions).
+- `npm run release:check` (full gate before merge via Actions), including a **multi-tenant isolation (IDOR)** contract against tenant-scoped entity APIs.
 - Production env checklist script (`npm run check:production-env`) for server/staging.
 - Tracked-file secrets scan (`npm run check:secrets`); `npm audit` clean at last validation.
 
@@ -37,13 +37,14 @@ In order:
 5. Auth-storage contract  
 6. Organization settings client security (`check:org-settings-security`)  
 7. Organization settings encryption (`check:org-settings-encryption`)  
-8. Security-headers contract  
-9. Node tests  
-10. ESLint  
-11. Typecheck  
-12. Production build  
-13. REST smoke test  
-14. `npm audit`
+8. Multitenant isolation contract (`check:multitenant-isolation`)  
+9. Security-headers contract  
+10. Node tests  
+11. ESLint  
+12. Typecheck  
+13. Production build  
+14. REST smoke test  
+15. `npm audit`
 
 ## 4. Critical production variables
 
@@ -81,6 +82,7 @@ A branch protection rule for `main` should require PRs and passing checks where 
 | **In-memory rate limiting** | Per-process; not shared across multiple Node instances—fine for single instance; scale-out needs a shared store. |
 | **Branch protection** | May not be strictly enforced on private repos without paid features—process discipline still required. |
 | **Legacy plaintext rows** | Older JSON rows may still hold plaintext until touched or migrated via **`npm run migrate:org-settings-secrets -- --write`**; rotate credentials if they were ever leaked. |
+| **New custom API routes** | Any new endpoint that returns or mutates **tenant-scoped** data should be covered by **IDOR / multi-tenant** tests (extend `check:multitenant-isolation` or add targeted checks). |
 
 ## 8. Recommended next improvements
 
