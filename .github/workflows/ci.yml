@@ -1,5 +1,6 @@
 name: CI
 
+# Fast gate: conflict markers only. Full validation runs in release-check.yml on main.
 on:
   push:
     branches:
@@ -10,7 +11,7 @@ on:
       - main
 
 jobs:
-  validate:
+  conflict-markers:
     runs-on: ubuntu-latest
 
     steps:
@@ -26,20 +27,3 @@ jobs:
             echo "Merge conflict markers found. Resolve them before building."
             exit 1
           fi
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Build
-        run: npm run build
