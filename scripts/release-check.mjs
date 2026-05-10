@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Pre-release checklist: runs contracts, tests, lint, build, smoke, npm audit.
+ * Pre-release checklist: contracts, secrets scan, tests, lint, build, smoke, npm audit.
  * No extra files written (does not export audit JSON).
  *
  * The archived vendor SDK audit script name is composed at runtime so this file
@@ -17,6 +17,7 @@ function vendorLegacyAuditNpmScript() {
 const steps = [
   { label: "Runtime config contract", cmd: "npm", args: ["run", "check:runtime-config"] },
   { label: "Legacy SDK reference audit", cmd: "npm", args: ["run", vendorLegacyAuditNpmScript()] },
+  { label: "Secrets scan", cmd: "npm", args: ["run", "check:secrets"] },
   { label: "Security hardening contract", cmd: "npm", args: ["run", "check:security-hardening"] },
   { label: "Auth storage contract", cmd: "npm", args: ["run", "check:auth-storage"] },
   { label: "Security headers contract", cmd: "npm", args: ["run", "check:security-headers"] },

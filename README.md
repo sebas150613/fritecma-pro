@@ -67,7 +67,7 @@ Seed demo data for REST mode: `npm run seed:rest -- --reset`
 
 Run the REST smoke test: `npm run smoke:rest`
 
-Before a production release or deployment, run **`npm run release:check`**. It runs in order: runtime config contract, Base44 audit, security-hardening and auth-storage/header contracts, Node tests, lint, typecheck, build, REST smoke test, and **`npm audit`** (fails if any vulnerability is reported).
+Before a production release or deployment, run **`npm run release:check`**. It runs in order: runtime config contract, Base44 audit, **tracked-file secrets scan** (`check:secrets`), security-hardening and auth-storage/header contracts, Node tests, lint, typecheck, build, REST smoke test, and **`npm audit`** (fails if any vulnerability is reported). Run **`npm run check:secrets`** alone for the same scan; it masks matches and does not replace GitHub secret scanning or manual review.
 
 **Production environment checklist**
 
