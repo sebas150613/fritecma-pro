@@ -35,6 +35,20 @@ function createMemoryStorage() {
 
 const storage = isNode ? createMemoryStorage() : window.localStorage;
 
+/** Keys written by getRuntimeParamValue for URL overrides; cleared with ?clear_access_token=true */
+const RUNTIME_OVERRIDE_STORAGE_KEYS = [
+  "app_app_id",
+  "app_from_url",
+  "app_backend_provider",
+  "app_api_url",
+  "app_login_url",
+  "app_logout_url",
+];
+
+const clearRuntimeOverrideKeys = (store) => {
+  RUNTIME_OVERRIDE_STORAGE_KEYS.forEach((key) => store.removeItem(key));
+};
+
 const readStorage = (keys) => {
   for (const key of keys) {
     const value = storage.getItem(key);
@@ -95,6 +109,7 @@ const getRuntimeConfig = () => {
   if (getRuntimeParamValue("clear_access_token") === "true") {
     if (!isNode) {
       clearAuthSessionIn(storage);
+      clearRuntimeOverrideKeys(storage);
     }
   }
 

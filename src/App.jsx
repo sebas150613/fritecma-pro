@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
+import { useEffect, useRef } from "react";
 import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/app-auth';
@@ -47,6 +48,18 @@ const resolveUserRole = (user) =>
   );
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, user } = useAuth();
+  const authRequiredRedirectStarted = useRef(false);
+
+  useEffect(() => {
+    if (authError?.type !== "auth_required") {
+      return;
+    }
+    if (authRequiredRedirectStarted.current) {
+      return;
+    }
+    authRequiredRedirectStarted.current = true;
+    navigateToLogin();
+  }, [authError, navigateToLogin]);
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -62,9 +75,12 @@ const AuthenticatedApp = () => {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
-      navigateToLogin();
-      return null;
+      // Redirect runs once from useEffect (avoid render-phase navigation / rate-limit storms).
+      return (
+        <div className="fixed inset-0 flex items-center justify-center">
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+        </div>
+      );
     }
   }
 

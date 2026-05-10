@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { appApi } from "@/api/app-api";
 import { publicAppApi } from "@/api/public-app-api";
 import { getStoredAuthToken, runtimeConfig } from "@/lib/runtime-config";
@@ -110,7 +110,7 @@ export const AppAuthProvider = ({ children }) => {
     }
   };
 
-  const logout = (shouldRedirect = true) => {
+  const logout = useCallback((shouldRedirect = true) => {
     setUser(null);
     setIsAuthenticated(false);
 
@@ -119,11 +119,11 @@ export const AppAuthProvider = ({ children }) => {
     } else {
       appApi.auth.logout();
     }
-  };
+  }, []);
 
-  const navigateToLogin = () => {
+  const navigateToLogin = useCallback(() => {
     appApi.auth.redirectToLogin(window.location.href);
-  };
+  }, []);
 
   return (
     <AppAuthContext.Provider
