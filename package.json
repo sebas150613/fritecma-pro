@@ -16,6 +16,7 @@
     "audit:functions": "node scripts/audit-function-parity.mjs",
     "seed:rest": "node scripts/seed-rest.mjs",
     "smoke:rest": "node scripts/rest-smoke.mjs",
+    "release:check": "node scripts/release-check.mjs",
     "check:runtime-config": "node scripts/runtime-config-contract.mjs",
     "check:security-hardening": "node scripts/security-hardening-contract.mjs",
     "check:security-headers": "node scripts/security-headers-contract.mjs",

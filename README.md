@@ -67,6 +67,8 @@ Seed demo data for REST mode: `npm run seed:rest -- --reset`
 
 Run the REST smoke test: `npm run smoke:rest`
 
+Before a production release or deployment, run **`npm run release:check`**. It runs in order: runtime config contract, Base44 audit, security-hardening and auth-storage/header contracts, Node tests, lint, typecheck, build, REST smoke test, and **`npm audit`** (fails if any vulnerability is reported).
+
 Audit remaining Base44 references: `npm run audit:base44`
 
 Audit REST entity parity against the archived legacy entity set: `npm run audit:entities`
