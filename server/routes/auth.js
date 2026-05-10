@@ -38,6 +38,7 @@ import {
   sendVerificationEmail,
 } from "../services/account-security-service.js";
 import { serverConfig } from "../config.js";
+import { canOperateOffice } from "../lib/roles.js";
 import { createRateLimiter, getClientIp } from "../lib/rate-limit.js";
 
 const router = express.Router();
@@ -1629,6 +1630,10 @@ router.patch(
     const hasUserPatch = Object.keys(userPatch).length > 0;
     const hasOrganizationSettingsPatch =
       Object.keys(organizationSettingsPatch).length > 0;
+
+    if (hasOrganizationSettingsPatch && !canOperateOffice(req.currentUser?.role)) {
+      throw new HttpError(403, "Forbidden");
+    }
 
     const updatedUser = hasUserPatch
       ? await userStore.update(req.currentUser.id, userPatch)

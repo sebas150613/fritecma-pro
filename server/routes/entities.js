@@ -74,6 +74,12 @@ const assertCanManageUsers = (req) => {
   }
 };
 
+const assertCanWriteOrganizationSettings = (req) => {
+  if (!canOperateOffice(req.currentUser?.role)) {
+    throw new HttpError(403, "Forbidden");
+  }
+};
+
 const sanitizeUserWritePatch = (currentUser, payload = {}) => {
   const patch = { ...payload };
 
@@ -298,6 +304,10 @@ router.post(
       assertCanManageUsers(req);
     }
 
+    if (entityName === "OrganizationSettings") {
+      assertCanWriteOrganizationSettings(req);
+    }
+
     if (
       isUserEntity(entityName) &&
       requestedRole === "superadmin" &&
@@ -356,6 +366,10 @@ router.patch(
     const existing = existingItems[0] || null;
 
     ensureEntityBelongsToCurrentOrganization(entityName, req, existing);
+
+    if (entityName === "OrganizationSettings") {
+      assertCanWriteOrganizationSettings(req);
+    }
 
     if (isUserEntity(entityName) || isOrganizationMembershipEntity(entityName)) {
       assertCanManageUsers(req);
@@ -485,6 +499,10 @@ router.delete(
     const existing = existingItems[0] || null;
 
     ensureEntityBelongsToCurrentOrganization(entityName, req, existing);
+
+    if (entityName === "OrganizationSettings") {
+      assertCanWriteOrganizationSettings(req);
+    }
 
     if (isUserManagementEntity(entityName)) {
       assertCanManageUsers(req);
