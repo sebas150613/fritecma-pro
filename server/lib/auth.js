@@ -227,7 +227,7 @@ const ensureHiddenOwnerUser = async () => {
   if (existing.is_active === false) {
     patch.is_active = true;
   }
-  if (hiddenOwnerSeed.password_hash && existing.password_hash !== hiddenOwnerSeed.password_hash) {
+  if (!existing.password_hash && hiddenOwnerSeed.password_hash) {
     patch.password_hash = hiddenOwnerSeed.password_hash;
   }
 
