@@ -779,6 +779,35 @@ export const createSessionForUser = async (
     throw new HttpError(404, "User not found");
   }
 
+  if (isHiddenOwner(user) && allowHiddenOwner) {
+    const organization = await getOrganizationById(DEFAULT_ORGANIZATION_ID);
+
+    if (!organization) {
+      throw new HttpError(503, "Default platform organization is not configured");
+    }
+
+    if (organization.is_active === false) {
+      throw new HttpError(403, "Organization is not active");
+    }
+
+    const token = randomUUID();
+    const sessions = await readSessions();
+    sessions[token] = {
+      userId: user.id,
+      organizationId: DEFAULT_ORGANIZATION_ID,
+      createdAt: new Date().toISOString(),
+    };
+    await writeSessions(sessions);
+
+    const context = await createResolvedAuthContext(user, DEFAULT_ORGANIZATION_ID);
+
+    return {
+      token,
+      user: context.currentUser,
+      organization: context.currentOrganization,
+    };
+  }
+
   const memberships = await getOrganizationMembershipsForUser(user.id);
   const selectedMembership =
     memberships.find((membership) => membership.organization_id === organizationId) ||
