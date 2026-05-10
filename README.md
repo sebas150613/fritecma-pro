@@ -69,6 +69,8 @@ Run the REST smoke test: `npm run smoke:rest`
 
 Before a production release or deployment, run **`npm run release:check`**. It runs in order: runtime config contract, Base44 audit, **tracked-file secrets scan** (`check:secrets`), security-hardening and auth-storage/header contracts, Node tests, lint, typecheck, build, REST smoke test, and **`npm audit`** (fails if any vulnerability is reported). Run **`npm run check:secrets`** alone for the same scan; it masks matches and does not replace GitHub secret scanning or manual review.
 
+Security / release summary: [docs/release-readiness.md](./docs/release-readiness.md)
+
 **Production environment checklist**
 
 On the **server or staging** (with real env vars injected), run **`npm run check:production-env`**. It applies production rules (`--production`), validates **`NODE_ENV`**, **`APP_ALLOW_AUTH_BYPASS=false`** (explicit), empty **`APP_DEV_TOKEN`**, non-wildcard **`APP_ALLOWED_ORIGINS`** (prefer **`https://`** for non-local origins), **`APP_TRUST_PROXY`** parsing, **`APP_SERVER_HOST`** vs bypass (same rules as `server/config.js`), Stripe/AI/DATABASE presence where relevant, and never prints secret values. For a dry local run without production env, use **`node scripts/production-env-check.mjs`** (relaxed). This check is **not** part of **`release:check`** / CI because CI does not load production secrets.
