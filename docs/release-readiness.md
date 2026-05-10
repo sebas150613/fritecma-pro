@@ -16,6 +16,8 @@ The following are implemented and enforced in automation where noted:
 - `npm run release:check` (full gate before merge via Actions), including **multi-tenant isolation (IDOR)** and **RBAC** contracts against tenant APIs and sensitive routes.
 - Production env checklist script (`npm run check:production-env`) for server/staging.
 - Tracked-file secrets scan (`npm run check:secrets`); `npm audit` clean at last validation.
+- **Legal / RGPD (baseline):** páginas estáticas en **`public/legal/`** (`privacy.html`, `terms.html`, `data-deletion.html`) enlazadas desde la configuración de la app; incluyen **placeholders** para razón social, NIF/CIF, domicilio, email de contacto y URL pública — deben completarse antes de producción o Google Play.
+- **Google Play Data Safety:** borrador técnico en **`docs/google-play-data-safety-draft.md`** (no declaración final).
 
 ## 2. Mandatory commands before release
 
@@ -84,6 +86,7 @@ A branch protection rule for `main` should require PRs and passing checks where 
 | **Branch protection** | May not be strictly enforced on private repos without paid features—process discipline still required. |
 | **Legacy plaintext rows** | Older JSON rows may still hold plaintext until touched or migrated via **`npm run migrate:org-settings-secrets -- --write`**; rotate credentials if they were ever leaked. |
 | **New custom API routes** | Any new endpoint that returns or mutates **tenant-scoped** data should declare expected roles and add **IDOR** (`check:multitenant-isolation`) and/or **RBAC** (`check:rbac`) coverage when sensitive. |
+| **Legal / RGPD / Google Play** | Sustituir **placeholders** en `public/legal/*.html`; publicar solo tras **revisión legal/DPO**; usar **HTTPS** y URL definitiva para Play; completar **Data Safety** en Play Console según `docs/google-play-data-safety-draft.md` y la lista real de SDK/servicios en producción. |
 
 ## 8. Recommended next improvements
 

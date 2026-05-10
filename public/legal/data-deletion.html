@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Eliminación de cuenta y datos — FRIGEST</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --fg: #1a1a1a;
+        --bg: #fafafa;
+        --muted: #555;
+        --border: #ddd;
+        --warn-bg: #fff8e6;
+        --warn-border: #e6c200;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --fg: #f0f0f0;
+          --bg: #121212;
+          --muted: #aaa;
+          --border: #333;
+          --warn-bg: #2a2410;
+          --warn-border: #a38600;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        line-height: 1.55;
+        color: var(--fg);
+        background: var(--bg);
+      }
+      .wrap {
+        max-width: 42rem;
+        margin: 0 auto;
+        padding: 1.25rem 1rem 3rem;
+      }
+      h1 {
+        font-size: 1.35rem;
+        margin: 0 0 0.5rem;
+      }
+      h2 {
+        font-size: 1.05rem;
+        margin: 1.75rem 0 0.5rem;
+      }
+      p,
+      ul {
+        margin: 0.65rem 0;
+      }
+      ul {
+        padding-left: 1.25rem;
+      }
+      .meta {
+        font-size: 0.875rem;
+        color: var(--muted);
+        margin-bottom: 1rem;
+      }
+      .nav {
+        font-size: 0.875rem;
+        margin-bottom: 1.25rem;
+      }
+      .nav a {
+        color: inherit;
+        margin-right: 1rem;
+      }
+      .placeholder-box {
+        border: 1px solid var(--warn-border);
+        background: var(--warn-bg);
+        padding: 0.85rem 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+        font-size: 0.9rem;
+      }
+      .placeholder-box strong {
+        display: block;
+        margin-bottom: 0.35rem;
+      }
+      .legal-note {
+        border-left: 4px solid var(--border);
+        padding-left: 0.85rem;
+        margin: 1rem 0;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+      footer {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      a {
+        color: inherit;
+        text-decoration: underline;
+      }
+      code {
+        font-size: 0.88em;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <nav class="nav" aria-label="Legal">
+        <a href="./privacy.html">Privacidad</a>
+        <a href="./terms.html">Términos</a>
+        <a href="./data-deletion.html">Eliminación de datos</a>
+      </nav>
+
+      <h1>Eliminación de cuenta y datos — FRIGEST</h1>
+      <p class="meta">Última actualización: 9 de mayo de 2026</p>
+
+      <div class="placeholder-box" role="note">
+        <strong>Contacto pendiente</strong>
+        [PENDIENTE: email de privacidad/contacto]<br />
+        [PENDIENTE: razón social / NIF-CIF / domicilio]<br />
+        [PENDIENTE: URL pública definitiva]
+      </div>
+
+      <p class="legal-note">
+        Documento de trabajo — <strong>pendiente de revisión legal</strong>. Para solicitudes RGPD, conserve copia de su comunicación y los datos identificativos que adjunte.
+      </p>
+
+      <h2>1. Cómo solicitar la eliminación</h2>
+      <p>Puede dirigir un correo electrónico a <strong>[PENDIENTE: email de privacidad/contacto]</strong> con:</p>
+      <ul>
+        <li>Asunto sugerido: «Solicitud eliminación datos / cuenta FRIGEST».</li>
+        <li>Dirección de correo con la que accede a la aplicación.</li>
+        <li>Nombre de la organización (empresa) asociada.</li>
+        <li>Descripción breve de la solicitud (eliminación de usuario, de datos concretos o de organización completa, según corresponda).</li>
+      </ul>
+      <p>
+        Esta vía cubre <strong>todos los perfiles y casos</strong>, incluidos aquellos en los que la aplicación no ofrezca un botón de baja automático.
+      </p>
+
+      <h2>2. Eliminación desde la aplicación (perfiles admitidos)</h2>
+      <p>
+        Para determinados roles (por ejemplo técnico y ayudante), la API puede exponer la operación <code>DELETE /api/account/me</code>, que permite iniciar la eliminación de la cuenta del usuario autenticado desde la interfaz de configuración.
+      </p>
+      <p>
+        Otros roles (p. ej. administradores de empresa) pueden requerir gestión coordinada por la empresa o por el responsable del tratamiento. La vía de correo electrónico anterior sigue siendo válida para cualquier supuesto.
+      </p>
+
+      <h2>3. Qué puede eliminarse</h2>
+      <ul>
+        <li>Cuenta de usuario y datos de perfil que no estén sujetos a obligación legal de conservación.</li>
+        <li>Datos operativos que el responsable pueda suprimir sin contravenir normativa aplicable.</li>
+      </ul>
+
+      <h2>4. Qué puede conservarse</h2>
+      <ul>
+        <li><strong>Facturas y documentación fiscal</strong> durante los plazos legales de conservación.</li>
+        <li><strong>Registros VeriFactu / AEAT</strong> y trazabilidad exigida por la normativa tributaria vigente.</li>
+        <li><strong>Registros de auditoría y seguridad</strong> cuando su conservación sea necesaria para investigar incidentes o cumplir obligaciones legales.</li>
+        <li>Cualquier otro dato cuya conservación imponga una norma aplicable al responsable del tratamiento.</li>
+      </ul>
+
+      <h2>5. Plazos de respuesta</h2>
+      <p>
+        Las solicitudes de ejercicio de derechos se atenderán en los plazos previstos por el RGPD y la legislación española de protección de datos, salvo complejidad manifiesta que justifique una prórroga notificada conforme a la ley.
+      </p>
+
+      <h2>6. Más información</h2>
+      <p>
+        Consulte también la <a href="./privacy.html">Política de privacidad</a> y los <a href="./terms.html">Términos de uso</a>.
+      </p>
+
+      <footer>
+        <p>
+          FRIGEST — Eliminación de datos.
+          <a href="./privacy.html">Privacidad</a> ·
+          <a href="./terms.html">Términos</a>
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>

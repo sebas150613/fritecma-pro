@@ -109,6 +109,17 @@ export default function AccountSettings() {
         <p className="text-sm text-muted-foreground">
           Tu rol puede acceder a esta pantalla para revisar tu cuenta y solicitar la eliminación de tus datos. La gestión de usuarios de la empresa está reservada al administrador.
         </p>
+        <p className="text-xs text-muted-foreground pt-3 border-t border-border">
+          <a href="/legal/privacy.html" className="underline underline-offset-2 mr-3">
+            Política de privacidad
+          </a>
+          <a href="/legal/terms.html" className="underline underline-offset-2 mr-3">
+            Términos de uso
+          </a>
+          <a href="/legal/data-deletion.html" className="underline underline-offset-2">
+            Eliminación de datos
+          </a>
+        </p>
       </div>
 
       {error && (

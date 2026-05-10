@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Política de privacidad — FRIGEST</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --fg: #1a1a1a;
+        --bg: #fafafa;
+        --muted: #555;
+        --border: #ddd;
+        --warn-bg: #fff8e6;
+        --warn-border: #e6c200;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --fg: #f0f0f0;
+          --bg: #121212;
+          --muted: #aaa;
+          --border: #333;
+          --warn-bg: #2a2410;
+          --warn-border: #a38600;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        line-height: 1.55;
+        color: var(--fg);
+        background: var(--bg);
+      }
+      .wrap {
+        max-width: 42rem;
+        margin: 0 auto;
+        padding: 1.25rem 1rem 3rem;
+      }
+      h1 {
+        font-size: 1.35rem;
+        margin: 0 0 0.5rem;
+      }
+      h2 {
+        font-size: 1.05rem;
+        margin: 1.75rem 0 0.5rem;
+      }
+      p,
+      ul {
+        margin: 0.65rem 0;
+      }
+      ul {
+        padding-left: 1.25rem;
+      }
+      .meta {
+        font-size: 0.875rem;
+        color: var(--muted);
+        margin-bottom: 1rem;
+      }
+      .nav {
+        font-size: 0.875rem;
+        margin-bottom: 1.25rem;
+      }
+      .nav a {
+        color: inherit;
+        margin-right: 1rem;
+      }
+      .placeholder-box {
+        border: 1px solid var(--warn-border);
+        background: var(--warn-bg);
+        padding: 0.85rem 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+        font-size: 0.9rem;
+      }
+      .placeholder-box strong {
+        display: block;
+        margin-bottom: 0.35rem;
+      }
+      .legal-note {
+        border-left: 4px solid var(--border);
+        padding-left: 0.85rem;
+        margin: 1rem 0;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+      footer {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      a {
+        color: inherit;
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <nav class="nav" aria-label="Legal">
+        <a href="./privacy.html">Privacidad</a>
+        <a href="./terms.html">Términos</a>
+        <a href="./data-deletion.html">Eliminación de datos</a>
+      </nav>
+
+      <h1>Política de privacidad — FRIGEST</h1>
+      <p class="meta">Última actualización: 9 de mayo de 2026</p>
+
+      <div class="placeholder-box" role="note">
+        <strong>Datos identificativos pendientes (rellenar antes de publicar)</strong>
+        [PENDIENTE: razón social]<br />
+        [PENDIENTE: NIF/CIF]<br />
+        [PENDIENTE: domicilio]<br />
+        [PENDIENTE: email de privacidad/contacto]<br />
+        [PENDIENTE: URL pública definitiva]
+      </div>
+
+      <p class="legal-note">
+        <strong>Aviso:</strong> este documento es un borrador informativo y está <strong>pendiente de revisión legal y de DPO</strong>. No sustituye el asesoramiento profesional.
+      </p>
+
+      <h2>1. Responsable del tratamiento</h2>
+      <p>
+        El responsable del tratamiento de los datos personales será la entidad que figure como titular del servicio FRIGEST una vez completados los datos identificativos anteriores. Mientras tanto, utilice los placeholders como referencia interna únicamente.
+      </p>
+
+      <h2>2. Datos que puede tratar FRIGEST</h2>
+      <p>En función del uso de la aplicación, pueden tratarse entre otros:</p>
+      <ul>
+        <li><strong>Cuenta de usuario:</strong> nombre, correo electrónico, rol en la empresa y datos de sesión necesarios para la autenticación.</li>
+        <li><strong>Organización / empresa:</strong> nombre comercial, configuración de la cuenta y datos de contacto corporativos introducidos por el cliente.</li>
+        <li><strong>Clientes y proveedores:</strong> datos identificativos y de contacto (incluidos CIF/NIF cuando se registren), direcciones y notas operativas.</li>
+        <li><strong>Operaciones:</strong> intervenciones, partes de trabajo, proyectos, materiales, pedidos, albaranes y documentación asociada.</li>
+        <li><strong>Facturación:</strong> datos necesarios para emitir o gestionar facturas y documentos fiscales (importes, líneas, referencias VeriFactu cuando aplique).</li>
+        <li><strong>Fichaje y geolocalización:</strong> si el usuario utiliza funciones que solicitan ubicación del dispositivo (<code>navigator.geolocation</code>), podrán tratarse coordenadas o datos derivados según la configuración y el consentimiento del navegador o del sistema.</li>
+        <li><strong>Documentos e imágenes:</strong> archivos subidos (por ejemplo escaneos de albaranes o adjuntos) almacenados según la configuración del servicio.</li>
+        <li><strong>Datos técnicos:</strong> dirección IP, cabeceras HTTP, registros de seguridad, auditoría y datos necesarios para el correcto funcionamiento, seguridad y cumplimiento normativo.</li>
+        <li><strong>Pagos y suscripción:</strong> si se activa facturación mediante <strong>Stripe</strong>, el tratamiento de datos de pago se realiza conforme a las políticas de Stripe; FRIGEST puede recibir identificadores de cliente o suscripción.</li>
+        <li><strong>Inteligencia artificial:</strong> si se configura un proveedor (p. ej. <strong>OpenAI</strong> u otro vía variables de entorno), los contenidos enviados a la IA pueden ser tratados por ese proveedor según sus condiciones.</li>
+        <li><strong>VeriFactu / AEAT:</strong> si se utiliza envío o verificación fiscal, podrán tratarse datos exigidos por la normativa tributaria y los sistemas de la AEAT.</li>
+        <li><strong>Correo electrónico (SMTP):</strong> convites, notificaciones y envíos configurados por el cliente utilizan los servidores y credenciales indicados.</li>
+        <li><strong>Generación de códigos QR:</strong> la aplicación puede solicitar imágenes QR a servicios externos (p. ej. <code>api.qrserver.com</code>) para incrustar enlaces en PDF; dicho proveedor opera bajo sus propias políticas.</li>
+      </ul>
+
+      <h2>3. Finalidades</h2>
+      <ul>
+        <li>Prestar el servicio SaaS de gestión para empresas instaladoras y afines.</li>
+        <li>Gestionar usuarios, permisos y organizaciones (multi-tenant).</li>
+        <li>Emitir documentación operativa y fiscal cuando el cliente la utilice.</li>
+        <li>Cumplir obligaciones legales aplicables (incluidas fiscales y de conservación de registros).</li>
+        <li>Mantener la seguridad del servicio (control de acceso, rate limiting, auditoría).</li>
+        <li>Gestionar suscripciones y pagos cuando proceda.</li>
+      </ul>
+
+      <h2>4. Base legal</h2>
+      <p>
+        La base jurídica concreta (ejecución de contrato, obligación legal, interés legítimo, consentimiento) dependerá del tratamiento y del contexto. Este texto es genérico y debe ser revisado por asesoría legal antes de publicación en producción.
+      </p>
+
+      <h2>5. Destinatarios y encargados</h2>
+      <p>Pueden intervenir, según configuración:</p>
+      <ul>
+        <li>Proveedor de alojamiento / API REST del servicio.</li>
+        <li><strong>Stripe</strong> (pagos).</li>
+        <li><strong>OpenAI</strong> u otro proveedor de IA configurado.</li>
+        <li>Servidor SMTP del cliente o del proveedor de correo configurado.</li>
+        <li>Administración tributaria y sistemas <strong>VeriFactu / AEAT</strong> cuando el cliente active envíos reales.</li>
+        <li>Servicios externos de QR si la función que genera PDF los utiliza.</li>
+      </ul>
+
+      <h2>6. Conservación</h2>
+      <ul>
+        <li>Datos de cuenta y contrato: mientras se mantenga la relación contractual y los plazos legales aplicables.</li>
+        <li>Facturas y registros fiscales: los períodos exigidos por la normativa tributaria (no determinados aquí; revisión legal).</li>
+        <li>Registros de seguridad y auditoría: según política interna y obligaciones legales.</li>
+      </ul>
+
+      <h2>7. Derechos (RGPD)</h2>
+      <p>
+        Las personas interesadas pueden ejercer los derechos de acceso, rectificación, supresión, limitación, oposición y portabilidad cuando correspondan, así como retirar el consentimiento si el tratamiento se basa en él. También pueden reclamar ante la autoridad de control competente.
+      </p>
+      <p>
+        Para solicitudes relacionadas con la cuenta y los datos tratados en FRIGEST, puede utilizarse el correo indicado en los placeholders (cuando esté disponible) o la vía descrita en la página de <a href="./data-deletion.html">eliminación de datos</a>.
+      </p>
+
+      <h2>8. Seguridad</h2>
+      <ul>
+        <li>Se recomienda servir la aplicación mediante <strong>HTTPS</strong> en producción.</li>
+        <li>El backend aplica controles de autenticación, aislamiento por organización y políticas de rol.</li>
+        <li>Los secretos sensibles de configuración de organización pueden almacenarse cifrados en reposo en el servidor cuando está habilitada la clave correspondiente.</li>
+      </ul>
+
+      <h2>9. Cambios</h2>
+      <p>Esta política puede actualizarse. La fecha de última modificación figura al inicio del documento.</p>
+
+      <footer>
+        <p>
+          Documento de trabajo — FRIGEST. Enlaces:
+          <a href="./terms.html">Términos de uso</a> ·
+          <a href="./data-deletion.html">Eliminación de datos</a>
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>

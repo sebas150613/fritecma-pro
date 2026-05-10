@@ -1194,6 +1194,17 @@ export default function AppSettings() {
           <p>Empresa: FRIGEST</p>
           <p>Soporte: Contactar con administrador</p>
         </div>
+        <p className="text-xs text-muted-foreground pt-2 border-t border-border">
+          <a href="/legal/privacy.html" className="underline underline-offset-2 mr-3">
+            Política de privacidad
+          </a>
+          <a href="/legal/terms.html" className="underline underline-offset-2 mr-3">
+            Términos de uso
+          </a>
+          <a href="/legal/data-deletion.html" className="underline underline-offset-2">
+            Eliminación de datos
+          </a>
+        </p>
       </div>
 
       {/* Delete Account */}
