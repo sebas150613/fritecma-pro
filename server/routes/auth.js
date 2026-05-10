@@ -1314,7 +1314,7 @@ router.post(
       const session = userId
         ? await createSessionForUser(userId)
         : await createSessionForCredentials(email, password, {
-            allowHiddenOwner: true,
+            allowHiddenOwner: false,
           });
 
       return sendAuthSuccessResponse(req, res, session, redirectUri);
@@ -1373,6 +1373,7 @@ router.post(
 
 router.post(
   "/private-login",
+  authLoginRateLimiter,
   express.urlencoded({ extended: true }),
   asyncHandler(async (req, res) => {
     const redirectUri =

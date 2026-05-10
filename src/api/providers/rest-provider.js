@@ -327,6 +327,49 @@ export const createRestProvider = () => {
 
       return parsedBody;
     },
+    loginPrivateWithCredentials: async (email, password, redirectUri) => {
+      const baseUrl = buildBaseUrl();
+      if (!baseUrl) {
+        throw new Error("API base URL is not configured.");
+      }
+
+      const resolvedRedirect =
+        redirectUri ||
+        (typeof window !== "undefined"
+          ? `${window.location.origin}/`
+          : "http://127.0.0.1:5173/");
+
+      const response = await fetch(joinUrl(baseUrl, "/api/auth/private-login"), {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...(runtimeConfig.appId ? { "X-App-Id": runtimeConfig.appId } : {}),
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          redirect_uri: resolvedRedirect,
+        }),
+      });
+
+      const parsedBody = await parseResponseBody(response);
+
+      if (!response.ok) {
+        const error = new Error(
+          parsedBody?.message || `Login failed (${response.status})`
+        );
+        error.status = response.status;
+        error.data = parsedBody;
+        throw error;
+      }
+
+      if (parsedBody?.access_token) {
+        setRuntimeAccessToken(parsedBody.access_token);
+      }
+
+      return parsedBody;
+    },
     redirectToLogin: () => {
       if (typeof window === "undefined") {
         return;

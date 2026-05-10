@@ -17,6 +17,11 @@ export type AppApi = {
       password: string,
       redirectUri?: string
     ) => Promise<any>;
+    loginPrivateWithCredentials: (
+      email: string,
+      password: string,
+      redirectUri?: string
+    ) => Promise<any>;
     updateMe: (data: any) => Promise<any>;
     setAccessToken: (token: string) => Promise<any>;
     switchOrganization: (organizationId: string) => Promise<any>;

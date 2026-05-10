@@ -106,6 +106,9 @@ export const appApi = {
     loginWithCredentials: withProviderMethod(
       (provider) => provider.appApi.auth?.loginWithCredentials
     ),
+    loginPrivateWithCredentials: withProviderMethod(
+      (provider) => provider.appApi.auth?.loginPrivateWithCredentials
+    ),
   },
   account: {
     deleteMe: withProviderMethod((provider) => provider.appApi.account?.deleteMe),

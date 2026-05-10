@@ -14,6 +14,7 @@ import { AuthProvider, useAuth } from '@/lib/app-auth';
 import UserNotRegisteredError from './components/UserNotRegisteredError';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
+import PrivateLoginPage from './pages/PrivateLoginPage';
 import Dashboard from './pages/Dashboard';
 import Interventions from './pages/Interventions';
 import NewIntervention from './pages/NewIntervention';
@@ -118,6 +119,7 @@ const AuthenticatedApp = () => {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/private-login" element={<PrivateLoginPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<HiddenOwnerRouteGate />}>
           <Route path="/" element={<Dashboard />} />
