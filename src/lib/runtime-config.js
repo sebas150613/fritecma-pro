@@ -35,6 +35,41 @@ function createMemoryStorage() {
 
 const storage = isNode ? createMemoryStorage() : window.localStorage;
 
+/**
+ * Production REST API origin. If `npm run build` runs without VITE_APP_API_URL, relative `/api`
+ * requests would hit the SPA host (e.g. app.frigest.es) and return 405 from Nginx.
+ * Defaults apply only when import.meta.env.PROD and the VITE_* build var is missing/empty.
+ */
+const DEFAULT_PROD_API_ORIGIN = "https://api.frigest.es";
+
+const defaultViteApiUrl = () => {
+  const raw = import.meta.env.VITE_APP_API_URL;
+  if (raw != null && String(raw).trim() !== "") {
+    return String(raw).trim();
+  }
+  return import.meta.env.PROD ? DEFAULT_PROD_API_ORIGIN : "";
+};
+
+const defaultViteLoginUrl = () => {
+  const raw = import.meta.env.VITE_APP_LOGIN_URL;
+  if (raw != null && String(raw).trim() !== "") {
+    return String(raw).trim();
+  }
+  return import.meta.env.PROD
+    ? `${DEFAULT_PROD_API_ORIGIN}/api/auth/login`
+    : "";
+};
+
+const defaultViteLogoutUrl = () => {
+  const raw = import.meta.env.VITE_APP_LOGOUT_URL;
+  if (raw != null && String(raw).trim() !== "") {
+    return String(raw).trim();
+  }
+  return import.meta.env.PROD
+    ? `${DEFAULT_PROD_API_ORIGIN}/api/auth/logout-page`
+    : "";
+};
+
 /** Keys written by getRuntimeParamValue for URL overrides; cleared with ?clear_access_token=true */
 const RUNTIME_OVERRIDE_STORAGE_KEYS = [
   "app_app_id",
@@ -131,15 +166,15 @@ const getRuntimeConfig = () => {
       storageKeys: ["app_backend_provider"],
     }),
     apiUrl: getRuntimeParamValue("api_url", {
-      defaultValue: import.meta.env.VITE_APP_API_URL ?? "",
+      defaultValue: defaultViteApiUrl(),
       storageKeys: ["app_api_url"],
     }),
     loginUrl: getRuntimeParamValue("login_url", {
-      defaultValue: import.meta.env.VITE_APP_LOGIN_URL ?? "",
+      defaultValue: defaultViteLoginUrl(),
       storageKeys: ["app_login_url"],
     }),
     logoutUrl: getRuntimeParamValue("logout_url", {
-      defaultValue: import.meta.env.VITE_APP_LOGOUT_URL ?? "",
+      defaultValue: defaultViteLogoutUrl(),
       storageKeys: ["app_logout_url"],
     }),
   };

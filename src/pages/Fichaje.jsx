@@ -33,6 +33,7 @@ export default function Fichaje() {
   const [user, setUser] = useState(null);
   const [todayRecords, setTodayRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [registering, setRegistering] = useState(false);
   const [gpsStatus, setGpsStatus] = useState("unknown"); // unknown | granted | denied | checking
   const [allRecords, setAllRecords] = useState([]); // admin: recent fichajes
@@ -46,19 +47,27 @@ export default function Fichaje() {
   }, []);
 
   const init = async () => {
-    const me = await appApi.auth.me();
-    setUser(me);
-    await loadTodayRecords(me.email);
-    if (me.role === "admin" || me.role === "superadmin" || me.role === "oficina") {
-      const recent = await appApi.entities.TimeRecord.filter(
-        { work_date: today },
-        "-timestamp",
-        100
-      );
-      // Only entrada/salida fichajes
-      setAllRecords(recent.filter(r => r.type === "entrada" || r.type === "salida"));
+    setLoadError(null);
+    setLoading(true);
+    try {
+      const me = await appApi.auth.me();
+      setUser(me);
+      await loadTodayRecords(me.email);
+      if (me.role === "admin" || me.role === "superadmin" || me.role === "oficina") {
+        const recent = await appApi.entities.TimeRecord.filter(
+          { work_date: today },
+          "-timestamp",
+          100
+        );
+        // Only entrada/salida fichajes
+        setAllRecords(recent.filter(r => r.type === "entrada" || r.type === "salida"));
+      }
+    } catch (err) {
+      console.error("[Fichaje] init failed:", err);
+      setLoadError(err?.message || "No se pudo cargar el fichaje. Comprueba la conexión con la API.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const loadTodayRecords = async (email) => {
@@ -177,6 +186,17 @@ export default function Fichaje() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="w-8 h-8 border-4 border-muted border-t-accent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4 p-6 text-center max-w-md mx-auto">
+        <p className="text-muted-foreground text-sm">{loadError}</p>
+        <Button type="button" variant="outline" onClick={() => void init()}>
+          Reintentar
+        </Button>
       </div>
     );
   }

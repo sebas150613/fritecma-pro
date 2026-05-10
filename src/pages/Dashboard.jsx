@@ -21,47 +21,56 @@ export default function Dashboard() {
   const [fichajeStatus, setFichajeStatus] = useState(null);
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = useCallback(async () => {
-    const me = await appApi.auth.me();
-    setUser(me);
-    const isAdmin = me.role === "admin" || me.role === "superadmin" || me.role === "encargado";
-    const isOficina = me.role === "oficina";
+    setLoadError(null);
+    try {
+      setLoading(true);
+      const me = await appApi.auth.me();
+      setUser(me);
+      const isAdmin = me.role === "admin" || me.role === "superadmin" || me.role === "encargado";
+      const isOficina = me.role === "oficina";
 
-    let allInterventions;
-    if (isAdmin || isOficina) {
-      allInterventions = await appApi.entities.Intervention.list("-created_date", 50);
-    } else {
-      allInterventions = await appApi.entities.Intervention.filter(
-        { technician_email: me.email },
-        "-created_date",
-        50
-      );
+      let allInterventions;
+      if (isAdmin || isOficina) {
+        allInterventions = await appApi.entities.Intervention.list("-created_date", 50);
+      } else {
+        allInterventions = await appApi.entities.Intervention.filter(
+          { technician_email: me.email },
+          "-created_date",
+          50
+        );
+      }
+
+      if (isAdmin || isOficina) {
+        const mats = await appApi.entities.Material.list("name", 500);
+        setMaterials(mats);
+      }
+
+      setInterventions(allInterventions);
+
+      const todayStart = moment().startOf("day").toISOString();
+      const todayItems = allInterventions.filter(i => moment(i.date).isSameOrAfter(todayStart));
+      const pending = allInterventions.filter(i => i.status === "pendiente_revision");
+      const totalRevenue = allInterventions.reduce((sum, i) => sum + (i.total || 0), 0);
+
+      setStats({
+        total: allInterventions.length,
+        pending: pending.length,
+        today: todayItems.length,
+        revenue: totalRevenue,
+      });
+    } catch (err) {
+      console.error("[Dashboard] loadData failed:", err);
+      setLoadError(err?.message || "No se pudo cargar el panel. Comprueba la conexión con la API.");
+    } finally {
+      setLoading(false);
     }
-
-    if (isAdmin || isOficina) {
-      const mats = await appApi.entities.Material.list("name", 500);
-      setMaterials(mats);
-    }
-
-    setInterventions(allInterventions);
-
-    const todayStart = moment().startOf("day").toISOString();
-    const todayItems = allInterventions.filter(i => moment(i.date).isSameOrAfter(todayStart));
-    const pending = allInterventions.filter(i => i.status === "pendiente_revision");
-    const totalRevenue = allInterventions.reduce((sum, i) => sum + (i.total || 0), 0);
-
-    setStats({
-      total: allInterventions.length,
-      pending: pending.length,
-      today: todayItems.length,
-      revenue: totalRevenue,
-    });
-    setLoading(false);
   }, []);
 
   const loadFichajeStatus = useCallback(async () => {
@@ -90,6 +99,17 @@ export default function Dashboard() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="w-8 h-8 border-4 border-muted border-t-accent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4 p-6 text-center max-w-md mx-auto">
+        <p className="text-muted-foreground text-sm">{loadError}</p>
+        <Button type="button" variant="outline" onClick={() => loadData()}>
+          Reintentar
+        </Button>
       </div>
     );
   }
