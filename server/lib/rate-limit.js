@@ -1,5 +1,5 @@
 /**
- * In-memory fixed-window rate limiter by namespace + client IP.
+ * In-memory fixed-window rate limiter by namespace + client IP or custom key.
  */
 
 export const getClientIp = (req) => {
@@ -9,6 +9,18 @@ export const getClientIp = (req) => {
   const ra = req.socket?.remoteAddress;
   return ra ? String(ra) : "unknown";
 };
+
+function setRateLimitHeaders(res, { max, remaining, resetUnixSec }) {
+  const lim = String(max);
+  const rem = String(remaining);
+  const rst = String(resetUnixSec);
+  res.setHeader("RateLimit-Limit", lim);
+  res.setHeader("RateLimit-Remaining", rem);
+  res.setHeader("RateLimit-Reset", rst);
+  res.setHeader("X-RateLimit-Limit", lim);
+  res.setHeader("X-RateLimit-Remaining", rem);
+  res.setHeader("X-RateLimit-Reset", rst);
+}
 
 export function createRateLimiter({ windowMs, max, namespace, keyGenerator }) {
   if (!namespace || typeof namespace !== "string") {
@@ -52,12 +64,19 @@ export function createRateLimiter({ windowMs, max, namespace, keyGenerator }) {
     const remaining = Math.max(0, max - entry.count);
     const resetUnixSec = Math.ceil(entry.resetAt / 1000);
 
-    res.setHeader("X-RateLimit-Limit", String(max));
-    res.setHeader("X-RateLimit-Remaining", String(remaining));
-    res.setHeader("X-RateLimit-Reset", String(resetUnixSec));
+    setRateLimitHeaders(res, {
+      max,
+      remaining,
+      resetUnixSec,
+    });
 
     if (entry.count > max) {
       const retryAfterSec = Math.max(1, Math.ceil((entry.resetAt - now) / 1000));
+      setRateLimitHeaders(res, {
+        max,
+        remaining: 0,
+        resetUnixSec,
+      });
       res.setHeader("Retry-After", String(retryAfterSec));
       res.status(429).json({
         message: "Too many requests. Please retry later.",

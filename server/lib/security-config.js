@@ -1,4 +1,33 @@
 /**
+ * Centralized security-related parsing and host checks (no Express coupling).
+ */
+
+export function isLoopbackHost(host) {
+  if (host == null || typeof host !== "string") {
+    return false;
+  }
+  const h = host.trim().toLowerCase();
+  if (h === "") {
+    return false;
+  }
+  if (h === "127.0.0.1" || h === "localhost" || h === "::1") {
+    return true;
+  }
+  if (h === "[::1]") {
+    return true;
+  }
+  return false;
+}
+
+export function assertAuthBypassHostSafety({ allowAuthBypass, host }) {
+  if (allowAuthBypass === true && !isLoopbackHost(host)) {
+    throw new Error(
+      "Unsafe configuration: APP_ALLOW_AUTH_BYPASS=true is only allowed when APP_SERVER_HOST is loopback."
+    );
+  }
+}
+
+/**
  * Parse Express "trust proxy" setting from APP_TRUST_PROXY.
  * @param {string | undefined} raw
  * @returns {false | true | number}

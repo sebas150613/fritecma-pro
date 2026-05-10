@@ -2,8 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
-import { isLoopbackHost } from "./lib/network-host.js";
-import { parseTrustProxy } from "./lib/trust-proxy.js";
+import {
+  assertAuthBypassHostSafety,
+  parseTrustProxy,
+} from "./lib/security-config.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,11 +70,10 @@ const allowAuthBypass =
 
 const serverConfigHost = String(process.env.APP_SERVER_HOST || "127.0.0.1").trim();
 
-if (allowAuthBypass && !isLoopbackHost(serverConfigHost)) {
-  throw new Error(
-    "Unsafe configuration: APP_ALLOW_AUTH_BYPASS=true is only allowed when APP_SERVER_HOST is loopback."
-  );
-}
+assertAuthBypassHostSafety({ allowAuthBypass, host: serverConfigHost });
+
+const trustProxyRaw = String(process.env.APP_TRUST_PROXY || "").trim();
+const trustProxy = parseTrustProxy(trustProxyRaw);
 const configuredDevToken = String(process.env.APP_DEV_TOKEN || "").trim();
 const devToken = configuredDevToken || (isProduction ? "" : "local-dev-token");
 const allowedOrigins = parseCsvEnv(process.env.APP_ALLOWED_ORIGINS);
@@ -96,8 +97,6 @@ if (isProduction && allowedOrigins.length === 0) {
     "Unsafe production configuration: APP_ALLOWED_ORIGINS must list the allowed frontend origins when NODE_ENV=production."
   );
 }
-
-const trustProxy = parseTrustProxy(process.env.APP_TRUST_PROXY);
 
 export const serverConfig = {
   environment,

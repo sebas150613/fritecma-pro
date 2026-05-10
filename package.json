@@ -20,6 +20,7 @@
     "check:security-hardening": "node scripts/security-hardening-contract.mjs",
     "clean:local-test-data": "node scripts/clean-local-test-data.mjs",
     "clean:local-demo-users": "node scripts/clean-local-demo-users.mjs",
+    "test": "node --test tests/*.test.mjs",
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p ./jsconfig.json",

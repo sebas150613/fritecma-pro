@@ -3,8 +3,7 @@
  */
 import assert from "node:assert/strict";
 import { createRateLimiter } from "../server/lib/rate-limit.js";
-import { isLoopbackHost } from "../server/lib/network-host.js";
-import { parseTrustProxy } from "../server/lib/trust-proxy.js";
+import { isLoopbackHost, parseTrustProxy } from "../server/lib/security-config.js";
 
 function runLimiterScenario({
   max,
@@ -102,8 +101,12 @@ assert.match(
   "Retry-After must be set on 429"
 );
 assert.ok(
-  Number(resultsSmall[maxSmall].headers["x-ratelimit-limit"]) === maxSmall
+  Number(resultsSmall[maxSmall].headers["ratelimit-limit"]) === maxSmall
 );
+assert.ok(
+  Number(resultsSmall[maxSmall].headers["ratelimit-remaining"]) === 0
+);
+assert.ok(resultsSmall[maxSmall].headers["ratelimit-reset"]);
 
 // Namespace isolation: separate counters for same IP
 const nsA = createRateLimiter({
@@ -167,9 +170,9 @@ const hRes = {
   json() {},
 };
 hdrLimiter(hReq, hRes, () => {});
-assert.ok(hHeaders["x-ratelimit-limit"]);
-assert.ok(hHeaders["x-ratelimit-remaining"]);
-assert.ok(hHeaders["x-ratelimit-reset"]);
+assert.ok(hHeaders["ratelimit-limit"]);
+assert.ok(hHeaders["ratelimit-remaining"]);
+assert.ok(hHeaders["ratelimit-reset"]);
 
 // --- APP_TRUST_PROXY parser ---
 assert.equal(parseTrustProxy(undefined), false);
