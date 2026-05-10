@@ -233,6 +233,9 @@ const createServerProcess = ({ dataDir, uploadsDir }) => {
       APP_DATA_DIR: dataDir,
       APP_UPLOADS_DIR: uploadsDir,
       APP_SEED_DEMO_USERS: "true",
+      APP_SETTINGS_SECRET:
+        process.env.APP_SETTINGS_SECRET ||
+        "smoke-local-app-settings-secret-key-at-least-32-chars-long!!",
       APP_COMPANY_PURCHASE_SMTP_STUB: "true",
     },
     stdio: ["ignore", "pipe", "pipe"],
@@ -1336,6 +1339,9 @@ const runSmoke = async () => {
         APP_DATA_DIR: tempDataDir,
         APP_UPLOADS_DIR: tempUploadsDir,
         APP_SEED_DEMO_USERS: "false",
+        APP_SETTINGS_SECRET:
+          process.env.APP_SETTINGS_SECRET ||
+          "smoke-local-app-settings-secret-key-at-least-32-chars-long!!",
         APP_COMPANY_PURCHASE_SMTP_STUB: "true",
       },
       stdio: ["ignore", "pipe", "pipe"],

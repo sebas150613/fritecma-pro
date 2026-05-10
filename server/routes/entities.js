@@ -14,8 +14,11 @@ import { isKnownEntity } from "../lib/entity-registry.js";
 import { createJsonEntityStore } from "../lib/json-store.js";
 import {
   buildTenantFilter,
+  decryptOrganizationSettingsFromStorage,
+  encryptOrganizationSettingsForStorage,
   getOrganizationMembershipStore,
   isTenantScopedEntity,
+  prepareOrganizationSettingsPatchForStorage,
   sanitizeOrganizationSettingsForClient,
 } from "../lib/tenant.js";
 import {
@@ -191,9 +194,15 @@ const sanitizeEntityPayload = async (entityName, value, req) => {
 
   if (entityName === "OrganizationSettings") {
     if (Array.isArray(value)) {
-      return value.map((item) => sanitizeOrganizationSettingsForClient(item));
+      return value.map((item) =>
+        sanitizeOrganizationSettingsForClient(
+          decryptOrganizationSettingsFromStorage(item)
+        )
+      );
     }
-    return sanitizeOrganizationSettingsForClient(value);
+    return sanitizeOrganizationSettingsForClient(
+      decryptOrganizationSettingsFromStorage(value)
+    );
   }
 
   return value;
@@ -297,7 +306,7 @@ router.post(
       throw new HttpError(403, "Forbidden");
     }
 
-    const payload = isUserEntity(entityName)
+    let payload = isUserEntity(entityName)
       ? sanitizeUserWritePatch(req.currentUser, req.body || {})
       : req.body || {};
 
@@ -317,6 +326,10 @@ router.post(
 
     if (isTenantScopedEntity(entityName)) {
       payload.organization_id = req.currentOrganization.id;
+    }
+
+    if (entityName === "OrganizationSettings") {
+      payload = encryptOrganizationSettingsForStorage(payload);
     }
 
     const created = await store.create(payload);
@@ -365,7 +378,7 @@ router.patch(
       throw new HttpError(403, "Forbidden");
     }
 
-    const patch = isUserEntity(entityName)
+    let patch = isUserEntity(entityName)
       ? sanitizeUserWritePatch(req.currentUser, req.body || {})
       : req.body || {};
     const membershipRolePatch =
@@ -396,6 +409,10 @@ router.patch(
 
     if (isTenantScopedEntity(entityName)) {
       patch.organization_id = req.currentOrganization.id;
+    }
+
+    if (entityName === "OrganizationSettings") {
+      patch = prepareOrganizationSettingsPatchForStorage(patch);
     }
 
     if (isOrganizationMembershipEntity(entityName)) {

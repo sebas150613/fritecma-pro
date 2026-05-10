@@ -13,6 +13,7 @@ import {
 } from "../lib/auth.js";
 import { HttpError } from "../lib/http-error.js";
 import {
+  encryptOrganizationSettingsForStorage,
   getOrganizationMembershipStore,
   getOrganizationSettingsStore,
   getOrganizationStore,
@@ -263,11 +264,13 @@ router.post(
     // Hidden owner creates organizations without memberships/users.
     const isHiddenOwnerRequest = true;
 
-    await organizationSettingsStore.create({
-      organization_id: organization.id,
-      verifactu_nombre: organization.name,
-      verifactu_produccion: false,
-    });
+    await organizationSettingsStore.create(
+      encryptOrganizationSettingsForStorage({
+        organization_id: organization.id,
+        verifactu_nombre: organization.name,
+        verifactu_produccion: false,
+      })
+    );
 
     await ensureOrganizationSubscription(organization, {
       planCode: selectedPlan.code,

@@ -67,15 +67,15 @@ Seed demo data for REST mode: `npm run seed:rest -- --reset`
 
 Run the REST smoke test: `npm run smoke:rest`
 
-Before a production release or deployment, run **`npm run release:check`**. It runs in order: runtime config contract, Base44 audit, **tracked-file secrets scan** (`check:secrets`), security-hardening, auth-storage, **organization settings client security** (`check:org-settings-security`), security-headers contracts, Node tests, lint, typecheck, build, REST smoke test, and **`npm audit`** (fails if any vulnerability is reported). Run **`npm run check:secrets`** alone for the same scan; it masks matches and does not replace GitHub secret scanning or manual review.
+Before a production release or deployment, run **`npm run release:check`**. It runs in order: runtime config contract, Base44 audit, **tracked-file secrets scan** (`check:secrets`), security-hardening, auth-storage, **organization settings client security** (`check:org-settings-security`), **organization settings encryption** (`check:org-settings-encryption`), security-headers contracts, Node tests, lint, typecheck, build, REST smoke test, and **`npm audit`** (fails if any vulnerability is reported). Run **`npm run check:secrets`** alone for the same scan; it masks matches and does not replace GitHub secret scanning or manual review.
 
 Security / release summary: [docs/release-readiness.md](./docs/release-readiness.md)
 
 **Production environment checklist**
 
-On the **server or staging** (with real env vars injected), run **`npm run check:production-env`**. It applies production rules (`--production`), validates **`NODE_ENV`**, **`APP_ALLOW_AUTH_BYPASS=false`** (explicit), empty **`APP_DEV_TOKEN`**, non-wildcard **`APP_ALLOWED_ORIGINS`** (prefer **`https://`** for non-local origins), **`APP_TRUST_PROXY`** parsing, **`APP_SERVER_HOST`** vs bypass (same rules as `server/config.js`), Stripe/AI/DATABASE presence where relevant, and never prints secret values. For a dry local run without production env, use **`node scripts/production-env-check.mjs`** (relaxed). This check is **not** part of **`release:check`** / CI because CI does not load production secrets.
+On the **server or staging** (with real env vars injected), run **`npm run check:production-env`**. It applies production rules (`--production`), validates **`NODE_ENV`**, **`APP_ALLOW_AUTH_BYPASS=false`** (explicit), empty **`APP_DEV_TOKEN`**, non-wildcard **`APP_ALLOWED_ORIGINS`** (prefer **`https://`** for non-local origins), **`APP_TRUST_PROXY`** parsing, **`APP_SERVER_HOST`** vs bypass (same rules as `server/config.js`), **`APP_SETTINGS_SECRET`** (required, **≥ 32 characters**, never printed), Stripe/AI/DATABASE presence where relevant, and never prints secret values. For a dry local run without production env, use **`node scripts/production-env-check.mjs`** (relaxed). This check is **not** part of **`release:check`** / CI because CI does not load production secrets.
 
-Expected highlights for real production: **`NODE_ENV=production`**, **`APP_ALLOWED_ORIGINS`** = comma-separated **`https://…`** frontend origins (no `*`), **`APP_ALLOW_AUTH_BYPASS=false`**, **`APP_DEV_TOKEN`** empty, **`APP_TRUST_PROXY=false`** off the Node port or **`1`/`true`** behind a trusted reverse proxy, **`DATABASE_URL`** set when using PostgreSQL, Stripe and OpenAI variables if those features are live. Port is **`APP_SERVER_PORT`** (default 3000 in `server/config.js`).
+Expected highlights for real production: **`NODE_ENV=production`**, **`APP_ALLOWED_ORIGINS`** = comma-separated **`https://…`** frontend origins (no `*`), **`APP_ALLOW_AUTH_BYPASS=false`**, **`APP_DEV_TOKEN`** empty, **`APP_TRUST_PROXY=false`** off the Node port or **`1`/`true`** behind a trusted reverse proxy, **`APP_SETTINGS_SECRET`** at least **32 characters** (encrypts OrganizationSettings secrets at rest and platform SMTP password), **`DATABASE_URL`** set when using PostgreSQL, Stripe and OpenAI variables if those features are live. Port is **`APP_SERVER_PORT`** (default 3000 in `server/config.js`).
 
 Audit remaining Base44 references: `npm run audit:base44`
 
@@ -101,7 +101,7 @@ The SPA stores the REST **access token** in **`localStorage`** under `app_access
 
 **Organization settings (API vs server)**
 
-JSON responses that expose organization settings use **`sanitizeOrganizationSettingsForClient`** in `server/lib/tenant.js` (secret-shaped fields are omitted and replaced with **`*_configured`** flags). **`req.currentOrganizationSettings`** on the server remains the **raw** record so SMTP pedidos and VeriFactu code paths can still read passwords when needed.
+Sensitive OrganizationSettings fields are stored **encrypted at rest** (`enc:v1:…` AES-256-GCM via **`APP_SETTINGS_SECRET`**). After load, **`req.currentOrganizationSettings`** holds **decrypted** values for server-side SMTP pedidos and internal flows. JSON responses still use **`sanitizeOrganizationSettingsForClient`** (`server/lib/tenant.js`): secret-shaped fields are omitted and replaced with **`*_configured`** flags only. Legacy plaintext rows remain readable and are re-encrypted on next update; optional **`npm run migrate:org-settings-secrets`** (dry-run by default, **`--write`** to persist) rewrites existing JSON store rows.
 
 **Content-Security-Policy (REST responses)**
 

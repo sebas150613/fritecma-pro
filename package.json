@@ -22,6 +22,8 @@
     "check:security-headers": "node scripts/security-headers-contract.mjs",
     "check:auth-storage": "node scripts/auth-storage-contract.mjs",
     "check:org-settings-security": "node scripts/organization-settings-security-contract.mjs",
+    "check:org-settings-encryption": "node scripts/org-settings-encryption-contract.mjs",
+    "migrate:org-settings-secrets": "node scripts/migrate-organization-settings-secrets.mjs",
     "check:production-env": "node scripts/production-env-check.mjs --production",
     "check:secrets": "node scripts/secrets-scan.mjs",
     "clean:local-test-data": "node scripts/clean-local-test-data.mjs",

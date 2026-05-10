@@ -1,5 +1,11 @@
 import { createJsonEntityStore } from "./json-store.js";
 import { knownEntities } from "./entity-registry.js";
+import {
+  decryptSecret,
+  encryptSecret,
+  isEncryptedSecret,
+  maybeDecryptSecret,
+} from "./secret-crypto.js";
 
 const organizationStore = createJsonEntityStore("Organization");
 const membershipStore = createJsonEntityStore("OrganizationMembership");
@@ -156,6 +162,106 @@ export const sanitizeOrganizationSettingsForClient = (settings) => {
   }
 
   return result;
+};
+
+/** Persist: encrypt sensitive OrganizationSettings fields (AES-256-GCM, enc:v1:…). */
+export const prepareOrganizationSettingsPatchForStorage = (
+  patch = {},
+  options = {}
+) => {
+  if (!patch || typeof patch !== "object") {
+    return patch;
+  }
+
+  const out = {};
+  for (const key of Object.keys(patch)) {
+    const v = patch[key];
+    if (!isSensitiveOrganizationSettingsKey(key)) {
+      out[key] = v;
+      continue;
+    }
+    if (v === undefined) {
+      continue;
+    }
+    if (v === null || v === "") {
+      out[key] = v;
+      continue;
+    }
+    const s = String(v);
+    if (isEncryptedSecret(s)) {
+      out[key] = s;
+      continue;
+    }
+    out[key] = encryptSecret(s, options);
+  }
+  return out;
+};
+
+export const encryptOrganizationSettingsForStorage = (settings, options = {}) =>
+  prepareOrganizationSettingsPatchForStorage({ ...settings }, options);
+
+/** Load from store for server use: decrypt sensitive fields (legacy plaintext unchanged). */
+export const decryptOrganizationSettingsFromStorage = (settings, options = {}) => {
+  if (!settings || typeof settings !== "object") {
+    return settings;
+  }
+
+  const out = { ...settings };
+  for (const key of Object.keys(out)) {
+    if (!isSensitiveOrganizationSettingsKey(key)) {
+      continue;
+    }
+    const v = out[key];
+    if (v === null || v === undefined || v === "") {
+      continue;
+    }
+    out[key] = decryptSecret(String(v), options);
+  }
+  return out;
+};
+
+/** Softer decrypt (wrong key leaves ciphertext) — tooling/migration only. */
+export const maybeDecryptOrganizationSettings = (settings, options = {}) => {
+  if (!settings || typeof settings !== "object") {
+    return settings;
+  }
+
+  const out = { ...settings };
+  for (const key of Object.keys(out)) {
+    if (!isSensitiveOrganizationSettingsKey(key)) {
+      continue;
+    }
+    const v = out[key];
+    if (v === null || v === undefined || v === "") {
+      continue;
+    }
+    out[key] = maybeDecryptSecret(String(v), options);
+  }
+  return out;
+};
+
+/**
+ * Overlays decrypted org secret field values onto a user object for **server-only** handlers
+ * (e.g. VeriFactu). API responses must still use `req.currentUser` from merge without this overlay.
+ */
+export const mergeDecryptedOrgSecretsForServer = (user, orgSettings) => {
+  if (!user) {
+    return user;
+  }
+  if (!orgSettings || typeof orgSettings !== "object") {
+    return user;
+  }
+  const out = { ...user };
+  for (const key of Object.keys(orgSettings)) {
+    if (!isSensitiveOrganizationSettingsKey(key)) {
+      continue;
+    }
+    const v = orgSettings[key];
+    if (v != null && v !== "") {
+      out[key] = v;
+    }
+  }
+  return out;
 };
 
 export const mergeOrganizationSettingsIntoUser = (

@@ -5,12 +5,15 @@ import { serverConfig } from "../config.js";
 import {
   DEFAULT_ORGANIZATION_ID,
   ORGANIZATION_SETTINGS_FIELDS,
+  decryptOrganizationSettingsFromStorage,
+  encryptOrganizationSettingsForStorage,
   getOrganizationMembershipStore,
   getOrganizationSettingsStore,
   getOrganizationStore,
   getTenantScopedEntityNames,
   mergeOrganizationSettingsIntoUser,
   normalizeOrganizationSlug,
+  prepareOrganizationSettingsPatchForStorage,
 } from "./tenant.js";
 import {
   GLOBAL_ROLE_SUPERADMIN,
@@ -114,8 +117,6 @@ export const createPasswordHash = (rawPassword) => {
   const hash = scryptSync(normalizedPassword, salt, 64).toString("hex");
   return `scrypt$${salt}$${hash}`;
 };
-
-const pickFirst = (items) => (Array.isArray(items) && items.length > 0 ? items[0] : null);
 
 const normalizeUserRolePatch = (user) => {
   if (!user) {
@@ -356,26 +357,31 @@ const ensureDemoMembershipsForUsers = async (organization, users) => {
 };
 
 const ensureOrganizationSettings = async (organization, users) => {
-  const existing = pickFirst(
-    await organizationSettingsStore.filter({
-      filter: { organization_id: organization.id },
-      limit: 1,
-    })
-  );
+  const rows = await organizationSettingsStore.filter({
+    filter: { organization_id: organization.id },
+    limit: 1,
+  });
+  const existingRow = rows[0] || null;
   const legacySettings = pickLegacyOrganizationSettings(users);
 
-  if (!existing) {
-    await organizationSettingsStore.create({
-      organization_id: organization.id,
-      ...legacySettings,
-    });
+  if (!existingRow) {
+    await organizationSettingsStore.create(
+      encryptOrganizationSettingsForStorage({
+        organization_id: organization.id,
+        ...legacySettings,
+      })
+    );
     return;
   }
+
+  const existingDecrypted =
+    decryptOrganizationSettingsFromStorage(existingRow);
 
   const patch = {};
   for (const field of ORGANIZATION_SETTINGS_FIELDS) {
     if (
-      (existing[field] === undefined || existing[field] === "") &&
+      (existingDecrypted[field] === undefined ||
+        existingDecrypted[field] === "") &&
       legacySettings[field] !== undefined &&
       legacySettings[field] !== ""
     ) {
@@ -384,7 +390,10 @@ const ensureOrganizationSettings = async (organization, users) => {
   }
 
   if (Object.keys(patch).length > 0) {
-    await organizationSettingsStore.update(existing.id, patch);
+    await organizationSettingsStore.update(
+      existingRow.id,
+      prepareOrganizationSettingsPatchForStorage(patch)
+    );
   }
 };
 
@@ -555,7 +564,8 @@ const getOrganizationSettingsForOrganization = async (organizationId) => {
     limit: 1,
   });
 
-  return settings[0] || null;
+  const row = settings[0] || null;
+  return row ? decryptOrganizationSettingsFromStorage(row) : null;
 };
 
 const createResolvedAuthContext = async (user, preferredOrganizationId) => {
@@ -905,14 +915,23 @@ export const upsertOrganizationSettingsForOrganization = async (
   organizationId,
   patch = {}
 ) => {
-  const existing = await getOrganizationSettingsForOrganization(organizationId);
+  const rows = await organizationSettingsStore.filter({
+    filter: { organization_id: organizationId },
+    limit: 1,
+  });
+  const existingRow = rows[0] || null;
 
-  if (!existing) {
-    return organizationSettingsStore.create({
-      organization_id: organizationId,
-      ...patch,
-    });
+  if (!existingRow) {
+    return organizationSettingsStore.create(
+      encryptOrganizationSettingsForStorage({
+        organization_id: organizationId,
+        ...patch,
+      })
+    );
   }
 
-  return organizationSettingsStore.update(existing.id, patch);
+  return organizationSettingsStore.update(
+    existingRow.id,
+    prepareOrganizationSettingsPatchForStorage(patch)
+  );
 };

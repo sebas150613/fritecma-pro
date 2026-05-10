@@ -26,4 +26,6 @@ jobs:
         run: npm ci
 
       - name: Release check
+        env:
+          APP_SETTINGS_SECRET: ci-release-check-settings-secret-min-32-characters-long
         run: npm run release:check

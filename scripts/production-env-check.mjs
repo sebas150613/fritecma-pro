@@ -240,11 +240,17 @@ function runChecks() {
     );
   }
 
-  const settingsSecret = process.env.APP_SETTINGS_SECRET || "";
-  if (!String(settingsSecret).trim()) {
-    warn(
-      "APP_SETTINGS_SECRET is empty — often required for signed multi-tenant settings."
+  const settingsSecret = String(process.env.APP_SETTINGS_SECRET || "").trim();
+  if (!settingsSecret) {
+    fail(
+      "APP_SETTINGS_SECRET must be set in production — required to encrypt OrganizationSettings secrets at rest (min. 32 characters)."
     );
+  } else if (settingsSecret.length < 32) {
+    fail(
+      `APP_SETTINGS_SECRET must be at least 32 characters (length ${settingsSecret.length}, value not shown).`
+    );
+  } else {
+    pass("APP_SETTINGS_SECRET is set (length ok, value not shown).");
   }
 
   const portNum = Number(serverPortRaw);

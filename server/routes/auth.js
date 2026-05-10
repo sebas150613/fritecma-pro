@@ -17,6 +17,7 @@ import {
 } from "../lib/auth.js";
 import { HttpError } from "../lib/http-error.js";
 import {
+  encryptOrganizationSettingsForStorage,
   getOrganizationMembershipStore,
   getOrganizationSettingsStore,
   getOrganizationStore,
@@ -687,11 +688,13 @@ const createOrganizationSignup = async ({
       status: "active",
     });
 
-    createdOrganizationSettings = await organizationSettingsStore.create({
-      organization_id: createdOrganization.id,
-      verifactu_nombre: createdOrganization.name,
-      verifactu_produccion: false,
-    });
+    createdOrganizationSettings = await organizationSettingsStore.create(
+      encryptOrganizationSettingsForStorage({
+        organization_id: createdOrganization.id,
+        verifactu_nombre: createdOrganization.name,
+        verifactu_produccion: false,
+      })
+    );
 
     createdSubscription = await ensureOrganizationSubscription(createdOrganization, {
       planCode: "starter",

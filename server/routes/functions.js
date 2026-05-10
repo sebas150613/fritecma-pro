@@ -4,6 +4,7 @@ import { requireAuth } from "../lib/auth.js";
 import { getFunctionDefinition } from "../lib/function-registry.js";
 import { HttpError, notImplemented } from "../lib/http-error.js";
 import { requireWritableLicense } from "../lib/license.js";
+import { mergeDecryptedOrgSecretsForServer } from "../lib/tenant.js";
 import { sendEmail } from "../services/email-service.js";
 import {
   processVerifactu,
@@ -39,7 +40,10 @@ router.post(
   "/:name",
   requireWritableLicense,
   asyncHandler(async (req, res) => {
-    const currentUser = req.currentUser;
+    const currentUser = mergeDecryptedOrgSecretsForServer(
+      req.currentUser,
+      req.currentOrganizationSettings
+    );
     const payload = req.body || {};
 
     const requireRoles = (...roles) => {

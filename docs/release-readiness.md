@@ -12,7 +12,7 @@ The following are implemented and enforced in automation where noted:
 - `APP_TRUST_PROXY` configurable; no manual `x-forwarded-for` parsing for client IP in the limiter.
 - Security headers + **Content-Security-Policy-Report-Only** (not blocking).
 - Browser token storage helpers + logout clearing token keys and session activity marker (`src/lib/auth-storage.js`).
-- **OrganizationSettings** responses to the client use **`sanitizeOrganizationSettingsForClient`** (`server/lib/tenant.js`): secret-like fields are stripped and replaced with **`*_configured`** booleans only; server-side handlers keep raw settings on **`req.currentOrganizationSettings`** for SMTP/VeriFactu flows.
+- **OrganizationSettings** sensitive fields are **encrypted at rest** (`enc:v1:…`, `server/lib/secret-crypto.js` + helpers in `server/lib/tenant.js`) using **`APP_SETTINGS_SECRET`** (≥ 32 chars in production per `check:production-env`). Responses to the client still use **`sanitizeOrganizationSettingsForClient`** (no secret values; **`*_configured`** flags only). **`req.currentOrganizationSettings`** holds **decrypted** values in memory for SMTP pedidos and internal use.
 - `npm run release:check` (full gate before merge via Actions).
 - Production env checklist script (`npm run check:production-env`) for server/staging.
 - Tracked-file secrets scan (`npm run check:secrets`); `npm audit` clean at last validation.
@@ -36,13 +36,14 @@ In order:
 4. Security-hardening contract  
 5. Auth-storage contract  
 6. Organization settings client security (`check:org-settings-security`)  
-7. Security-headers contract  
-8. Node tests  
-9. ESLint  
-10. Typecheck  
-11. Production build  
-12. REST smoke test  
-13. `npm audit`
+7. Organization settings encryption (`check:org-settings-encryption`)  
+8. Security-headers contract  
+9. Node tests  
+10. ESLint  
+11. Typecheck  
+12. Production build  
+13. REST smoke test  
+14. `npm audit`
 
 ## 4. Critical production variables
 
@@ -56,6 +57,7 @@ Align with `server/config.js` and README:
 | **`APP_DEV_TOKEN`** | **Empty** in production |
 | **`APP_TRUST_PROXY`** | **`false`/omit** when Node listens directly; **`1`** or **`true`** only behind a **trusted** reverse proxy that sets forwarded headers correctly |
 | **`APP_SERVER_HOST`** | Must stay loopback if auth bypass were ever enabled (bypass off in prod) |
+| **`APP_SETTINGS_SECRET`** | **≥ 32 characters** in production — encrypts OrganizationSettings secrets at rest and platform owner SMTP (`platform-settings-service`) |
 
 Also set **`DATABASE_URL`**, Stripe, AI, SMTP, etc., according to what you actually enable—see README and `npm run check:production-env` warnings.
 
@@ -78,7 +80,7 @@ A branch protection rule for `main` should require PRs and passing checks where 
 | **CSP Report-Only** | Violations are reported, not blocked; review reports before switching to enforcing CSP. |
 | **In-memory rate limiting** | Per-process; not shared across multiple Node instances—fine for single instance; scale-out needs a shared store. |
 | **Branch protection** | May not be strictly enforced on private repos without paid features—process discipline still required. |
-| **OrganizationSettings at rest** | Secret values may still be stored in plaintext in the local JSON store until a dedicated encryption-at-rest block is implemented; API responses no longer echo those raw values. |
+| **Legacy plaintext rows** | Older JSON rows may still hold plaintext until touched or migrated via **`npm run migrate:org-settings-secrets -- --write`**; rotate credentials if they were ever leaked. |
 
 ## 8. Recommended next improvements
 
@@ -87,4 +89,4 @@ A branch protection rule for `main` should require PRs and passing checks where 
 - **Rate limits:** Redis (or similar) if running multiple API replicas.  
 - **GitHub:** Team/Enterprise or a public repo if policy enforcement in GitHub is a hard requirement.  
 - **Operations:** Always verify live server env (including secrets presence and URLs) before go-live; scripts assist but do not replace human review.  
-- **Organization secrets:** Encrypt sensitive OrganizationSettings fields at rest (or move to a vault); rotate any credentials that may have been exposed in older API responses or backups.
+- **Organization secrets:** Rotate any credentials that lived in plaintext before encryption or that may have been exposed in older API responses or backups.
