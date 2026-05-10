@@ -1303,7 +1303,6 @@ router.get(
 router.post(
   "/login",
   authLoginRateLimiter,
-  express.urlencoded({ extended: true }),
   asyncHandler(async (req, res) => {
     const redirectUri =
       req.body?.redirect_uri?.toString() || DEFAULT_REDIRECT_URI;

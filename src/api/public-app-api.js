@@ -47,12 +47,15 @@ export const publicAppApi = {
     const body = await parseResponseBody(response);
 
     if (!response.ok) {
-      const error = new Error(
-        body?.message || `Failed to load app public settings (${response.status})`
+      throw Object.assign(
+        new Error(
+          body?.message || `Failed to load app public settings (${response.status})`
+        ),
+        {
+          status: response.status,
+          data: body,
+        }
       );
-      error.status = response.status;
-      error.data = body;
-      throw error;
     }
 
     return body;

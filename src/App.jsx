@@ -1,12 +1,19 @@
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { useEffect, useRef } from "react";
-import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import {
+  BrowserRouter as Router,
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/app-auth';
 import UserNotRegisteredError from './components/UserNotRegisteredError';
 import Layout from './components/Layout';
+import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import Interventions from './pages/Interventions';
 import NewIntervention from './pages/NewIntervention';
@@ -46,75 +53,31 @@ const resolveUserRole = (user) =>
       user?.current_organization_membership?.role ||
       ""
   );
-const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin, user } = useAuth();
-  const authRequiredRedirectStarted = useRef(false);
 
-  useEffect(() => {
-    if (authError?.type !== "auth_required") {
-      return;
-    }
-    if (authRequiredRedirectStarted.current) {
-      return;
-    }
-    authRequiredRedirectStarted.current = true;
-    navigateToLogin();
-  }, [authError, navigateToLogin]);
+const RequireAuth = () => {
+  const { isAuthenticated } = useAuth();
 
-  // Show loading spinner while checking app public settings or auth
-  if (isLoadingPublicSettings || isLoadingAuth) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-      </div>
-    );
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
   }
 
-  // Handle authentication errors
-  if (authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      // Redirect runs once from useEffect (avoid render-phase navigation / rate-limit storms).
-      return (
-        <div className="fixed inset-0 flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
-        </div>
-      );
-    }
+  return <Outlet />;
+};
+
+const HiddenOwnerRouteGate = () => {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  if (
+    user?.is_hidden_owner === true &&
+    !["/settings", "/owner/clients"].some((allowed) =>
+      location.pathname.startsWith(allowed)
+    )
+  ) {
+    return <Navigate to="/settings" replace />;
   }
 
-  // Render the main app
-  return (
-    <Routes>
-      <Route element={<HiddenOwnerRouteGate user={user}><Layout /></HiddenOwnerRouteGate>}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/interventions" element={<Interventions />} />
-        <Route path="/interventions/new" element={<NewIntervention />} />
-        <Route path="/interventions/:id" element={<InterventionDetail />} />
-        <Route path="/interventions/:id/edit" element={<EditIntervention />} />
-        <Route path="/interventions/:id/new-visit" element={<NewVisit />} />
-        <Route path="/workday" element={<WorkDayLog />} />
-        <Route path="/fichaje" element={<Fichaje />} />
-        <Route path="/workday-report" element={<WorkDayReport />} />
-        <Route path="/materials" element={<Materials />} />
-        <Route path="/clients" element={<Clients />} />
-        <Route path="/settings" element={<SettingsRoute user={user} />} />
-        <Route path="/time-records" element={<TimeRecords />} />
-        <Route path="/gas-bottles" element={<GasBottles />} />
-        <Route path="/stock-movements" element={<StockMovements />} />
-        <Route path="/projects" element={<Projects />} />
-        <Route path="/suppliers" element={<Suppliers />} />
-        <Route path="/purchase-orders" element={<PurchaseOrders />} />
-        <Route path="/stock-entry" element={<StockBatchEntry />} />
-        <Route path="/material-requests" element={<MaterialRequests />} />
-        <Route path="/absences" element={<AbsenceManagement />} />
-        <Route path="/calendar" element={<Calendar />} />
-        <Route path="/owner/clients" element={<OwnerClients />} />
-        <Route path="*" element={<PageNotFound />} />
-      </Route>
-    </Routes>
-  );
+  return <Layout />;
 };
 
 const SettingsRoute = ({ user }) => {
@@ -127,31 +90,78 @@ const SettingsRoute = ({ user }) => {
   return <AppSettings />;
 };
 
-const HiddenOwnerRouteGate = ({ user, children }) => {
-  const location = useLocation();
+const AuthenticatedApp = () => {
+  const { isLoadingAuth, isLoadingPublicSettings, authError, user } = useAuth();
 
-  if (
-    user?.is_hidden_owner === true &&
-    !["/settings", "/owner/clients"].some((allowed) => location.pathname.startsWith(allowed))
-  ) {
-    return <Navigate to="/settings" replace />;
+  if (isLoadingPublicSettings || isLoadingAuth) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin" />
+      </div>
+    );
   }
 
-  return children;
+  if (authError?.type === 'user_not_registered') {
+    return <UserNotRegisteredError />;
+  }
+
+  if (authError && authError.type !== 'auth_required') {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center p-6">
+        <p className="text-destructive text-center max-w-md">
+          {authError.message || 'No se pudo cargar la aplicación.'}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<RequireAuth />}>
+        <Route element={<HiddenOwnerRouteGate />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/interventions" element={<Interventions />} />
+          <Route path="/interventions/new" element={<NewIntervention />} />
+          <Route path="/interventions/:id" element={<InterventionDetail />} />
+          <Route path="/interventions/:id/edit" element={<EditIntervention />} />
+          <Route path="/interventions/:id/new-visit" element={<NewVisit />} />
+          <Route path="/workday" element={<WorkDayLog />} />
+          <Route path="/fichaje" element={<Fichaje />} />
+          <Route path="/workday-report" element={<WorkDayReport />} />
+          <Route path="/materials" element={<Materials />} />
+          <Route path="/clients" element={<Clients />} />
+          <Route path="/settings" element={<SettingsRoute user={user} />} />
+          <Route path="/time-records" element={<TimeRecords />} />
+          <Route path="/gas-bottles" element={<GasBottles />} />
+          <Route path="/stock-movements" element={<StockMovements />} />
+          <Route path="/projects" element={<Projects />} />
+          <Route path="/suppliers" element={<Suppliers />} />
+          <Route path="/purchase-orders" element={<PurchaseOrders />} />
+          <Route path="/stock-entry" element={<StockBatchEntry />} />
+          <Route path="/material-requests" element={<MaterialRequests />} />
+          <Route path="/absences" element={<AbsenceManagement />} />
+          <Route path="/calendar" element={<Calendar />} />
+          <Route path="/owner/clients" element={<OwnerClients />} />
+          <Route path="*" element={<PageNotFound />} />
+        </Route>
+      </Route>
+    </Routes>
+  );
 };
 
 
 function App() {
 
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
+    <QueryClientProvider client={queryClientInstance}>
+      <Router>
+        <AuthProvider>
           <AuthenticatedApp />
-        </Router>
-        <Toaster />
-      </QueryClientProvider>
-    </AuthProvider>
+        </AuthProvider>
+      </Router>
+      <Toaster />
+    </QueryClientProvider>
   )
 }
 

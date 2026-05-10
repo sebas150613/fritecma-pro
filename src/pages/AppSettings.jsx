@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { appApi } from "@/api/app-api";
+import { useAuth } from "@/lib/app-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +21,7 @@ const ROLE_LABELS = {
 };
 
 export default function AppSettings() {
+  const { logout } = useAuth();
   const [user, setUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -244,7 +246,7 @@ export default function AppSettings() {
   const handleDeleteAccount = async () => {
     if (deleteConfirm !== "ELIMINAR") return;
     await appApi.entities.User.delete(user.id);
-    appApi.auth.logout("/");
+    void logout();
   };
 
   const handleSaveSmtp = async () => {

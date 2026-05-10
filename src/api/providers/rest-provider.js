@@ -228,19 +228,6 @@ const createEntityProxy = (http) => {
   );
 };
 
-const buildLoginUrl = (redirectTo) => {
-  const configuredLoginUrl =
-    runtimeConfig.loginUrl?.trim() || buildBackendUrl("/api/auth/login");
-  const url = new URL(configuredLoginUrl, window.location.origin);
-  if (redirectTo) {
-    const normalizedRedirectTo = /^https?:\/\//i.test(redirectTo)
-      ? redirectTo
-      : new URL(redirectTo, window.location.origin).toString();
-    url.searchParams.set("redirect_uri", normalizedRedirectTo);
-  }
-  return url.toString();
-};
-
 const buildLogoutUrl = (redirectTo) => {
   const configuredLogoutUrl =
     runtimeConfig.logoutUrl?.trim() || buildBackendUrl("/api/auth/logout-page");
@@ -264,7 +251,18 @@ export const createRestProvider = () => {
         method: "PATCH",
         body: data,
       }),
-    logout: async (redirectTo) => {
+    logout: async (redirectTo, options = {}) => {
+      const useLogoutPage =
+        options?.useLogoutPage === true ||
+        (typeof redirectTo === "object" && redirectTo?.useLogoutPage === true);
+
+      const resolvedRedirect =
+        typeof redirectTo === "string"
+          ? redirectTo
+          : typeof redirectTo === "object"
+            ? redirectTo?.redirectTo
+            : undefined;
+
       try {
         await http.request("/api/auth/logout", {
           method: "POST",
@@ -278,20 +276,64 @@ export const createRestProvider = () => {
         clearRuntimeAccessToken();
       }
 
-      if (typeof window !== "undefined") {
-        window.location.assign(buildLogoutUrl(redirectTo));
+      if (
+        useLogoutPage &&
+        typeof window !== "undefined" &&
+        resolvedRedirect !== undefined
+      ) {
+        window.location.assign(buildLogoutUrl(resolvedRedirect));
       }
     },
-    redirectToLogin: (redirectTo) => {
-      const loginUrl = buildLoginUrl(redirectTo);
-
-      if (!loginUrl) {
-        throw new Error(
-          'REST provider requires "VITE_APP_LOGIN_URL" or "login_url" to redirect to login.'
-        );
+    loginWithCredentials: async (email, password, redirectUri) => {
+      const baseUrl = buildBaseUrl();
+      if (!baseUrl) {
+        throw new Error("API base URL is not configured.");
       }
 
-      window.location.assign(loginUrl);
+      const resolvedRedirect =
+        redirectUri ||
+        (typeof window !== "undefined"
+          ? `${window.location.origin}/`
+          : "http://127.0.0.1:5173/");
+
+      const response = await fetch(joinUrl(baseUrl, "/api/auth/login"), {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...(runtimeConfig.appId ? { "X-App-Id": runtimeConfig.appId } : {}),
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          redirect_uri: resolvedRedirect,
+        }),
+      });
+
+      const parsedBody = await parseResponseBody(response);
+
+      if (!response.ok) {
+        const error = new Error(
+          parsedBody?.message || `Login failed (${response.status})`
+        );
+        error.status = response.status;
+        error.data = parsedBody;
+        throw error;
+      }
+
+      if (parsedBody?.access_token) {
+        setRuntimeAccessToken(parsedBody.access_token);
+      }
+
+      return parsedBody;
+    },
+    redirectToLogin: () => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const target = `${window.location.origin}/login`;
+      window.location.assign(target);
     },
     setAccessToken: (token) => {
       setRuntimeAccessToken(token);

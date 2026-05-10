@@ -1,11 +1,17 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { appApi } from "@/api/app-api";
 import { publicAppApi } from "@/api/public-app-api";
-import { getStoredAuthToken, runtimeConfig } from "@/lib/runtime-config";
+import {
+  clearRuntimeAccessToken,
+  getStoredAuthToken,
+  runtimeConfig,
+} from "@/lib/runtime-config";
 
-const AppAuthContext = createContext();
+const AppAuthContext = createContext(null);
 
 export const AppAuthProvider = ({ children }) => {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
@@ -53,11 +59,27 @@ export const AppAuthProvider = ({ children }) => {
           const reason = appError.data.extra_data.reason;
 
           if (reason === "auth_required") {
-            setAuthError({
-              type: "auth_required",
-              message: "Authentication required",
+            setAppPublicSettings({
+              id: runtimeConfig.appId,
+              public_settings: {
+                auth_required: true,
+                backend_provider: "rest",
+              },
             });
-          } else if (reason === "user_not_registered") {
+            setAuthError(null);
+
+            if (getStoredAuthToken()) {
+              await checkUserAuth();
+            } else {
+              setIsLoadingAuth(false);
+              setIsAuthenticated(false);
+            }
+
+            setIsLoadingPublicSettings(false);
+            return;
+          }
+
+          if (reason === "user_not_registered") {
             setAuthError({
               type: "user_not_registered",
               message: "User not registered for this app",
@@ -95,6 +117,7 @@ export const AppAuthProvider = ({ children }) => {
       const currentUser = await appApi.auth.me();
       setUser(currentUser);
       setIsAuthenticated(true);
+      setAuthError(null);
       setIsLoadingAuth(false);
     } catch (error) {
       console.error("User auth check failed:", error);
@@ -102,6 +125,7 @@ export const AppAuthProvider = ({ children }) => {
       setIsAuthenticated(false);
 
       if (error.status === 401 || error.status === 403) {
+        clearRuntimeAccessToken();
         setAuthError({
           type: "auth_required",
           message: "Authentication required",
@@ -110,20 +134,28 @@ export const AppAuthProvider = ({ children }) => {
     }
   };
 
-  const logout = useCallback((shouldRedirect = true) => {
-    setUser(null);
-    setIsAuthenticated(false);
+  const logout = useCallback(
+    async (shouldNavigateToLogin = true) => {
+      setUser(null);
+      setIsAuthenticated(false);
+      setAuthError(null);
 
-    if (shouldRedirect) {
-      appApi.auth.logout(window.location.href);
-    } else {
-      appApi.auth.logout();
-    }
-  }, []);
+      try {
+        await appApi.auth.logout();
+      } catch (error) {
+        console.warn("[auth] logout request failed", error);
+      }
+
+      if (shouldNavigateToLogin) {
+        navigate("/login", { replace: true });
+      }
+    },
+    [navigate]
+  );
 
   const navigateToLogin = useCallback(() => {
-    appApi.auth.redirectToLogin(window.location.href);
-  }, []);
+    navigate("/login", { replace: true });
+  }, [navigate]);
 
   return (
     <AppAuthContext.Provider
@@ -156,4 +188,3 @@ export const useAppAuth = () => {
 
 export const AuthProvider = AppAuthProvider;
 export const useAuth = useAppAuth;
-

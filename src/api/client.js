@@ -103,6 +103,9 @@ export const appApi = {
     switchOrganization: withProviderMethod(
       (provider) => provider.appApi.auth?.switchOrganization
     ),
+    loginWithCredentials: withProviderMethod(
+      (provider) => provider.appApi.auth?.loginWithCredentials
+    ),
   },
   account: {
     deleteMe: withProviderMethod((provider) => provider.appApi.account?.deleteMe),

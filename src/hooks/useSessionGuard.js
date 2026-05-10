@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { appApi } from "@/api/app-api";
 import { clearRuntimeAccessToken } from "@/lib/runtime-config";
 import { SESSION_LAST_ACTIVITY_STORAGE_KEY } from "@/lib/auth-storage";
@@ -14,6 +15,7 @@ function updateLastActivity() {
 }
 
 export function useSessionGuard() {
+  const navigate = useNavigate();
   const sessionRecoveryStarted = useRef(false);
 
   useEffect(() => {
@@ -23,7 +25,7 @@ export function useSessionGuard() {
       }
       sessionRecoveryStarted.current = true;
       clearRuntimeAccessToken();
-      appApi.auth.redirectToLogin(window.location.href);
+      navigate("/login", { replace: true });
     };
 
     const verifySession = async () => {
@@ -56,6 +58,20 @@ export function useSessionGuard() {
       document.addEventListener(event, handleActivity, { passive: true });
     });
 
+    const checkInactivity = () => {
+      const lastActivity = localStorage.getItem(SESSION_LAST_ACTIVITY_STORAGE_KEY);
+      if (!lastActivity) {
+        updateLastActivity();
+        return;
+      }
+
+      const timeSinceActivity = Date.now() - parseInt(lastActivity, 10);
+      if (timeSinceActivity > INACTIVITY_TIMEOUT) {
+        clearRuntimeAccessToken();
+        navigate("/login", { replace: true });
+      }
+    };
+
     const inactivityInterval = setInterval(checkInactivity, CHECK_INTERVAL);
 
     const handleVisibilityChange = () => {
@@ -73,19 +89,5 @@ export function useSessionGuard() {
       clearInterval(inactivityInterval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
-}
-
-function checkInactivity() {
-  const lastActivity = localStorage.getItem(SESSION_LAST_ACTIVITY_STORAGE_KEY);
-  if (!lastActivity) {
-    updateLastActivity();
-    return;
-  }
-
-  const timeSinceActivity = Date.now() - parseInt(lastActivity, 10);
-  if (timeSinceActivity > INACTIVITY_TIMEOUT) {
-    clearRuntimeAccessToken();
-    appApi.auth.redirectToLogin(window.location.href);
-  }
+  }, [navigate]);
 }

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useSessionGuard } from "../hooks/useSessionGuard";
 import { appApi } from "@/api/app-api";
+import { useAuth } from "@/lib/app-auth";
 import AppLogo from "@/components/AppLogo";
 import {
   LayoutDashboard,
@@ -108,6 +109,7 @@ const injectPedidos = (links, show) => {
 };
 
 export default function Layout() {
+  const { logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -156,7 +158,7 @@ export default function Layout() {
           : techLinks;
 
   const handleLogout = () => {
-    appApi.auth.logout("/");
+    void logout();
   };
 
   const handleOrganizationSwitch = async (organizationId) => {
