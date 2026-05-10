@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import { isLoopbackHost } from "./lib/network-host.js";
+import { parseTrustProxy } from "./lib/trust-proxy.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -96,6 +97,8 @@ if (isProduction && allowedOrigins.length === 0) {
   );
 }
 
+const trustProxy = parseTrustProxy(process.env.APP_TRUST_PROXY);
+
 export const serverConfig = {
   environment,
   isProduction,
@@ -104,6 +107,7 @@ export const serverConfig = {
   uploadMaxFileSizeBytes: Math.round(uploadMaxFileSizeMb * 1024 * 1024),
   port: Number(process.env.APP_SERVER_PORT || 3000),
   host: serverConfigHost,
+  trustProxy,
   dataDir: appDataDir || path.join(__dirname, "data"),
   uploadsDir: appUploadsDir || path.join(__dirname, "uploads"),
   publicUploadsDir: path.join(appUploadsDir || path.join(__dirname, "uploads"), "public"),

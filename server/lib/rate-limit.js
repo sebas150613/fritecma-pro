@@ -2,7 +2,7 @@
  * In-memory fixed-window rate limiter by namespace + client IP.
  */
 
-const getClientIp = (req) => {
+export const getClientIp = (req) => {
   if (req.ip) {
     return String(req.ip);
   }
@@ -10,7 +10,7 @@ const getClientIp = (req) => {
   return ra ? String(ra) : "unknown";
 };
 
-export function createRateLimiter({ windowMs, max, namespace }) {
+export function createRateLimiter({ windowMs, max, namespace, keyGenerator }) {
   if (!namespace || typeof namespace !== "string") {
     throw new Error("createRateLimiter requires a non-empty namespace string.");
   }
@@ -35,8 +35,11 @@ export function createRateLimiter({ windowMs, max, namespace }) {
     const now = Date.now();
     pruneExpired(now);
 
-    const ip = getClientIp(req);
-    const key = `${namespace}:${ip}`;
+    const keySuffix =
+      typeof keyGenerator === "function"
+        ? keyGenerator(req)
+        : getClientIp(req);
+    const key = `${namespace}:${keySuffix}`;
     let entry = store.get(key);
 
     if (!entry || now >= entry.resetAt) {

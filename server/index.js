@@ -27,6 +27,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 
+if (serverConfig.trustProxy !== false) {
+  app.set("trust proxy", serverConfig.trustProxy);
+}
+
 const authRateLimiter = createRateLimiter({
   namespace: "auth",
   windowMs: 15 * 60 * 1000,

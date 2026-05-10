@@ -37,8 +37,24 @@ import {
   sendVerificationEmail,
 } from "../services/account-security-service.js";
 import { serverConfig } from "../config.js";
+import { createRateLimiter, getClientIp } from "../lib/rate-limit.js";
 
 const router = express.Router();
+
+const authLoginRateLimiter = createRateLimiter({
+  namespace: "auth-login",
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyGenerator(req) {
+    const ip = getClientIp(req);
+    const raw = req.body?.email;
+    const email =
+      typeof raw === "string" && raw.trim() !== ""
+        ? raw.trim().toLowerCase()
+        : "";
+    return `${ip}:${email || "no-email"}`;
+  },
+});
 const userStore = getUserStore();
 const organizationStore = getOrganizationStore();
 const membershipStore = getOrganizationMembershipStore();
@@ -1282,6 +1298,7 @@ router.get(
 
 router.post(
   "/login",
+  authLoginRateLimiter,
   express.urlencoded({ extended: true }),
   asyncHandler(async (req, res) => {
     const redirectUri =

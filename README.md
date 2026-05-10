@@ -23,6 +23,7 @@ VITE_APP_LOGIN_URL=http://localhost:3000/api/auth/login
 VITE_APP_LOGOUT_URL=http://localhost:3000/api/auth/logout-page
 
 APP_ALLOW_AUTH_BYPASS=false
+APP_TRUST_PROXY=false
 APP_PUBLIC_SIGNUP_ENABLED=true
 APP_REQUIRE_EMAIL_VERIFICATION=false
 APP_DATABASE_SSL=false
@@ -104,7 +105,7 @@ The repo already includes a local backend scaffold in `server/` with:
 
 Suggested local REST setup:
 
-1. Copy `.env.rest.example` to `.env.local` and adjust values if needed
+1. Copy `.env.rest.example` to `.env.local` and adjust values if needed. Keep `APP_TRUST_PROXY=false` (or omit it) on your machine; use `APP_TRUST_PROXY=1` or `true` only when the API sits behind a **trusted** reverse proxy configured by infrastructure (so client IPs are correct). Never enable trust proxy without that setup.
 2. Run `npm run seed:rest -- --reset`
 3. Run `npm run dev:rest`
 4. Open `http://127.0.0.1:3000/api/auth/login?redirect_uri=http://127.0.0.1:5173/`

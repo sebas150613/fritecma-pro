@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { createRateLimiter } from "../server/lib/rate-limit.js";
 import { isLoopbackHost } from "../server/lib/network-host.js";
+import { parseTrustProxy } from "../server/lib/trust-proxy.js";
 
 function runLimiterScenario({
   max,
@@ -169,5 +170,62 @@ hdrLimiter(hReq, hRes, () => {});
 assert.ok(hHeaders["x-ratelimit-limit"]);
 assert.ok(hHeaders["x-ratelimit-remaining"]);
 assert.ok(hHeaders["x-ratelimit-reset"]);
+
+// --- APP_TRUST_PROXY parser ---
+assert.equal(parseTrustProxy(undefined), false);
+assert.equal(parseTrustProxy(""), false);
+assert.equal(parseTrustProxy("false"), false);
+assert.equal(parseTrustProxy("true"), true);
+assert.equal(parseTrustProxy("1"), 1);
+assert.equal(parseTrustProxy("2"), 2);
+assert.throws(() => parseTrustProxy("abc"), /Invalid APP_TRUST_PROXY/);
+assert.throws(() => parseTrustProxy("0"), /Invalid APP_TRUST_PROXY/);
+
+// --- keyGenerator: separate buckets per email at same IP ---
+const kgWindow = 60_000;
+const kgMax = 2;
+const kgLimiter = createRateLimiter({
+  namespace: "kg",
+  windowMs: kgWindow,
+  max: kgMax,
+  keyGenerator(req) {
+    const ip = req.ip || "unknown";
+    const em =
+      typeof req.body?.email === "string" ? req.body.email : "no-email";
+    return `${ip}:${em}`;
+  },
+});
+
+function kgTry(req) {
+  let nexted = false;
+  const res = {
+    setHeader() {},
+    status(c) {
+      this.code = c;
+      return this;
+    },
+    json() {},
+  };
+  kgLimiter(req, res, () => {
+    nexted = true;
+  });
+  return { nexted, code: res.code };
+}
+
+const ipA = "192.0.2.10";
+assert.equal(kgTry({ ip: ipA, body: { email: "u1@test.local" } }).nexted, true);
+assert.equal(kgTry({ ip: ipA, body: { email: "u2@test.local" } }).nexted, true);
+assert.equal(kgTry({ ip: ipA, body: { email: "u2@test.local" } }).nexted, true);
+const kgBlock = kgTry({ ip: ipA, body: { email: "u2@test.local" } });
+assert.equal(kgBlock.nexted, false);
+assert.equal(kgBlock.code, 429);
+
+// Same email, different IP: not blocked by u2's exhausted bucket at ipA
+assert.equal(
+  kgTry({ ip: "192.0.2.11", body: { email: "u2@test.local" } }).nexted,
+  true
+);
+
+// Without keyGenerator: prior tests (namespace, IP-only) unchanged above
 
 console.log("security-hardening-contract: OK");
