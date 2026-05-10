@@ -1,8 +1,26 @@
 # Google Play — borrador Data Safety (FRIGEST)
 
-**Advertencia:** este documento es un **borrador técnico** para facilitar el formulario “Data safety” en Play Console. **No sustituye** asesoría legal ni la declaración final que debe publicarse tras revisión del responsable del tratamiento y, cuando aplique, del DPO.
+**Advertencia:** este documento es un **borrador técnico** para facilitar el formulario “Data safety” en Play Console. **No sustituye** asesoría legal ni la declaración final que debe publicarse tras revisión del responsable del tratamiento y, cuando aplique, del DPO. **Validar en Play Console** y con **asesoría legal/DPO** antes de publicar la declaración definitiva.
 
-**Referencias útiles:** páginas estáticas en `public/legal/` (`privacy.html`, `terms.html`, `data-deletion.html`). Sustituir placeholders antes de enlazar desde Play.
+**Titular / contacto (referencia):**
+
+| | |
+|--|--|
+| Responsable | Sebastia Estela Adrover (NIF 41572545E) |
+| Domicilio | c/ Ramon Serra 9, 07010 Palma de Mallorca, Baleares, España |
+| Privacidad / RGPD | [privacidad@frigest.es](mailto:privacidad@frigest.es) |
+| Soporte | [soporte@frigest.es](mailto:soporte@frigest.es) |
+
+**URLs legales públicas (HTTPS definitivas para enlazar desde Play cuando el despliegue esté verificado):**
+
+| Documento | URL |
+|-----------|-----|
+| Política de privacidad | https://frigest.es/legal/privacy.html |
+| Términos de uso | https://frigest.es/legal/terms.html |
+| Eliminación de cuenta / datos | https://frigest.es/legal/data-deletion.html |
+| Sitio | https://frigest.es |
+
+Los HTML fuente están en el repositorio bajo `public/legal/`.
 
 ---
 
@@ -27,9 +45,10 @@
 
 ## Checklist Play Console (cuando publique la app)
 
-- [ ] **Política de privacidad:** URL HTTPS pública (sustituir `[PENDIENTE: URL pública definitiva]` y enlazar `…/legal/privacy.html`).
-- [ ] **URL de eliminación de cuenta:** Google exige enlace dedicado; usar `…/legal/data-deletion.html` cuando esté completa y revisada.
+- [ ] **Política de privacidad:** URL HTTPS — **https://frigest.es/legal/privacy.html** (comprobar que responde 200 en producción).
+- [ ] **URL de eliminación de cuenta:** **https://frigest.es/legal/data-deletion.html** (requisito Google).
+- [ ] **Términos (referencia):** https://frigest.es/legal/terms.html
 - [ ] **Credenciales demo / instrucciones de prueba** para revisores (cuenta de solo lectura si es posible).
 - [ ] **Permisos Android:** cuando exista envoltorio nativo o TWA, declarar solo los permisos usados (p. ej. ubicación si la WebView los solicita).
-- [ ] **Formulario Data Safety:** completar según esta tabla tras validación legal y lista real de SDK/servicios en producción.
+- [ ] **Formulario Data Safety:** completar según esta tabla tras **validación legal/DPO** y lista real de SDK/servicios en producción.
 - [ ] **Revisión legal final** antes de marcar declaraciones como definitivas en Play.
