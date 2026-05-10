@@ -221,11 +221,19 @@ const readOptionalFile = async (filePath) => {
   }
 };
 
+/** Env for the ephemeral smoke server — must not inherit production NODE_ENV / empty APP_DEV_TOKEN. */
+const smokeServerEnv = (base, overrides = {}) => ({
+  ...base,
+  ...overrides,
+  NODE_ENV: "development",
+  APP_DEV_TOKEN: "local-dev-token",
+  APP_ALLOW_AUTH_BYPASS: "false",
+});
+
 const createServerProcess = ({ dataDir, uploadsDir }) => {
   const child = spawn(process.execPath, ["server/index.js"], {
     cwd: process.cwd(),
-    env: {
-      ...process.env,
+    env: smokeServerEnv(process.env, {
       APP_SERVER_HOST: HOST,
       APP_SERVER_PORT: String(PORT),
       APP_ID: "local-app",
@@ -237,7 +245,7 @@ const createServerProcess = ({ dataDir, uploadsDir }) => {
         process.env.APP_SETTINGS_SECRET ||
         "smoke-local-app-settings-secret-key-at-least-32-chars-long!!",
       APP_COMPANY_PURCHASE_SMTP_STUB: "true",
-    },
+    }),
     stdio: ["ignore", "pipe", "pipe"],
   });
 
@@ -1330,8 +1338,7 @@ const runSmoke = async () => {
 
     const serverRestart = spawn(process.execPath, ["server/index.js"], {
       cwd: process.cwd(),
-      env: {
-        ...process.env,
+      env: smokeServerEnv(process.env, {
         APP_SERVER_HOST: HOST,
         APP_SERVER_PORT: String(PORT),
         APP_ID: "local-app",
@@ -1343,7 +1350,7 @@ const runSmoke = async () => {
           process.env.APP_SETTINGS_SECRET ||
           "smoke-local-app-settings-secret-key-at-least-32-chars-long!!",
         APP_COMPANY_PURCHASE_SMTP_STUB: "true",
-      },
+      }),
       stdio: ["ignore", "pipe", "pipe"],
     });
     serverRestart.stdout.on("data", (chunk) => {
