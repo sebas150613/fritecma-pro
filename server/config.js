@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
+import { isLoopbackHost } from "./lib/network-host.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,6 +64,14 @@ const allowAuthBypass =
   configuredAuthBypass === undefined
     ? !isProduction
     : configuredAuthBypass === "true";
+
+const serverConfigHost = String(process.env.APP_SERVER_HOST || "127.0.0.1").trim();
+
+if (allowAuthBypass && !isLoopbackHost(serverConfigHost)) {
+  throw new Error(
+    "Unsafe configuration: APP_ALLOW_AUTH_BYPASS=true is only allowed when APP_SERVER_HOST is loopback."
+  );
+}
 const configuredDevToken = String(process.env.APP_DEV_TOKEN || "").trim();
 const devToken = configuredDevToken || (isProduction ? "" : "local-dev-token");
 const allowedOrigins = parseCsvEnv(process.env.APP_ALLOWED_ORIGINS);
@@ -94,7 +103,7 @@ export const serverConfig = {
   uploadMaxFileSizeMb,
   uploadMaxFileSizeBytes: Math.round(uploadMaxFileSizeMb * 1024 * 1024),
   port: Number(process.env.APP_SERVER_PORT || 3000),
-  host: process.env.APP_SERVER_HOST || "127.0.0.1",
+  host: serverConfigHost,
   dataDir: appDataDir || path.join(__dirname, "data"),
   uploadsDir: appUploadsDir || path.join(__dirname, "uploads"),
   publicUploadsDir: path.join(appUploadsDir || path.join(__dirname, "uploads"), "public"),

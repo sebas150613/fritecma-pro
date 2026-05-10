@@ -21,10 +21,23 @@ import purchaseOrderRoutes from "./routes/purchase-orders.js";
 import { ensureSaasBootstrap } from "./lib/auth.js";
 import { initializeStoreBackend } from "./lib/json-store.js";
 import { bootstrapOrganizationSubscriptions } from "./services/billing-service.js";
+import { createRateLimiter } from "./lib/rate-limit.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
+
+const authRateLimiter = createRateLimiter({
+  namespace: "auth",
+  windowMs: 15 * 60 * 1000,
+  max: 80,
+});
+
+const aiRateLimiter = createRateLimiter({
+  namespace: "ai",
+  windowMs: 60 * 1000,
+  max: 30,
+});
 
 const ensureRuntimeDirs = async () => {
   await fs.mkdir(serverConfig.dataDir, { recursive: true });
@@ -64,6 +77,24 @@ app.use((req, res, next) => {
 
   next();
 });
+
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader(
+    "Permissions-Policy",
+    "geolocation=(), microphone=(), camera=()"
+  );
+  if (serverConfig.isProduction) {
+    res.setHeader(
+      "Strict-Transport-Security",
+      "max-age=15552000; includeSubDomains"
+    );
+  }
+  next();
+});
+
 app.post(
   "/api/billing/webhook",
   express.raw({ type: "application/json" }),
@@ -82,13 +113,13 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/apps/public", publicAppRoutes);
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", authRateLimiter, authRoutes);
 app.use("/api/account", accountRoutes);
 app.use("/api/entities", entityRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/organizations", organizationRoutes);
 app.use("/api/files", fileRoutes);
-app.use("/api/ai", aiRoutes);
+app.use("/api/ai", aiRateLimiter, aiRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/business", businessNotificationRoutes);
 app.use("/api/functions", functionRoutes);
