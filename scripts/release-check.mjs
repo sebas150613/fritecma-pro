@@ -20,6 +20,7 @@ const steps = [
   { label: "Secrets scan", cmd: "npm", args: ["run", "check:secrets"] },
   { label: "Security hardening contract", cmd: "npm", args: ["run", "check:security-hardening"] },
   { label: "Auth storage contract", cmd: "npm", args: ["run", "check:auth-storage"] },
+  { label: "Organization settings client security", cmd: "npm", args: ["run", "check:org-settings-security"] },
   { label: "Security headers contract", cmd: "npm", args: ["run", "check:security-headers"] },
   { label: "Node tests", cmd: "npm", args: ["test"] },
   { label: "ESLint", cmd: "npm", args: ["run", "lint"] },

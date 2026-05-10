@@ -82,18 +82,80 @@ export const sanitizeOrganizationMembership = (membership) => {
   return membership;
 };
 
-/** Respuesta API/cliente: sin contraseña SMTP de pedidos. */
+/**
+ * True if this OrganizationSettings field name must never be sent to the client with its stored value.
+ * Does not treat *_configured flags as secret-bearing keys.
+ */
+export const isSensitiveOrganizationSettingsKey = (key) => {
+  if (typeof key !== "string" || key.length === 0) {
+    return false;
+  }
+  const lower = key.toLowerCase();
+  if (lower.endsWith("_configured")) {
+    return false;
+  }
+  if (lower.includes("password")) {
+    return true;
+  }
+  if (lower.includes("cert_password")) {
+    return true;
+  }
+  if (lower.includes("secret")) {
+    return true;
+  }
+  if (lower.includes("api_key")) {
+    return true;
+  }
+  if (lower.includes("token")) {
+    return true;
+  }
+  if (lower.includes("pass")) {
+    return true;
+  }
+  return false;
+};
+
+const isSecretValuePresent = (value) => {
+  if (value == null) {
+    return false;
+  }
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+  return Boolean(value);
+};
+
+/**
+ * API/client response: strips secret fields and adds *_configured booleans.
+ * Persistence and server-side handlers should use raw settings from store / req.currentOrganizationSettings.
+ */
 export const sanitizeOrganizationSettingsForClient = (settings) => {
   if (!settings || typeof settings !== "object") {
     return null;
   }
-  const { pedidos_smtp_pass, ...rest } = settings;
-  return {
-    ...rest,
-    pedidos_smtp_pass_configured: Boolean(
-      typeof pedidos_smtp_pass === "string" && pedidos_smtp_pass.length > 0
-    ),
-  };
+
+  const result = {};
+
+  for (const [key, value] of Object.entries(settings)) {
+    if (isSensitiveOrganizationSettingsKey(key)) {
+      result[`${key}_configured`] = isSecretValuePresent(value);
+      continue;
+    }
+    result[key] = value;
+  }
+
+  /** Stable API shape: *_configured for known org secret fields even when the raw key is absent. */
+  for (const field of ORGANIZATION_SETTINGS_FIELDS) {
+    if (!isSensitiveOrganizationSettingsKey(field)) {
+      continue;
+    }
+    const flag = `${field}_configured`;
+    if (!Object.prototype.hasOwnProperty.call(result, flag)) {
+      result[flag] = false;
+    }
+  }
+
+  return result;
 };
 
 export const mergeOrganizationSettingsIntoUser = (

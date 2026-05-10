@@ -12,6 +12,7 @@ The following are implemented and enforced in automation where noted:
 - `APP_TRUST_PROXY` configurable; no manual `x-forwarded-for` parsing for client IP in the limiter.
 - Security headers + **Content-Security-Policy-Report-Only** (not blocking).
 - Browser token storage helpers + logout clearing token keys and session activity marker (`src/lib/auth-storage.js`).
+- **OrganizationSettings** responses to the client use **`sanitizeOrganizationSettingsForClient`** (`server/lib/tenant.js`): secret-like fields are stripped and replaced with **`*_configured`** booleans only; server-side handlers keep raw settings on **`req.currentOrganizationSettings`** for SMTP/VeriFactu flows.
 - `npm run release:check` (full gate before merge via Actions).
 - Production env checklist script (`npm run check:production-env`) for server/staging.
 - Tracked-file secrets scan (`npm run check:secrets`); `npm audit` clean at last validation.
@@ -34,13 +35,14 @@ In order:
 3. Secrets scan (`check:secrets`)  
 4. Security-hardening contract  
 5. Auth-storage contract  
-6. Security-headers contract  
-7. Node tests  
-8. ESLint  
-9. Typecheck  
-10. Production build  
-11. REST smoke test  
-12. `npm audit`
+6. Organization settings client security (`check:org-settings-security`)  
+7. Security-headers contract  
+8. Node tests  
+9. ESLint  
+10. Typecheck  
+11. Production build  
+12. REST smoke test  
+13. `npm audit`
 
 ## 4. Critical production variables
 
@@ -76,6 +78,7 @@ A branch protection rule for `main` should require PRs and passing checks where 
 | **CSP Report-Only** | Violations are reported, not blocked; review reports before switching to enforcing CSP. |
 | **In-memory rate limiting** | Per-process; not shared across multiple Node instances—fine for single instance; scale-out needs a shared store. |
 | **Branch protection** | May not be strictly enforced on private repos without paid features—process discipline still required. |
+| **OrganizationSettings at rest** | Secret values may still be stored in plaintext in the local JSON store until a dedicated encryption-at-rest block is implemented; API responses no longer echo those raw values. |
 
 ## 8. Recommended next improvements
 
@@ -83,4 +86,5 @@ A branch protection rule for `main` should require PRs and passing checks where 
 - **CSP:** Move to enforcing policy after collecting real violation reports from Report-Only.  
 - **Rate limits:** Redis (or similar) if running multiple API replicas.  
 - **GitHub:** Team/Enterprise or a public repo if policy enforcement in GitHub is a hard requirement.  
-- **Operations:** Always verify live server env (including secrets presence and URLs) before go-live; scripts assist but do not replace human review.
+- **Operations:** Always verify live server env (including secrets presence and URLs) before go-live; scripts assist but do not replace human review.  
+- **Organization secrets:** Encrypt sensitive OrganizationSettings fields at rest (or move to a vault); rotate any credentials that may have been exposed in older API responses or backups.

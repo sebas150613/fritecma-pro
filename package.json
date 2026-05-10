@@ -21,6 +21,7 @@
     "check:security-hardening": "node scripts/security-hardening-contract.mjs",
     "check:security-headers": "node scripts/security-headers-contract.mjs",
     "check:auth-storage": "node scripts/auth-storage-contract.mjs",
+    "check:org-settings-security": "node scripts/organization-settings-security-contract.mjs",
     "check:production-env": "node scripts/production-env-check.mjs --production",
     "check:secrets": "node scripts/secrets-scan.mjs",
     "clean:local-test-data": "node scripts/clean-local-test-data.mjs",

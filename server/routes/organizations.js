@@ -17,6 +17,7 @@ import {
   getOrganizationSettingsStore,
   getOrganizationStore,
   normalizeOrganizationSlug,
+  sanitizeOrganizationSettingsForClient,
 } from "../lib/tenant.js";
 import {
   assertSeatAvailableForOrganization,
@@ -196,7 +197,9 @@ router.get(
     res.json({
       organization: _req.currentOrganization,
       membership: _req.currentOrganizationMembership,
-      settings: _req.currentOrganizationSettings,
+      settings: sanitizeOrganizationSettingsForClient(
+        _req.currentOrganizationSettings
+      ),
     });
   })
 );

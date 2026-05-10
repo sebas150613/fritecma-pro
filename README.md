@@ -67,7 +67,7 @@ Seed demo data for REST mode: `npm run seed:rest -- --reset`
 
 Run the REST smoke test: `npm run smoke:rest`
 
-Before a production release or deployment, run **`npm run release:check`**. It runs in order: runtime config contract, Base44 audit, **tracked-file secrets scan** (`check:secrets`), security-hardening and auth-storage/header contracts, Node tests, lint, typecheck, build, REST smoke test, and **`npm audit`** (fails if any vulnerability is reported). Run **`npm run check:secrets`** alone for the same scan; it masks matches and does not replace GitHub secret scanning or manual review.
+Before a production release or deployment, run **`npm run release:check`**. It runs in order: runtime config contract, Base44 audit, **tracked-file secrets scan** (`check:secrets`), security-hardening, auth-storage, **organization settings client security** (`check:org-settings-security`), security-headers contracts, Node tests, lint, typecheck, build, REST smoke test, and **`npm audit`** (fails if any vulnerability is reported). Run **`npm run check:secrets`** alone for the same scan; it masks matches and does not replace GitHub secret scanning or manual review.
 
 Security / release summary: [docs/release-readiness.md](./docs/release-readiness.md)
 
@@ -98,6 +98,10 @@ SaaS phase 5 reference: [docs/saas-phase5.md](./docs/saas-phase5.md)
 **Session / auth token (browser)**
 
 The SPA stores the REST **access token** in **`localStorage`** under `app_access_token` (and legacy `token` for compatibility). Client-side session timing uses a separate key defined in `src/lib/auth-storage.js`; **logout** clears token keys and that activity marker. OAuth-style redirects may pass `access_token` once in the query string; the app persists it and **`history.replaceState`** strips it from the URL. **Residual risk:** any data in `localStorage` is readable to script on the page, so XSS remains a concern. A future hardening step is **HttpOnly + SameSite cookies** for the session if you redesign auth for production.
+
+**Organization settings (API vs server)**
+
+JSON responses that expose organization settings use **`sanitizeOrganizationSettingsForClient`** in `server/lib/tenant.js` (secret-shaped fields are omitted and replaced with **`*_configured`** flags). **`req.currentOrganizationSettings`** on the server remains the **raw** record so SMTP pedidos and VeriFactu code paths can still read passwords when needed.
 
 **Content-Security-Policy (REST responses)**
 
