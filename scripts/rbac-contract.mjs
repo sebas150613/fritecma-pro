@@ -102,6 +102,16 @@ const createServerProcess = ({ dataDir, uploadsDir }) => {
     cwd: process.cwd(),
     env: {
       ...process.env,
+      /**
+       * Deterministic security: do not inherit dev auth bypass from the parent shell.
+       * Without this, NODE_ENV defaults to "development" and APP_ALLOW_AUTH_BYPASS defaults
+       * to true, so anonymous requests resolve as a visible demo user (GET /api/auth/me → 200).
+       */
+      NODE_ENV: "test",
+      APP_ALLOW_AUTH_BYPASS: "false",
+      APP_DEV_TOKEN: "local-dev-token",
+      APP_ALLOWED_ORIGINS: "",
+      APP_TRUST_PROXY: "false",
       APP_SERVER_HOST: HOST,
       APP_SERVER_PORT: String(PORT),
       APP_ID: "local-app",
@@ -168,6 +178,15 @@ const runContract = async () => {
   try {
     await waitForHealth();
 
+    const anonProbe = await requestExpectFailure("/api/auth/me", {
+      headers: { "X-App-Id": "local-app" },
+    });
+    if (anonProbe.status !== 401) {
+      fail(
+        `RBAC contract requires APP_ALLOW_AUTH_BYPASS=false for deterministic anonymous checks; GET /api/auth/me without Authorization returned ${anonProbe.status} (expected 401). Fix: spawn child env must set APP_ALLOW_AUTH_BYPASS=false (and avoid implicit dev bypass). Body: ${JSON.stringify(anonProbe.body)}`
+      );
+    }
+
     const ownerHeaders = {
       Authorization: "Bearer local-dev-token",
       "X-App-Id": "local-app",
@@ -217,11 +236,6 @@ const runContract = async () => {
       }
       logins[roleKey] = login.token;
     }
-
-    const anonMe = await requestExpectFailure("/api/auth/me", {
-      headers: { "X-App-Id": "local-app" },
-    });
-    assertUnauthorized(anonMe, "anonymous GET /api/auth/me");
 
     const anonEntities = await requestExpectFailure("/api/entities/Client", {
       headers: { "X-App-Id": "local-app" },
