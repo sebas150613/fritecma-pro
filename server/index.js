@@ -22,6 +22,7 @@ import { ensureSaasBootstrap } from "./lib/auth.js";
 import { initializeStoreBackend } from "./lib/json-store.js";
 import { bootstrapOrganizationSubscriptions } from "./services/billing-service.js";
 import { createRateLimiter } from "./lib/rate-limit.js";
+import { createSecurityHeadersMiddleware } from "./lib/security-headers.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -82,22 +83,11 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use((req, res, next) => {
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
-  res.setHeader("Referrer-Policy", "no-referrer");
-  res.setHeader(
-    "Permissions-Policy",
-    "geolocation=(), microphone=(), camera=()"
-  );
-  if (serverConfig.isProduction) {
-    res.setHeader(
-      "Strict-Transport-Security",
-      "max-age=15552000; includeSubDomains"
-    );
-  }
-  next();
-});
+app.use(
+  createSecurityHeadersMiddleware({
+    isProduction: serverConfig.isProduction,
+  })
+);
 
 app.post(
   "/api/billing/webhook",
