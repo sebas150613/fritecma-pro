@@ -86,7 +86,9 @@ SaaS phase 5 reference: [docs/saas-phase5.md](./docs/saas-phase5.md)
 
 **Runtime note**
 
-The app runtime is now REST-only. Legacy Base44 artifacts have been moved under `archive/base44/`, and the frontend and local backend no longer depend on the Base44 SDK or Base44 runtime services.
+The primary app runtime is **REST-only** (local backend in `server/` + REST API client on the frontend). Legacy Base44 artifacts are archived under `archive/base44/` for reference.
+
+`package.json` still lists **`@base44/sdk`** and **`@base44/vite-plugin`** as **legacy migration dependencies**. They are not removed yet and must **not** be read as “the app uses Base44 as its main runtime”. Active flows are driven by the REST scaffold and `VITE_APP_BACKEND_PROVIDER=rest`; those packages remain until the cleanup phase explicitly drops them.
 
 Entity schemas used by the local REST backend now live in `app-schema/entities/`, and the old Base44 entity definitions are archived in `archive/base44/entities/` as historical reference material.
 The active REST function registry now lives in `app-schema/functions.json`, and the old Base44 function implementations are archived in `archive/base44/functions/` as historical reference material.

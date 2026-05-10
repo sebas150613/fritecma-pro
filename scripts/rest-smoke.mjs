@@ -118,6 +118,98 @@ const waitForHealth = async () => {
   throw new Error("REST server did not become healthy in time.");
 };
 
+const assertSignedUrlFileUrlContract = (signedUrl, context) => {
+  const ctx = context || "POST /api/files/signed-url";
+  if (!signedUrl || typeof signedUrl !== "object") {
+    throw new Error(
+      `${ctx}: contract expects JSON object; received ${signedUrl === null ? "null" : typeof signedUrl}`
+    );
+  }
+  const url = signedUrl.file_url;
+  if (typeof url !== "string" || !url.trim()) {
+    throw new Error(
+      `${ctx}: contract field file_url must be a non-empty string; received ${JSON.stringify(url)}`
+    );
+  }
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error(`unsupported protocol ${parsed.protocol}`);
+    }
+  } catch (e) {
+    throw new Error(
+      `${ctx}: file_url must be a valid http(s) URL; received=${JSON.stringify(url)} (${e?.message || e})`
+    );
+  }
+};
+
+const assertAiTextInvokeContract = (aiTextRun, context) => {
+  const ctx = context || "POST /api/ai/invoke (text)";
+  if (typeof aiTextRun !== "string") {
+    throw new Error(
+      `${ctx}: contract expects typeof response === "string" (configured OpenAI text or local fallback); received ${typeof aiTextRun}`
+    );
+  }
+};
+
+const assertAiStructuredInvokeContract = (run, context) => {
+  const ctx = context || "POST /api/ai/invoke (structured)";
+  if (!run || typeof run !== "object" || Array.isArray(run)) {
+    throw new Error(
+      `${ctx}: contract expects plain object; received ${run === null ? "null" : typeof run}`
+    );
+  }
+  for (const key of ["supplier", "date", "reference", "lines"]) {
+    if (!Object.prototype.hasOwnProperty.call(run, key)) {
+      throw new Error(
+        `${ctx}: missing required field "${key}"; keys=${JSON.stringify(Object.keys(run))}`
+      );
+    }
+  }
+  if (!Array.isArray(run.lines)) {
+    throw new Error(
+      `${ctx}: field lines must be an array; received ${typeof run.lines}`
+    );
+  }
+};
+
+const assertInvoiceSandboxContract = (invoiceRun, label) => {
+  const st = invoiceRun?.data?.verifactu_status;
+  const pend = invoiceRun?.data?.pending_submission;
+  if (st !== "validado_sandbox") {
+    throw new Error(
+      `${label}: expected data.verifactu_status === "validado_sandbox" for facturar sin force_pending (sandbox); received ${JSON.stringify(st)}`
+    );
+  }
+  if (pend !== false) {
+    throw new Error(
+      `${label}: expected data.pending_submission === false sin force_pending_submission; received ${JSON.stringify(pend)}`
+    );
+  }
+};
+
+const assertQueuedSubmissionContract = (queuedRun, label) => {
+  if (queuedRun?.data?.pending_submission !== true) {
+    throw new Error(
+      `${label}: expected data.pending_submission === true when force_pending_submission=true; received ${JSON.stringify(queuedRun?.data?.pending_submission)}`
+    );
+  }
+  if (queuedRun?.data?.verifactu_status !== "sin_envio") {
+    throw new Error(
+      `${label}: expected data.verifactu_status === "sin_envio" for cola pendiente en sandbox; received ${JSON.stringify(queuedRun?.data?.verifactu_status)}`
+    );
+  }
+};
+
+const assertRectificativaSandboxContract = (run, label) => {
+  const st = run?.data?.verifactu_status;
+  if (st !== "validado_sandbox") {
+    throw new Error(
+      `${label}: expected data.verifactu_status === "validado_sandbox"; received ${JSON.stringify(st)}`
+    );
+  }
+};
+
 const readOptionalFile = async (filePath) => {
   try {
     return await fs.readFile(filePath, "utf8");
@@ -437,6 +529,26 @@ const runSmoke = async () => {
       headers: HEADERS,
       body: JSON.stringify({ dry_run: true }),
     });
+
+    assertSignedUrlFileUrlContract(signedUrl);
+    assertAiTextInvokeContract(aiTextRun);
+    assertAiStructuredInvokeContract(aiStructuredRun);
+    assertInvoiceSandboxContract(
+      invoiceRun,
+      "processVerifactu facturar (invoiceRun)"
+    );
+    assertQueuedSubmissionContract(
+      queuedRun,
+      "processVerifactu facturar force_pending_submission (queuedRun)"
+    );
+    assertRectificativaSandboxContract(
+      rectificativaRun,
+      "processVerifactu rectificar (rectificativaRun)"
+    );
+    assertRectificativaSandboxContract(
+      correctedRectificativaRun,
+      "processVerifactu rectificar_corregida (correctedRectificativaRun)"
+    );
 
     const summary = {
       auth_email: me.email,

@@ -33,7 +33,7 @@ const toSnakeCase = (str) => str.replace(/([A-Z])/g, "_$1").toLowerCase();
 const readStorage = (keys) => {
   for (const key of keys) {
     const value = storage.getItem(key);
-    if (value) {
+    if (value !== null) {
       return value;
     }
   }
@@ -41,7 +41,9 @@ const readStorage = (keys) => {
 };
 
 const writeStorage = (keys, value) => {
-  keys.forEach((key) => storage.setItem(key, value));
+  const serialized =
+    value === null || value === undefined ? "" : String(value);
+  keys.forEach((key) => storage.setItem(key, serialized));
 };
 
 const removeStorage = (keys) => {
@@ -73,12 +75,12 @@ const getRuntimeParamValue = (
     window.history.replaceState({}, document.title, newUrl);
   }
 
-  if (searchParam) {
+  if (searchParam !== null) {
     writeStorage(storageKeys, searchParam);
     return searchParam;
   }
 
-  if (defaultValue) {
+  if (defaultValue !== undefined) {
     writeStorage(storageKeys, defaultValue);
     return defaultValue;
   }
