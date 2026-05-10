@@ -108,6 +108,15 @@ const createServerProcess = ({ dataDir, uploadsDir }) => {
     cwd: process.cwd(),
     env: {
       ...process.env,
+      /**
+       * Deterministic auth: do not inherit NODE_ENV=production / empty APP_DEV_TOKEN from VPS.
+       * Owner flows use Bearer local-dev-token + X-Smoke-Owner — must match APP_DEV_TOKEN.
+       */
+      NODE_ENV: "test",
+      APP_ALLOW_AUTH_BYPASS: "false",
+      APP_DEV_TOKEN: "local-dev-token",
+      APP_ALLOWED_ORIGINS: "",
+      APP_TRUST_PROXY: "false",
       APP_SERVER_HOST: HOST,
       APP_SERVER_PORT: String(PORT),
       APP_ID: "local-app",
