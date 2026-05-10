@@ -1,12 +1,15 @@
 import { useEffect } from "react";
 import { appApi } from "@/api/app-api";
+import { SESSION_LAST_ACTIVITY_STORAGE_KEY } from "@/lib/auth-storage";
 
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 const CHECK_INTERVAL = 60 * 1000; // Check every 1 minute
-const LAST_ACTIVITY_KEY = 'fritecma_last_activity';
 
 function updateLastActivity() {
-  localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+  localStorage.setItem(
+    SESSION_LAST_ACTIVITY_STORAGE_KEY,
+    Date.now().toString()
+  );
 }
 
 async function checkSession() {
@@ -21,7 +24,7 @@ async function checkSession() {
 }
 
 function checkInactivity() {
-  const lastActivity = localStorage.getItem(LAST_ACTIVITY_KEY);
+  const lastActivity = localStorage.getItem(SESSION_LAST_ACTIVITY_STORAGE_KEY);
   if (!lastActivity) {
     updateLastActivity(); // Initialize if missing
     return;

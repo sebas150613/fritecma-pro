@@ -9,7 +9,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { appApi } from "@/api/app-api";
-import { clearRuntimeAccessToken, runtimeConfig } from "@/lib/runtime-config";
+import {
+  clearRuntimeAccessToken,
+  getStoredAuthToken,
+  runtimeConfig,
+} from "@/lib/runtime-config";
 import { Settings, Shield, Trash2 } from "lucide-react";
 
 const buildApiUrl = (path) => {
@@ -42,11 +46,12 @@ export default function AccountSettings() {
     setError("");
 
     try {
+      const accessToken = getStoredAuthToken();
       const response = await fetch(buildApiUrl("/api/account/me"), {
         method: "DELETE",
         headers: {
           Accept: "application/json",
-          ...(runtimeConfig.token ? { Authorization: `Bearer ${runtimeConfig.token}` } : {}),
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           ...(runtimeConfig.appId ? { "X-App-Id": runtimeConfig.appId } : {}),
         },
       });

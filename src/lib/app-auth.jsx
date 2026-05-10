@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { appApi } from "@/api/app-api";
 import { publicAppApi } from "@/api/public-app-api";
-import { runtimeConfig } from "@/lib/runtime-config";
+import { getStoredAuthToken, runtimeConfig } from "@/lib/runtime-config";
 
 const AppAuthContext = createContext();
 
@@ -38,7 +38,7 @@ export const AppAuthProvider = ({ children }) => {
         );
         setAppPublicSettings(publicSettings);
 
-        if (runtimeConfig.token) {
+        if (getStoredAuthToken()) {
           await checkUserAuth();
         } else {
           setIsLoadingAuth(false);

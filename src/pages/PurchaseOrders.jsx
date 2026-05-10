@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { appApi } from "@/api/app-api";
-import { runtimeConfig } from "@/lib/runtime-config";
+import { getStoredAuthToken, runtimeConfig } from "@/lib/runtime-config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -325,7 +325,7 @@ export default function PurchaseOrders() {
     const base = runtimeConfig.apiUrl?.replace(/\/+$/, "") || "";
     const url = `${base}/api/purchase-orders/${encodeURIComponent(orderId)}/pdf`;
     const headers = {
-      Authorization: `Bearer ${runtimeConfig.token || ""}`,
+      Authorization: `Bearer ${getStoredAuthToken() || ""}`,
     };
     if (runtimeConfig.appId) {
       headers["X-App-Id"] = runtimeConfig.appId;

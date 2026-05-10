@@ -1,4 +1,4 @@
-import { runtimeConfig } from "@/lib/runtime-config";
+import { getStoredAuthToken, runtimeConfig } from "@/lib/runtime-config";
 
 const buildPublicApiUrl = (path) => {
   const baseUrl =
@@ -15,8 +15,9 @@ const buildHeaders = () => {
     "X-App-Id": runtimeConfig.appId,
   };
 
-  if (runtimeConfig.token) {
-    headers.Authorization = `Bearer ${runtimeConfig.token}`;
+  const authToken = getStoredAuthToken();
+  if (authToken) {
+    headers.Authorization = `Bearer ${authToken}`;
   }
 
   return headers;

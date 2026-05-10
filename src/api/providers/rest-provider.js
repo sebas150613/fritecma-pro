@@ -1,5 +1,6 @@
 import {
   clearRuntimeAccessToken,
+  getStoredAuthToken,
   runtimeConfig,
   setRuntimeAccessToken,
 } from "@/lib/runtime-config";
@@ -75,8 +76,9 @@ const createHttpClient = () => {
       finalHeaders["Content-Type"] = "application/json";
     }
 
-    if (runtimeConfig.token) {
-      finalHeaders.Authorization = `Bearer ${runtimeConfig.token}`;
+    const authToken = getStoredAuthToken();
+    if (authToken) {
+      finalHeaders.Authorization = `Bearer ${authToken}`;
     }
 
     if (runtimeConfig.appId) {

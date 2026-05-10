@@ -1,3 +1,10 @@
+import {
+  AUTH_ACCESS_TOKEN_KEYS,
+  clearAuthSessionIn,
+  getStoredAuthTokenFrom,
+  setStoredAuthTokenIn,
+} from "./auth-storage.js";
+
 const isNode = typeof window === "undefined";
 
 /** @returns {Storage} */
@@ -28,8 +35,6 @@ function createMemoryStorage() {
 
 const storage = isNode ? createMemoryStorage() : window.localStorage;
 
-const toSnakeCase = (str) => str.replace(/([A-Z])/g, "_$1").toLowerCase();
-
 const readStorage = (keys) => {
   for (const key of keys) {
     const value = storage.getItem(key);
@@ -49,8 +54,6 @@ const writeStorage = (keys, value) => {
 const removeStorage = (keys) => {
   keys.forEach((key) => storage.removeItem(key));
 };
-
-const ACCESS_TOKEN_STORAGE_KEYS = ["app_access_token", "token"];
 
 const getRuntimeParamValue = (
   paramName,
@@ -90,7 +93,9 @@ const getRuntimeParamValue = (
 
 const getRuntimeConfig = () => {
   if (getRuntimeParamValue("clear_access_token") === "true") {
-    removeStorage(ACCESS_TOKEN_STORAGE_KEYS);
+    if (!isNode) {
+      clearAuthSessionIn(storage);
+    }
   }
 
   return {
@@ -100,7 +105,7 @@ const getRuntimeConfig = () => {
     }),
     token: getRuntimeParamValue("access_token", {
       removeFromUrl: true,
-      storageKeys: ["app_access_token", "token"],
+      storageKeys: AUTH_ACCESS_TOKEN_KEYS,
     }),
     fromUrl: getRuntimeParamValue("from_url", {
       defaultValue: isNode ? "" : window.location.href,
@@ -141,25 +146,28 @@ export const runtimeStorage = {
   },
 };
 
-export const authTokenStorageKeys = ACCESS_TOKEN_STORAGE_KEYS;
+export const authTokenStorageKeys = AUTH_ACCESS_TOKEN_KEYS;
 
-export const setRuntimeAccessToken = (token) => {
+/** Current access token from storage (prefer over runtimeConfig.token after login/org switch). */
+export const getStoredAuthToken = () => getStoredAuthTokenFrom(storage);
+
+export const setStoredAuthToken = (token) => {
   if (isNode) {
     return;
   }
-
-  if (!token) {
-    removeStorage(ACCESS_TOKEN_STORAGE_KEYS);
-    return;
-  }
-
-  writeStorage(ACCESS_TOKEN_STORAGE_KEYS, token);
+  setStoredAuthTokenIn(storage, token);
 };
 
-export const clearRuntimeAccessToken = () => {
+/** Clears token keys and session activity marker (see SESSION_LAST_ACTIVITY_STORAGE_KEY). */
+export const clearStoredAuthToken = () => {
   if (isNode) {
     return;
   }
-
-  removeStorage(ACCESS_TOKEN_STORAGE_KEYS);
+  clearAuthSessionIn(storage);
 };
+
+export const setRuntimeAccessToken = setStoredAuthToken;
+
+export const clearRuntimeAccessToken = clearStoredAuthToken;
+
+export { SESSION_LAST_ACTIVITY_STORAGE_KEY } from "./auth-storage.js";

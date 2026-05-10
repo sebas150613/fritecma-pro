@@ -85,6 +85,10 @@ SaaS phase 4 reference: [docs/saas-phase4.md](./docs/saas-phase4.md)
 
 SaaS phase 5 reference: [docs/saas-phase5.md](./docs/saas-phase5.md)
 
+**Session / auth token (browser)**
+
+The SPA stores the REST **access token** in **`localStorage`** under `app_access_token` (and legacy `token` for compatibility). Client-side session timing uses a separate key defined in `src/lib/auth-storage.js`; **logout** clears token keys and that activity marker. OAuth-style redirects may pass `access_token` once in the query string; the app persists it and **`history.replaceState`** strips it from the URL. **Residual risk:** any data in `localStorage` is readable to script on the page, so XSS remains a concern. A future hardening step is **HttpOnly + SameSite cookies** for the session if you redesign auth for production.
+
 **Runtime note**
 
 The primary app runtime is **REST-only** (local backend in `server/` + REST API client on the frontend). Legacy Base44 artifacts remain archived under `archive/base44/` as migration reference only; they are not part of the active build or runtime.
