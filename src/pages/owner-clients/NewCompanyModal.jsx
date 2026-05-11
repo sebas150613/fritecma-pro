@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
+import { BillingAddressSuggestInput } from "./BillingAddressSuggestInput";
 
 const slugify = (value) =>
   String(value || "")
@@ -53,6 +54,7 @@ const emptyForm = () => ({
   commercial_contact_mobile: "",
   preferred_language: "es",
   preferred_contact_channel: "email",
+  mirror_commercial_to_billing: false,
   activate_on_create: true,
   demo_seed_enabled: false,
   create_initial_admin: false,
@@ -63,18 +65,69 @@ const emptyForm = () => ({
   initial_admin_temporary_password: "",
 });
 
+const emptyBillingDirty = () => ({
+  billing_fiscal_name: false,
+  billing_tax_id: false,
+  billing_contact_name: false,
+  billing_email: false,
+  billing_phone: false,
+});
+
 export function NewCompanyModal({ open, onOpenChange, plans, ownerEmail, onCreated }) {
   const [form, setForm] = useState(emptyForm);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [billingDirty, setBillingDirty] = useState(emptyBillingDirty);
+  const [copyConfirmOpen, setCopyConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setForm(emptyForm());
       setError("");
       setBusy(false);
+      setBillingDirty(emptyBillingDirty());
+      setCopyConfirmOpen(false);
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !form.mirror_commercial_to_billing) {
+      return;
+    }
+    setForm((f) => {
+      let changed = false;
+      const n = { ...f };
+      const sync = (dirtyKey, from, to) => {
+        if (billingDirty[dirtyKey]) {
+          return;
+        }
+        const src = f[from] ?? "";
+        if (String(n[to] ?? "") !== String(src)) {
+          n[to] = src;
+          changed = true;
+        }
+      };
+      sync("billing_fiscal_name", "legal_name", "billing_fiscal_name");
+      sync("billing_tax_id", "tax_id", "billing_tax_id");
+      sync("billing_contact_name", "commercial_contact_name", "billing_contact_name");
+      sync("billing_email", "commercial_contact_email", "billing_email");
+      sync("billing_phone", "commercial_contact_phone", "billing_phone");
+      return changed ? n : f;
+    });
+  }, [
+    open,
+    form.mirror_commercial_to_billing,
+    form.legal_name,
+    form.tax_id,
+    form.commercial_contact_name,
+    form.commercial_contact_email,
+    form.commercial_contact_phone,
+    billingDirty.billing_fiscal_name,
+    billingDirty.billing_tax_id,
+    billingDirty.billing_contact_name,
+    billingDirty.billing_email,
+    billingDirty.billing_phone,
+  ]);
 
   const planItems = useMemo(() => {
     const list = Array.isArray(plans) ? plans : [];
@@ -97,6 +150,34 @@ export function NewCompanyModal({ open, onOpenChange, plans, ownerEmail, onCreat
       return { ...f, slug: slugify(commercialName) };
     });
   }, []);
+
+  const applyCommercialToBilling = () => {
+    setForm((f) => ({
+      ...f,
+      billing_fiscal_name: f.legal_name || "",
+      billing_tax_id: f.tax_id || "",
+      billing_contact_name: f.commercial_contact_name || "",
+      billing_email: f.commercial_contact_email || "",
+      billing_phone: f.commercial_contact_phone || "",
+    }));
+    setBillingDirty(emptyBillingDirty());
+  };
+
+  const requestCopyCommercialToBilling = () => {
+    const targets = [
+      "billing_fiscal_name",
+      "billing_tax_id",
+      "billing_contact_name",
+      "billing_email",
+      "billing_phone",
+    ];
+    const anyFilled = targets.some((k) => String(form[k] || "").trim() !== "");
+    if (anyFilled) {
+      setCopyConfirmOpen(true);
+    } else {
+      applyCommercialToBilling();
+    }
+  };
 
   const submit = async () => {
     setError("");
@@ -175,6 +256,10 @@ export function NewCompanyModal({ open, onOpenChange, plans, ownerEmail, onCreat
       onCreated?.({
         organizationId: res?.organization?.id,
         initial_admin_warning: res?.initial_admin_warning,
+        initial_admin_email_delivery: res?.initial_admin_email_delivery,
+        initial_admin_invite_url: res?.initial_admin_invite_url,
+        create_initial_admin: form.create_initial_admin,
+        initial_admin_access_mode: form.initial_admin_access_mode,
       });
       onOpenChange(false);
     } catch (e) {
@@ -189,6 +274,7 @@ export function NewCompanyModal({ open, onOpenChange, plans, ownerEmail, onCreat
   );
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] rounded-2xl p-0 gap-0 overflow-hidden flex flex-col">
         <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
@@ -360,6 +446,32 @@ export function NewCompanyModal({ open, onOpenChange, plans, ownerEmail, onCreat
 
             <div>
               {sectionTitle("B — Facturación")}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3 rounded-xl border border-border bg-muted/10 px-3 py-2">
+                <label className="flex items-start gap-2 text-sm cursor-pointer">
+                  <Checkbox
+                    checked={form.mirror_commercial_to_billing}
+                    onCheckedChange={(v) =>
+                      setForm((f) => ({ ...f, mirror_commercial_to_billing: v === true }))
+                    }
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="font-medium">Usar estos datos también para facturación</span>
+                    <span className="block text-xs text-muted-foreground font-normal">
+                      Sincroniza razón social, NIF y contacto comercial con facturación salvo que edite
+                      facturación a mano.
+                    </span>
+                  </span>
+                </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-xl shrink-0"
+                  onClick={requestCopyCommercialToBilling}
+                >
+                  Copiar datos comerciales a facturación
+                </Button>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="sm:col-span-2">
                   <Label>Nombre fiscal / razón social de facturación</Label>
@@ -367,7 +479,10 @@ export function NewCompanyModal({ open, onOpenChange, plans, ownerEmail, onCreat
                     className="mt-1 rounded-xl"
                     autoComplete="off"
                     value={form.billing_fiscal_name}
-                    onChange={(e) => setForm((f) => ({ ...f, billing_fiscal_name: e.target.value }))}
+                    onChange={(e) => {
+                      setBillingDirty((d) => ({ ...d, billing_fiscal_name: true }));
+                      setForm((f) => ({ ...f, billing_fiscal_name: e.target.value }));
+                    }}
                   />
                 </div>
                 <div>
@@ -376,7 +491,10 @@ export function NewCompanyModal({ open, onOpenChange, plans, ownerEmail, onCreat
                     className="mt-1 rounded-xl"
                     autoComplete="off"
                     value={form.billing_tax_id}
-                    onChange={(e) => setForm((f) => ({ ...f, billing_tax_id: e.target.value }))}
+                    onChange={(e) => {
+                      setBillingDirty((d) => ({ ...d, billing_tax_id: true }));
+                      setForm((f) => ({ ...f, billing_tax_id: e.target.value }));
+                    }}
                   />
                 </div>
                 <div>
@@ -387,7 +505,10 @@ export function NewCompanyModal({ open, onOpenChange, plans, ownerEmail, onCreat
                     autoComplete="off"
                     name="newco_billing_email"
                     value={form.billing_email}
-                    onChange={(e) => setForm((f) => ({ ...f, billing_email: e.target.value }))}
+                    onChange={(e) => {
+                      setBillingDirty((d) => ({ ...d, billing_email: true }));
+                      setForm((f) => ({ ...f, billing_email: e.target.value }));
+                    }}
                   />
                 </div>
                 <div>
@@ -396,7 +517,10 @@ export function NewCompanyModal({ open, onOpenChange, plans, ownerEmail, onCreat
                     className="mt-1 rounded-xl"
                     autoComplete="off"
                     value={form.billing_phone}
-                    onChange={(e) => setForm((f) => ({ ...f, billing_phone: e.target.value }))}
+                    onChange={(e) => {
+                      setBillingDirty((d) => ({ ...d, billing_phone: true }));
+                      setForm((f) => ({ ...f, billing_phone: e.target.value }));
+                    }}
                   />
                 </div>
                 <div className="sm:col-span-2">
@@ -405,16 +529,29 @@ export function NewCompanyModal({ open, onOpenChange, plans, ownerEmail, onCreat
                     className="mt-1 rounded-xl"
                     autoComplete="off"
                     value={form.billing_contact_name}
-                    onChange={(e) => setForm((f) => ({ ...f, billing_contact_name: e.target.value }))}
+                    onChange={(e) => {
+                      setBillingDirty((d) => ({ ...d, billing_contact_name: true }));
+                      setForm((f) => ({ ...f, billing_contact_name: e.target.value }));
+                    }}
                   />
                 </div>
                 <div className="sm:col-span-2">
                   <Label>Dirección línea 1</Label>
-                  <Input
+                  <BillingAddressSuggestInput
                     className="mt-1 rounded-xl"
-                    autoComplete="street-address"
+                    name="newco_billing_address1"
                     value={form.billing_address_line1}
-                    onChange={(e) => setForm((f) => ({ ...f, billing_address_line1: e.target.value }))}
+                    onChange={(v) => setForm((f) => ({ ...f, billing_address_line1: v }))}
+                    onPick={(s) =>
+                      setForm((f) => ({
+                        ...f,
+                        billing_address_line1: s.address_line1 || s.label || "",
+                        billing_postal_code: s.postal_code || "",
+                        billing_city: s.city || "",
+                        billing_region: s.region || "",
+                        billing_country: s.country_code || s.country || f.billing_country || "ES",
+                      }))
+                    }
                   />
                 </div>
                 <div className="sm:col-span-2">
@@ -668,7 +805,7 @@ export function NewCompanyModal({ open, onOpenChange, plans, ownerEmail, onCreat
                       }
                     />
                   </div>
-                  <div>
+                  <div className="sm:col-span-2">
                     <Label>Modo de acceso</Label>
                     <Select
                       value={form.initial_admin_access_mode}
@@ -685,10 +822,15 @@ export function NewCompanyModal({ open, onOpenChange, plans, ownerEmail, onCreat
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="invite">Invitación segura (recomendado)</SelectItem>
+                        <SelectItem value="invite">Invitación segura por email (recomendado)</SelectItem>
                         <SelectItem value="password_temp">Contraseña temporal (avanzado)</SelectItem>
                       </SelectContent>
                     </Select>
+                    {form.initial_admin_access_mode === "invite" ? (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Se enviará un correo al administrador para activar su cuenta.
+                      </p>
+                    ) : null}
                   </div>
                   {form.initial_admin_access_mode === "password_temp" ? (
                     <div className="sm:col-span-2 rounded-xl border border-dashed border-border/80 bg-muted/5 p-3 space-y-2">
@@ -755,5 +897,33 @@ export function NewCompanyModal({ open, onOpenChange, plans, ownerEmail, onCreat
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <Dialog open={copyConfirmOpen} onOpenChange={setCopyConfirmOpen}>
+      <DialogContent className="max-w-md rounded-2xl">
+        <DialogHeader>
+          <DialogTitle>Sustituir datos de facturación</DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground">
+          Ya hay datos de facturación escritos. ¿Quiere sustituirlos por los datos comerciales (razón
+          social, NIF y contacto)?
+        </p>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button type="button" variant="outline" className="rounded-xl" onClick={() => setCopyConfirmOpen(false)}>
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            className="rounded-xl"
+            onClick={() => {
+              applyCommercialToBilling();
+              setCopyConfirmOpen(false);
+            }}
+          >
+            Sustituir
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

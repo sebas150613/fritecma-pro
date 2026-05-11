@@ -43,6 +43,9 @@ export type AppApi = {
     switch: (organizationId: string) => Promise<any>;
     hardDeleteOrganization: (organizationId: string) => Promise<any>;
   };
+  addressAutocomplete: {
+    search: (query: string) => Promise<{ suggestions?: any[]; configured?: boolean }>;
+  };
   entities: Record<string, AppEntityAdapter>;
   files: {
     uploadPublic: (payload: any) => Promise<any>;

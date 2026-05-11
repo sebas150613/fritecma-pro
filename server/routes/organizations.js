@@ -23,11 +23,15 @@ import {
   normalizeOrganizationSlug,
   sanitizeOrganizationSettingsForClient,
 } from "../lib/tenant.js";
+import { buildInvitationUrls } from "../lib/invite-links.js";
+import { sendInvitationEmail } from "../services/account-security-service.js";
 import {
+  assertActiveCommercialFiscalBasics,
   extractOwnerProfileFromDecryptedSettings,
   hasActiveAdminUser,
   isFiscalProfileComplete,
   mergeOrganizationAndProfileForOwnerApi,
+  mergeProfileExtractWithStoragePatch,
   parseCreateOrganizationBody,
   parsePatchOrganizationBody,
   trimOrNull,
@@ -49,9 +53,25 @@ const organizationSettingsStore = getOrganizationSettingsStore();
 const userStore = getUserStore();
 const organizationSubscriptionStore = getOrganizationSubscriptionStore();
 
+const shouldExposeInviteUrl = (emailDelivery, inviteUrl) => {
+  if (!inviteUrl) {
+    return false;
+  }
+  if (!emailDelivery) {
+    return true;
+  }
+  if (emailDelivery.success !== true) {
+    return true;
+  }
+  if (emailDelivery.provider === "stub" || emailDelivery.provider === "disabled") {
+    return true;
+  }
+  return false;
+};
+
 /**
  * Owner-only: create or invite a user into an organization (shared by POST /users and org bootstrap).
- * @returns {{ user: object, membership: object, invite_url: string | null, httpStatus: number }}
+ * @returns {{ user: object, membership: object, invite_url: string | null, email_delivery: object | null, httpStatus: number }}
  */
 async function inviteOrganizationUserAsOwner(req, organization, payload) {
   const email = String(payload.email || "")
@@ -158,11 +178,29 @@ async function inviteOrganizationUserAsOwner(req, organization, payload) {
     ? await membershipStore.update(existingMembership.id, membershipPayload)
     : await membershipStore.create(membershipPayload);
 
-  const inviteUrl = userRecord.invitation_token
-    ? `${req.protocol}://${req.get("host")}/api/auth/accept-invite?token=${encodeURIComponent(
-        userRecord.invitation_token
-      )}&redirect_uri=${encodeURIComponent(`${req.protocol}://${req.get("host")}/`)}`
-    : null;
+  const { inviteUrl, loginUrl } = buildInvitationUrls(req, userRecord.invitation_token);
+
+  let email_delivery = null;
+  if (inviteUrl && !temporaryPassword) {
+    try {
+      email_delivery = await sendInvitationEmail({
+        to: email,
+        organizationName: organization.name,
+        invitedBy: req.currentUser?.full_name || req.currentUser?.email || "",
+        role: desiredRole,
+        activationUrl: inviteUrl,
+        loginUrl,
+        requiresActivation: true,
+      });
+    } catch (err) {
+      email_delivery = {
+        success: false,
+        queued: false,
+        provider: err?.status === 503 ? "smtp_not_configured" : "error",
+        message: err?.message || "No se pudo enviar el correo de invitación.",
+      };
+    }
+  }
 
   return {
     user: {
@@ -176,6 +214,7 @@ async function inviteOrganizationUserAsOwner(req, organization, payload) {
       role: membership.role,
     },
     invite_url: inviteUrl,
+    email_delivery,
     httpStatus: existingUser ? 200 : 201,
   };
 }
@@ -468,17 +507,23 @@ router.post(
     });
 
     let initial_admin_warning = null;
+    let initial_admin_email_delivery = null;
+    let initial_admin_invite_url;
     if (initialAdmin.enabled) {
       const mode = String(initialAdmin.access_mode || "invite").toLowerCase();
       const temporaryPassword =
         mode === "password_temp" ? String(initialAdmin.temporary_password || "") : "";
       try {
-        await inviteOrganizationUserAsOwner(req, organization, {
+        const inviteResult = await inviteOrganizationUserAsOwner(req, organization, {
           email: initialAdmin.email,
           full_name: initialAdmin.full_name,
           role: "admin",
           temporary_password: temporaryPassword,
         });
+        initial_admin_email_delivery = inviteResult.email_delivery;
+        if (shouldExposeInviteUrl(inviteResult.email_delivery, inviteResult.invite_url)) {
+          initial_admin_invite_url = inviteResult.invite_url;
+        }
       } catch (error) {
         initial_admin_warning =
           "La empresa se ha creado, pero no se pudo crear el administrador inicial.";
@@ -504,6 +549,12 @@ router.post(
       organization,
       billing: summary,
       ...(initial_admin_warning ? { initial_admin_warning } : {}),
+      ...(initial_admin_email_delivery != null
+        ? { initial_admin_email_delivery }
+        : {}),
+      ...(initial_admin_invite_url != null
+        ? { initial_admin_invite_url }
+        : {}),
     });
   })
 );
@@ -529,6 +580,13 @@ router.patch(
       throw new HttpError(404, "Organization not found");
     }
 
+    if (organizationId === DEFAULT_ORGANIZATION_ID) {
+      throw new HttpError(
+        403,
+        "La organización interna no puede editarse como un cliente desde este panel."
+      );
+    }
+
     const { organizationPatch, profilePatch } = parsePatchOrganizationBody(req.body || {});
 
     if (
@@ -537,6 +595,24 @@ router.patch(
     ) {
       throw new HttpError(400, "No hay cambios que guardar.");
     }
+
+    const settingsRowForValidation = (
+      await organizationSettingsStore.filter({
+        filter: { organization_id: organizationId },
+        limit: 1,
+      })
+    )[0] || null;
+    const decryptedForValidation = settingsRowForValidation
+      ? decryptOrganizationSettingsFromStorage({ ...settingsRowForValidation })
+      : {};
+    const profileExtractForValidation =
+      extractOwnerProfileFromDecryptedSettings(decryptedForValidation);
+    const mergedOrgForValidation = { ...organization, ...organizationPatch };
+    const mergedProfileExtract = mergeProfileExtractWithStoragePatch(
+      profileExtractForValidation,
+      profilePatch
+    );
+    assertActiveCommercialFiscalBasics(mergedOrgForValidation, mergedProfileExtract);
 
     if (Object.prototype.hasOwnProperty.call(organizationPatch, "slug")) {
       const nextSlug = organizationPatch.slug;
@@ -627,11 +703,16 @@ router.post(
       temporary_password: req.body?.temporary_password,
     });
 
-    res.status(result.httpStatus).json({
+    const payload = {
       user: result.user,
       membership: result.membership,
-      invite_url: result.invite_url,
-    });
+      email_delivery: result.email_delivery,
+    };
+    if (shouldExposeInviteUrl(result.email_delivery, result.invite_url)) {
+      payload.invite_url = result.invite_url;
+    }
+
+    res.status(result.httpStatus).json(payload);
   })
 );
 

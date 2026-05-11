@@ -146,6 +146,9 @@ export const appApi = {
       (provider) => provider.appApi.organizations?.hardDeleteOrganization
     ),
   },
+  addressAutocomplete: {
+    search: withProviderMethod((provider) => provider.appApi.addressAutocomplete?.search),
+  },
   entities: createLazyEntityProxy(),
   files: {
     uploadPublic: withProviderMethod(

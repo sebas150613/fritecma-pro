@@ -13,23 +13,12 @@ import { getOrganizationMembershipStore } from "../lib/tenant.js";
 import { normalizeOrganizationRole } from "../lib/roles.js";
 import { assertSeatAvailableForOrganization } from "../services/billing-service.js";
 import { sendInvitationEmail } from "../services/account-security-service.js";
-import { serverConfig } from "../config.js";
 import { requireWritableLicense } from "../lib/license.js";
+import { buildInvitationUrls } from "../lib/invite-links.js";
 
 const router = express.Router();
 const userStore = getUserStore();
 const membershipStore = getOrganizationMembershipStore();
-
-const buildServerBaseUrl = (req) => {
-  const forwardedProto = req.headers["x-forwarded-proto"]?.toString();
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
-
-  if (host) {
-    return `${forwardedProto || req.protocol || "http"}://${host}`;
-  }
-
-  return `http://${serverConfig.host}:${serverConfig.port}`;
-};
 
 router.use(requireAuth);
 
@@ -138,22 +127,10 @@ router.post(
       includeStatus: false,
     });
 
-    const appOrigin = String(req.headers.origin || "").trim();
-    const redirectUri = appOrigin
-      ? `${appOrigin.replace(/\/+$/, "")}/`
-      : `${buildServerBaseUrl(req)}/`;
-    const inviteUrl = userRecord.invitation_token
-      ? `${buildServerBaseUrl(
-          req
-        )}/api/auth/accept-invite?token=${encodeURIComponent(
-          userRecord.invitation_token
-        )}&redirect_uri=${encodeURIComponent(
-          redirectUri
-        )}`
-      : null;
-    const loginUrl = `${buildServerBaseUrl(
-      req
-    )}/api/auth/login?redirect_uri=${encodeURIComponent(redirectUri)}`;
+    const { inviteUrl, loginUrl } = buildInvitationUrls(
+      req,
+      userRecord.invitation_token
+    );
     const emailDelivery = await sendInvitationEmail({
       to: normalizedEmail,
       organizationName: req.currentOrganization.name,

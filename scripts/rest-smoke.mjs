@@ -733,6 +733,57 @@ const runSmoke = async () => {
       throw new Error("PATCH owner-profile did not persist billing_phone.");
     }
 
+    const addressSuggest = await request("/api/address-autocomplete?q=ab", {
+      method: "GET",
+      headers: ownerHeaders,
+    });
+    if (typeof addressSuggest?.configured !== "boolean" || !Array.isArray(addressSuggest?.suggestions)) {
+      throw new Error("address-autocomplete response contract failed.");
+    }
+
+    const frigestPatchDeny = await requestExpectFailure(
+      "/api/organizations/org-frigest/owner-profile",
+      {
+        method: "PATCH",
+        headers: ownerHeaders,
+        body: JSON.stringify({ commercial_notes: "smoke-should-not-apply" }),
+      }
+    );
+    if (frigestPatchDeny.status !== 403) {
+      throw new Error(`Expected 403 patching org-frigest owner-profile, got ${frigestPatchDeny.status}`);
+    }
+
+    const ownerInviteOrgBootstrap = await request("/api/organizations", {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        name: "Smoke Invite Email Org",
+        slug: "smoke-invite-org",
+        plan_code: "starter",
+        create_initial_admin: true,
+        initial_admin_full_name: "Admin Invite",
+        initial_admin_email: "smoke-invite-admin@local.test",
+        initial_admin_access_mode: "invite",
+      }),
+    });
+    const inviteBootstrapOrgId = ownerInviteOrgBootstrap?.organization?.id;
+    if (!inviteBootstrapOrgId) {
+      throw new Error("Invite bootstrap org create failed.");
+    }
+    if (!ownerInviteOrgBootstrap?.initial_admin_email_delivery) {
+      throw new Error("Expected initial_admin_email_delivery on invite bootstrap.");
+    }
+    const smtpInviteOk =
+      ownerInviteOrgBootstrap.initial_admin_email_delivery?.success === true &&
+      ownerInviteOrgBootstrap.initial_admin_email_delivery?.provider === "smtp";
+    if (smtpInviteOk && ownerInviteOrgBootstrap.initial_admin_invite_url) {
+      throw new Error("initial_admin_invite_url must be omitted when SMTP delivery succeeds.");
+    }
+    await request(`/api/organizations/${encodeURIComponent(inviteBootstrapOrgId)}/hard-delete`, {
+      method: "DELETE",
+      headers: ownerHeaders,
+    });
+
     // Create admin user-a in org A
     const ownerInviteAdminA = await request(
       `/api/organizations/${encodeURIComponent(orgAId)}/users`,
@@ -789,6 +840,22 @@ const runSmoke = async () => {
         }),
       }
     );
+
+    const ownerInviteEmailOnly = await request(
+      `/api/organizations/${encodeURIComponent(orgBId)}/users`,
+      {
+        method: "POST",
+        headers: ownerHeaders,
+        body: JSON.stringify({
+          email: "worker-invite-email@local.test",
+          full_name: "Worker Invite Email",
+          role: "tecnico",
+        }),
+      }
+    );
+    if (!ownerInviteEmailOnly?.email_delivery) {
+      throw new Error("Expected email_delivery on secure invite user create.");
+    }
 
     // Multi-company restriction: owner cannot add user-a to org B
     const ownerAddUserAToB = await requestExpectFailure(

@@ -185,6 +185,67 @@ export const mergeOrganizationAndProfileForOwnerApi = (organization, profile) =>
   ...profile,
 });
 
+/** Merge stored owner profile extract with a settings patch (owner_profile_* keys). */
+export const mergeProfileExtractWithStoragePatch = (extract, profilePatch) => {
+  const out = { ...(extract || {}) };
+  for (const [k, v] of Object.entries(profilePatch || {})) {
+    if (!k.startsWith(OWNER_PROFILE_PREFIX)) {
+      continue;
+    }
+    const short = k.slice(OWNER_PROFILE_PREFIX.length);
+    if (v === undefined) {
+      continue;
+    }
+    out[short] = v === "" ? null : v;
+  }
+  return out;
+};
+
+/**
+ * When commercial_status is activa or pendiente_pago, require fiscal basics + billing email.
+ */
+export const assertActiveCommercialFiscalBasics = (organization, profileExtract) => {
+  const status = String(organization?.commercial_status || "").toLowerCase();
+  if (!["activa", "pendiente_pago"].includes(status)) {
+    return;
+  }
+  if (!trimOrNull(organization?.legal_name)) {
+    throw new HttpError(
+      400,
+      "La razón social es obligatoria para empresas activas o facturables."
+    );
+  }
+  if (!trimOrNull(organization?.tax_id)) {
+    throw new HttpError(400, "El NIF/CIF es obligatorio para empresas activas.");
+  }
+  if (!trimOrNull(organization?.tax_id_type)) {
+    throw new HttpError(
+      400,
+      "El tipo de identificador fiscal es obligatorio para empresas activas."
+    );
+  }
+  const billEmail = normalizeEmail(profileExtract?.billing_email);
+  if (!billEmail) {
+    throw new HttpError(
+      400,
+      "El email de facturación es obligatorio para empresas activas o pendiente de pago."
+    );
+  }
+  assertEmailFormat(billEmail, "El email de facturación no tiene un formato válido.");
+  const ccEmail = normalizeEmail(profileExtract?.commercial_contact_email);
+  if (ccEmail) {
+    assertEmailFormat(ccEmail, "El email de contacto comercial no tiene un formato válido.");
+  }
+  const pm = trimOrNull(profileExtract?.payment_method)?.toLowerCase();
+  if (pm && !PAYMENT_METHODS.has(pm)) {
+    throw new HttpError(422, "El método de pago previsto no es válido.");
+  }
+  const pt = trimOrNull(profileExtract?.payment_terms)?.toLowerCase();
+  if (pt && !PAYMENT_TERMS.has(pt)) {
+    throw new HttpError(422, "Las condiciones de pago no son válidas.");
+  }
+};
+
 export const parseCreateOrganizationBody = (body = {}) => {
   const name = trimOrNull(body.name);
   const slugInput = trimOrNull(body.slug);
@@ -360,6 +421,19 @@ export const parsePatchOrganizationBody = (body = {}) => {
   const pt = profilePatch.owner_profile_payment_terms;
   if (pt && !PAYMENT_TERMS.has(pt)) {
     throw new HttpError(422, "Las condiciones de pago no son válidas.");
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "preferred_language")) {
+    const lang = trimOrNull(body.preferred_language)?.toLowerCase();
+    if (lang && !["es", "ca", "en"].includes(lang)) {
+      throw new HttpError(422, "El idioma preferido no es válido.");
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "preferred_contact_channel")) {
+    const channel = trimOrNull(body.preferred_contact_channel)?.toLowerCase();
+    if (channel && !["email", "telefono", "whatsapp", "indistinto"].includes(channel)) {
+      throw new HttpError(422, "El canal de contacto preferido no es válido.");
+    }
   }
 
   return { organizationPatch: patch, profilePatch };

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { NewCompanyModal } from "@/pages/owner-clients/NewCompanyModal";
+import { BillingAddressSuggestInput } from "@/pages/owner-clients/BillingAddressSuggestInput";
 import {
   AlertTriangle,
   Building2,
@@ -56,7 +58,16 @@ const INITIAL_FISCAL_DRAFT = {
   commercial_contact_mobile: "",
   preferred_language: "es",
   preferred_contact_channel: "email",
+  mirror_commercial_to_billing: false,
 };
+
+const emptyBillingDirty = () => ({
+  billing_fiscal_name: false,
+  billing_tax_id: false,
+  billing_contact_name: false,
+  billing_email: false,
+  billing_phone: false,
+});
 
 const ROLE_OPTIONS = [
   { value: "admin", label: "Admin" },
@@ -108,6 +119,11 @@ export default function OwnerClients() {
     temporary_password: "",
   });
   const [inviteUrl, setInviteUrl] = useState("");
+  const [userActionMessage, setUserActionMessage] = useState("");
+  const [ownerBanner, setOwnerBanner] = useState(null);
+  const [billingDirty, setBillingDirty] = useState(emptyBillingDirty);
+  const [copyBillingConfirmOpen, setCopyBillingConfirmOpen] = useState(false);
+  const [fiscalSaveOk, setFiscalSaveOk] = useState(false);
   const [hardDeleteOpen, setHardDeleteOpen] = useState(false);
   const [hardDeletePhrase, setHardDeletePhrase] = useState("");
   const [advancedInviteOpen, setAdvancedInviteOpen] = useState(false);
@@ -156,7 +172,12 @@ export default function OwnerClients() {
       temporary_password: "",
     });
     setInviteUrl("");
+    setUserActionMessage("");
     setAdvancedInviteOpen(false);
+  }, [selectedId]);
+
+  useEffect(() => {
+    setBillingDirty(emptyBillingDirty());
   }, [selectedId]);
 
   const selectedOrganization = useMemo(
@@ -201,8 +222,48 @@ export default function OwnerClients() {
       commercial_contact_mobile: p.commercial_contact_mobile || "",
       preferred_language: p.preferred_language || "es",
       preferred_contact_channel: p.preferred_contact_channel || "email",
+      mirror_commercial_to_billing: p.mirror_commercial_to_billing === true,
     });
   }, [selectedOrganization]);
+
+  useEffect(() => {
+    if (!selectedOrganization?.id || !fiscalDraft.mirror_commercial_to_billing) {
+      return;
+    }
+    setFiscalDraft((d) => {
+      let changed = false;
+      const n = { ...d };
+      const sync = (dirtyKey, from, to) => {
+        if (billingDirty[dirtyKey]) {
+          return;
+        }
+        const src = d[from] ?? "";
+        if (String(n[to] ?? "") !== String(src)) {
+          n[to] = src;
+          changed = true;
+        }
+      };
+      sync("billing_fiscal_name", "legal_name", "billing_fiscal_name");
+      sync("billing_tax_id", "tax_id", "billing_tax_id");
+      sync("billing_contact_name", "commercial_contact_name", "billing_contact_name");
+      sync("billing_email", "commercial_contact_email", "billing_email");
+      sync("billing_phone", "commercial_contact_phone", "billing_phone");
+      return changed ? n : d;
+    });
+  }, [
+    selectedOrganization?.id,
+    fiscalDraft.mirror_commercial_to_billing,
+    fiscalDraft.legal_name,
+    fiscalDraft.tax_id,
+    fiscalDraft.commercial_contact_name,
+    fiscalDraft.commercial_contact_email,
+    fiscalDraft.commercial_contact_phone,
+    billingDirty.billing_fiscal_name,
+    billingDirty.billing_tax_id,
+    billingDirty.billing_contact_name,
+    billingDirty.billing_email,
+    billingDirty.billing_phone,
+  ]);
 
   const filteredOrganizations = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -273,6 +334,34 @@ export default function OwnerClients() {
   const isPlatformInternalOrg = (org) =>
     org?.is_platform_internal === true || org?.id === PLATFORM_INTERNAL_ORG_ID;
 
+  const applyCommercialToBilling = () => {
+    setFiscalDraft((d) => ({
+      ...d,
+      billing_fiscal_name: d.legal_name || "",
+      billing_tax_id: d.tax_id || "",
+      billing_contact_name: d.commercial_contact_name || "",
+      billing_email: d.commercial_contact_email || "",
+      billing_phone: d.commercial_contact_phone || "",
+    }));
+    setBillingDirty(emptyBillingDirty());
+  };
+
+  const requestCopyCommercialToBilling = () => {
+    const targets = [
+      "billing_fiscal_name",
+      "billing_tax_id",
+      "billing_contact_name",
+      "billing_email",
+      "billing_phone",
+    ];
+    const anyFilled = targets.some((k) => String(fiscalDraft[k] || "").trim() !== "");
+    if (anyFilled) {
+      setCopyBillingConfirmOpen(true);
+    } else {
+      applyCommercialToBilling();
+    }
+  };
+
   const isSessionOwnerContextOrg =
     me?.is_hidden_owner === true &&
     Boolean(me?.current_organization?.id) &&
@@ -307,7 +396,20 @@ export default function OwnerClients() {
           : {}),
       };
       const response = await appApi.organizations.createUser(selectedOrganization.id, payload);
+      const ed = response?.email_delivery;
+      const okSmtp = ed?.success === true && ed?.provider === "smtp";
       setInviteUrl(response?.invite_url || "");
+      if (okSmtp) {
+        setUserActionMessage("Invitación enviada correctamente.");
+      } else if (response?.invite_url) {
+        setUserActionMessage(
+          "Usuario creado, pero no se pudo enviar el email. Copie este enlace y envíelo manualmente."
+        );
+      } else if (ed?.success === true && (ed?.provider === "stub" || ed?.provider === "disabled")) {
+        setUserActionMessage("Usuario creado. El correo está en modo simulación o desactivado.");
+      } else {
+        setUserActionMessage("");
+      }
       setCreateUserForm((cur) => ({
         ...cur,
         full_name: "",
@@ -427,6 +529,8 @@ export default function OwnerClients() {
         preferred_contact_channel: fiscalDraft.preferred_contact_channel,
       });
       await load();
+      setFiscalSaveOk(true);
+      window.setTimeout(() => setFiscalSaveOk(false), 5000);
     } catch (e) {
       setError(e?.message || "No se pudieron guardar los datos.");
     } finally {
@@ -435,17 +539,51 @@ export default function OwnerClients() {
   };
 
   const onNewCompanyCreated = useCallback(
-    async ({ organizationId, initial_admin_warning }) => {
+    async (info) => {
+      setOwnerBanner(null);
+      setError("");
       await load();
+      const organizationId = info?.organizationId;
       if (organizationId) {
         setSelectedId(organizationId);
         setDetailTab("resumen");
       }
-      if (initial_admin_warning) {
+      if (info?.initial_admin_warning) {
         setError(
           "La empresa se ha creado, pero no se pudo crear el administrador inicial. Puede reintentar desde Usuarios."
         );
+        return;
       }
+      if (info?.create_initial_admin && info?.initial_admin_access_mode === "invite") {
+        const d = info?.initial_admin_email_delivery;
+        const okSmtp = d?.success === true && d?.provider === "smtp";
+        if (okSmtp) {
+          setOwnerBanner({
+            type: "success",
+            message: "Empresa creada. Invitación enviada al administrador.",
+          });
+          return;
+        }
+        if (info?.initial_admin_invite_url) {
+          setOwnerBanner({
+            type: "warn",
+            message:
+              "Empresa creada, pero no se pudo enviar el email. Copie este enlace de invitación y envíelo manualmente.",
+            url: info.initial_admin_invite_url,
+          });
+          return;
+        }
+        if (d?.success === true && (d?.provider === "stub" || d?.provider === "disabled")) {
+          setOwnerBanner({
+            type: "info",
+            message:
+              "Empresa creada. El correo está en modo simulación o desactivado; use el enlace si lo necesita.",
+            url: info?.initial_admin_invite_url,
+          });
+          return;
+        }
+      }
+      setOwnerBanner({ type: "success", message: "Empresa creada correctamente." });
     },
     []
   );
@@ -507,6 +645,28 @@ export default function OwnerClients() {
           {error}
         </div>
       )}
+
+      {ownerBanner ? (
+        <div
+          className={`rounded-2xl border p-4 text-sm flex flex-col gap-2 ${
+            ownerBanner.type === "success"
+              ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-950"
+              : ownerBanner.type === "warn"
+                ? "border-amber-500/35 bg-amber-500/5 text-amber-950"
+                : "border-border bg-muted/30 text-foreground"
+          }`}
+        >
+          <p>{ownerBanner.message}</p>
+          {ownerBanner.url ? (
+            <p className="font-mono text-xs break-all text-muted-foreground">{ownerBanner.url}</p>
+          ) : null}
+          <div>
+            <Button type="button" variant="outline" size="sm" className="rounded-xl" onClick={() => setOwnerBanner(null)}>
+              Cerrar aviso
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
         <div className="relative flex-1 max-w-xl">
@@ -716,16 +876,19 @@ export default function OwnerClients() {
 
               <TabsContent value="fiscal" className="mt-0">
                 <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <h3 className="font-semibold">Datos fiscales y comerciales</h3>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {selectedOrganization.fiscal_complete ? "Ficha fiscal completa" : "Faltan datos"}
+                        {selectedOrganization.fiscal_complete ? "Ficha fiscal completa" : "Faltan datos fiscales"}
                       </p>
+                      {fiscalSaveOk ? (
+                        <p className="text-xs text-emerald-700 mt-2">Cambios guardados correctamente.</p>
+                      ) : null}
                     </div>
                     <Button
                       type="button"
-                      className="rounded-xl"
+                      className="rounded-xl shrink-0"
                       disabled={busy === "save-fiscal" || isPlatformInternalOrg(selectedOrganization)}
                       onClick={handleSaveFiscal}
                     >
@@ -733,6 +896,33 @@ export default function OwnerClients() {
                       Guardar cambios
                     </Button>
                   </div>
+                  {!isPlatformInternalOrg(selectedOrganization) ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-border bg-muted/10 px-3 py-2">
+                      <label className="flex items-start gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={fiscalDraft.mirror_commercial_to_billing}
+                          onCheckedChange={(v) =>
+                            setFiscalDraft((d) => ({ ...d, mirror_commercial_to_billing: v === true }))
+                          }
+                          className="mt-0.5"
+                        />
+                        <span>
+                          <span className="font-medium">Usar datos comerciales también para facturación</span>
+                          <span className="block text-xs text-muted-foreground font-normal">
+                            Sincroniza razón social, NIF y contacto salvo que edite facturación manualmente.
+                          </span>
+                        </span>
+                      </label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-xl shrink-0"
+                        onClick={requestCopyCommercialToBilling}
+                      >
+                        Copiar datos comerciales a facturación
+                      </Button>
+                    </div>
+                  ) : null}
                   <div className="grid sm:grid-cols-2 gap-3">
                     <div>
                       <Label>Nombre comercial</Label>
@@ -812,9 +1002,10 @@ export default function OwnerClients() {
                         className="mt-1 rounded-xl"
                         autoComplete="off"
                         value={fiscalDraft.billing_fiscal_name}
-                        onChange={(e) =>
-                          setFiscalDraft((d) => ({ ...d, billing_fiscal_name: e.target.value }))
-                        }
+                        onChange={(e) => {
+                          setBillingDirty((x) => ({ ...x, billing_fiscal_name: true }));
+                          setFiscalDraft((d) => ({ ...d, billing_fiscal_name: e.target.value }));
+                        }}
                       />
                     </div>
                     <div>
@@ -823,7 +1014,10 @@ export default function OwnerClients() {
                         className="mt-1 rounded-xl"
                         autoComplete="off"
                         value={fiscalDraft.billing_tax_id}
-                        onChange={(e) => setFiscalDraft((d) => ({ ...d, billing_tax_id: e.target.value }))}
+                        onChange={(e) => {
+                          setBillingDirty((x) => ({ ...x, billing_tax_id: true }));
+                          setFiscalDraft((d) => ({ ...d, billing_tax_id: e.target.value }));
+                        }}
                       />
                     </div>
                     <div>
@@ -834,17 +1028,52 @@ export default function OwnerClients() {
                         autoComplete="off"
                         name="owner_edit_billing_email"
                         value={fiscalDraft.billing_email}
-                        onChange={(e) => setFiscalDraft((d) => ({ ...d, billing_email: e.target.value }))}
+                        onChange={(e) => {
+                          setBillingDirty((x) => ({ ...x, billing_email: true }));
+                          setFiscalDraft((d) => ({ ...d, billing_email: e.target.value }));
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <Label>Teléfono facturación</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        autoComplete="off"
+                        value={fiscalDraft.billing_phone}
+                        onChange={(e) => {
+                          setBillingDirty((x) => ({ ...x, billing_phone: true }));
+                          setFiscalDraft((d) => ({ ...d, billing_phone: e.target.value }));
+                        }}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Contacto facturación</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        autoComplete="off"
+                        value={fiscalDraft.billing_contact_name}
+                        onChange={(e) => {
+                          setBillingDirty((x) => ({ ...x, billing_contact_name: true }));
+                          setFiscalDraft((d) => ({ ...d, billing_contact_name: e.target.value }));
+                        }}
                       />
                     </div>
                     <div className="sm:col-span-2">
                       <Label>Dirección fiscal línea 1</Label>
-                      <Input
+                      <BillingAddressSuggestInput
                         className="mt-1 rounded-xl"
-                        autoComplete="off"
+                        name="owner_edit_billing_address1"
                         value={fiscalDraft.billing_address_line1}
-                        onChange={(e) =>
-                          setFiscalDraft((d) => ({ ...d, billing_address_line1: e.target.value }))
+                        onChange={(v) => setFiscalDraft((d) => ({ ...d, billing_address_line1: v }))}
+                        onPick={(s) =>
+                          setFiscalDraft((d) => ({
+                            ...d,
+                            billing_address_line1: s.address_line1 || s.label || "",
+                            billing_postal_code: s.postal_code || "",
+                            billing_city: s.city || "",
+                            billing_region: s.region || "",
+                            billing_country: s.country_code || s.country || d.billing_country || "ES",
+                          }))
                         }
                       />
                     </div>
@@ -869,6 +1098,15 @@ export default function OwnerClients() {
                       />
                     </div>
                     <div>
+                      <Label>Provincia / región</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        autoComplete="off"
+                        value={fiscalDraft.billing_region}
+                        onChange={(e) => setFiscalDraft((d) => ({ ...d, billing_region: e.target.value }))}
+                      />
+                    </div>
+                    <div>
                       <Label>País</Label>
                       <Input
                         className="mt-1 rounded-xl"
@@ -878,6 +1116,150 @@ export default function OwnerClients() {
                           setFiscalDraft((d) => ({ ...d, billing_country: e.target.value }))
                         }
                       />
+                    </div>
+                    <div>
+                      <Label>Método de pago previsto</Label>
+                      <Select
+                        value={fiscalDraft.payment_method}
+                        onValueChange={(v) => setFiscalDraft((d) => ({ ...d, payment_method: v }))}
+                      >
+                        <SelectTrigger className="mt-1 rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="transferencia">Transferencia</SelectItem>
+                          <SelectItem value="domiciliacion_sepa">Domiciliación SEPA</SelectItem>
+                          <SelectItem value="tarjeta_stripe">Tarjeta / Stripe</SelectItem>
+                          <SelectItem value="manual">Manual</SelectItem>
+                          <SelectItem value="pendiente">Pendiente</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Condiciones de pago</Label>
+                      <Select
+                        value={fiscalDraft.payment_terms}
+                        onValueChange={(v) => setFiscalDraft((d) => ({ ...d, payment_terms: v }))}
+                      >
+                        <SelectTrigger className="mt-1 rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="inmediato">Inmediato</SelectItem>
+                          <SelectItem value="15_dias">15 días</SelectItem>
+                          <SelectItem value="30_dias">30 días</SelectItem>
+                          <SelectItem value="personalizado">Personalizado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Referencia interna</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        autoComplete="off"
+                        value={fiscalDraft.internal_customer_reference}
+                        onChange={(e) =>
+                          setFiscalDraft((d) => ({ ...d, internal_customer_reference: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="sm:col-span-2 pt-2 border-t border-border">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                        Contacto principal
+                      </p>
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <div>
+                          <Label>Nombre</Label>
+                          <Input
+                            className="mt-1 rounded-xl"
+                            autoComplete="name"
+                            value={fiscalDraft.commercial_contact_name}
+                            onChange={(e) =>
+                              setFiscalDraft((d) => ({ ...d, commercial_contact_name: e.target.value }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Cargo</Label>
+                          <Input
+                            className="mt-1 rounded-xl"
+                            autoComplete="off"
+                            value={fiscalDraft.commercial_contact_role}
+                            onChange={(e) =>
+                              setFiscalDraft((d) => ({ ...d, commercial_contact_role: e.target.value }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Email</Label>
+                          <Input
+                            className="mt-1 rounded-xl"
+                            type="email"
+                            autoComplete="off"
+                            value={fiscalDraft.commercial_contact_email}
+                            onChange={(e) =>
+                              setFiscalDraft((d) => ({ ...d, commercial_contact_email: e.target.value }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Teléfono</Label>
+                          <Input
+                            className="mt-1 rounded-xl"
+                            autoComplete="off"
+                            value={fiscalDraft.commercial_contact_phone}
+                            onChange={(e) =>
+                              setFiscalDraft((d) => ({ ...d, commercial_contact_phone: e.target.value }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Móvil</Label>
+                          <Input
+                            className="mt-1 rounded-xl"
+                            autoComplete="off"
+                            value={fiscalDraft.commercial_contact_mobile}
+                            onChange={(e) =>
+                              setFiscalDraft((d) => ({ ...d, commercial_contact_mobile: e.target.value }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label>Idioma preferido</Label>
+                          <Select
+                            value={fiscalDraft.preferred_language}
+                            onValueChange={(v) => setFiscalDraft((d) => ({ ...d, preferred_language: v }))}
+                          >
+                            <SelectTrigger className="mt-1 rounded-xl">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="es">Español</SelectItem>
+                              <SelectItem value="ca">Català</SelectItem>
+                              <SelectItem value="en">English</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label>Canal preferido</Label>
+                          <Select
+                            value={fiscalDraft.preferred_contact_channel}
+                            onValueChange={(v) =>
+                              setFiscalDraft((d) => ({ ...d, preferred_contact_channel: v }))
+                            }
+                          >
+                            <SelectTrigger className="mt-1 rounded-xl">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="email">Email</SelectItem>
+                              <SelectItem value="telefono">Teléfono</SelectItem>
+                              <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                              <SelectItem value="indistinto">Indistinto</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
                     </div>
                     <div className="sm:col-span-2">
                       <Label>Notas comerciales internas</Label>
@@ -932,7 +1314,8 @@ export default function OwnerClients() {
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Edite los datos en la pestaña «Datos fiscales» y pulse Guardar cambios.
+                    Edite en «Datos fiscales», use la copia comercial → facturación si aplica y pulse Guardar
+                    cambios.
                   </p>
                 </div>
               </TabsContent>
@@ -948,8 +1331,14 @@ export default function OwnerClients() {
                     <h3 className="font-semibold">Crear / invitar usuario</h3>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Por defecto, invitación por enlace. La contraseña provisional solo en opciones avanzadas.
+                    Por defecto, invitación segura por email. La contraseña provisional solo en opciones
+                    avanzadas.
                   </p>
+                  {userActionMessage ? (
+                    <p className="text-sm text-foreground border border-border rounded-xl px-3 py-2 bg-muted/20">
+                      {userActionMessage}
+                    </p>
+                  ) : null}
                   <div className="grid sm:grid-cols-2 gap-3">
                     <div>
                       <Label>Nombre</Label>
@@ -1260,6 +1649,38 @@ export default function OwnerClients() {
             >
               {busy === "hard-delete-org" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Confirmar eliminación
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={copyBillingConfirmOpen} onOpenChange={setCopyBillingConfirmOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Sustituir datos de facturación</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Ya hay datos de facturación escritos. ¿Quiere sustituirlos por los datos comerciales (razón social,
+            NIF y contacto)?
+          </p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-xl"
+              onClick={() => setCopyBillingConfirmOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              className="rounded-xl"
+              onClick={() => {
+                applyCommercialToBilling();
+                setCopyBillingConfirmOpen(false);
+              }}
+            >
+              Sustituir
             </Button>
           </DialogFooter>
         </DialogContent>

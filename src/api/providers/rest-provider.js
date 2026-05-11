@@ -482,6 +482,14 @@ export const createRestProvider = () => {
           { method: "DELETE" }
         ),
     },
+    addressAutocomplete: {
+      search: (q) =>
+        http.request(
+          withQuery("/api/address-autocomplete", {
+            q: String(q || "").trim(),
+          })
+        ),
+    },
     entities: createEntityProxy(http),
     files: {
       uploadPublic: (payload) => http.upload("/api/files/public", payload),
