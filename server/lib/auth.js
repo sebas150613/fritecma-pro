@@ -189,11 +189,13 @@ export const stripSensitiveUserFields = (user) => {
     password_hash,
     invitation_token,
     password_reset_token,
+    dni,
     ...safeUser
   } = user;
   void password_hash;
   void invitation_token;
   void password_reset_token;
+  void dni;
   return safeUser;
 };
 

@@ -31,13 +31,23 @@ import {
 } from "../services/billing-service.js";
 import {
   consumeEmailVerificationToken,
+  consumeInviteActivationNonce,
   consumePasswordResetToken,
   createEmailVerificationToken,
+  createInviteActivationOtp,
   createPasswordResetToken,
+  formatInvitationRoleEs,
+  logInviteActivationAudit,
+  sendInviteOtpEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
+  verifyInviteActivationOtp,
 } from "../services/account-security-service.js";
 import { serverConfig } from "../config.js";
+import {
+  renderInviteActivationPageEs,
+  renderInviteUnavailablePageEs,
+} from "../lib/invite-activation-page.js";
 import { canOperateOffice } from "../lib/roles.js";
 import { createRateLimiter, getClientIp } from "../lib/rate-limit.js";
 
@@ -55,6 +65,28 @@ const authLoginRateLimiter = createRateLimiter({
         ? raw.trim().toLowerCase()
         : "";
     return `${ip}:${email || "no-email"}`;
+  },
+});
+
+const inviteRequestOtpRateLimiter = createRateLimiter({
+  namespace: "invite-otp-request",
+  windowMs: 15 * 60 * 1000,
+  max: 6,
+  keyGenerator(req) {
+    const ip = getClientIp(req);
+    const token = String(req.body?.token || "").trim();
+    return `${ip}:${token.slice(0, 16) || "no-token"}`;
+  },
+});
+
+const inviteVerifyOtpRateLimiter = createRateLimiter({
+  namespace: "invite-otp-verify",
+  windowMs: 15 * 60 * 1000,
+  max: 25,
+  keyGenerator(req) {
+    const ip = getClientIp(req);
+    const token = String(req.body?.token || "").trim();
+    return `${ip}:${token.slice(0, 16) || "no-token"}`;
   },
 });
 const userStore = getUserStore();
@@ -736,6 +768,25 @@ const createOrganizationSignup = async ({
   }
 };
 
+const normalizeActivationDni = (raw) => {
+  const s = String(raw || "").trim().replace(/\s+/g, "").toUpperCase();
+  if (s.length < 8 || s.length > 14) {
+    throw new HttpError(422, "El DNI/NIE no tiene un formato válido.");
+  }
+  if (!/^[A-Z0-9]+$/.test(s)) {
+    throw new HttpError(422, "El DNI/NIE no tiene un formato válido.");
+  }
+  return s;
+};
+
+const assertActivationNamePart = (value, fieldLabel) => {
+  const t = String(value || "").trim();
+  if (t.length < 2) {
+    throw new HttpError(422, `${fieldLabel} debe tener al menos 2 caracteres.`);
+  }
+  return t;
+};
+
 const getInvitationContext = async (token) => {
   const normalizedToken = String(token || "").trim();
   if (!normalizedToken) {
@@ -749,6 +800,10 @@ const getInvitationContext = async (token) => {
   const user = users[0] || null;
 
   if (!user || user.is_active === false) {
+    return null;
+  }
+
+  if (user.password_hash) {
     return null;
   }
 
@@ -769,183 +824,104 @@ const renderInviteAcceptancePage = async ({
   errorMessage = "",
 }) => {
   const invite = await getInvitationContext(token);
+  const loginPath = buildAuthViewUrl("/api/auth/login", { redirectUri });
 
   if (!invite) {
-    return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Invitation Not Found</title>
-    <style>
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        padding: 24px;
-        font-family: "Segoe UI", Arial, sans-serif;
-        background: #f6f7fb;
-        color: #102236;
-      }
-      .card {
-        width: 100%;
-        max-width: 480px;
-        padding: 28px;
-        border-radius: 22px;
-        background: #ffffff;
-        border: 1px solid rgba(16, 34, 54, 0.12);
-        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
-      }
-      a { color: #0b4f54; text-decoration: none; font-weight: 700; }
-    </style>
-  </head>
-  <body>
-    <div class="card">
-      <h1>Invitation unavailable</h1>
-      <p>The invitation token is invalid, expired, or has already been used.</p>
-      <p><a href="${escapeHtml(
-        buildAuthViewUrl("/api/auth/login", { redirectUri })
-      )}">Go back to login</a></p>
-    </div>
-  </body>
-</html>`;
+    return renderInviteUnavailablePageEs({ redirectUri, loginPath });
   }
 
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Accept Invitation</title>
-    <style>
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        padding: 24px;
-        font-family: "Segoe UI", Arial, sans-serif;
-        background:
-          radial-gradient(circle at top left, rgba(15, 118, 110, 0.18), transparent 32%),
-          linear-gradient(180deg, #f3f7fb 0%, #eef4f2 100%);
-        color: #102236;
-      }
-      .card {
-        width: 100%;
-        max-width: 520px;
-        padding: 30px;
-        border-radius: 24px;
-        background: rgba(255, 255, 255, 0.96);
-        border: 1px solid rgba(16, 34, 54, 0.12);
-        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
-      }
-      .eyebrow {
-        display: inline-flex;
-        padding: 8px 12px;
-        border-radius: 999px;
-        background: #dff4ef;
-        color: #0b4f54;
-        font-size: 12px;
-        font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-      }
-      h1 { margin: 16px 0 8px; font-size: 30px; }
-      p { color: #5f6e7c; line-height: 1.6; }
-      .meta {
-        margin-top: 18px;
-        padding: 16px;
-        border-radius: 16px;
-        background: #f8fafc;
-        border: 1px solid rgba(16, 34, 54, 0.08);
-      }
-      .meta strong { color: #102236; }
-      .error {
-        margin-top: 18px;
-        padding: 12px 14px;
-        border-radius: 14px;
-        background: #fff0eb;
-        border: 1px solid rgba(154, 52, 18, 0.18);
-        color: #9a3412;
-        font-weight: 600;
-      }
-      label {
-        display: block;
-        margin: 16px 0 8px;
-        font-size: 13px;
-        font-weight: 700;
-      }
-      input, button {
-        width: 100%;
-        border-radius: 14px;
-        padding: 13px 14px;
-        font-size: 14px;
-        box-sizing: border-box;
-      }
-      input {
-        border: 1px solid #d6dee6;
-        background: #fbfdff;
-      }
-      button {
-        margin-top: 18px;
-        border: 0;
-        background: linear-gradient(135deg, #0f766e 0%, #0b4f54 100%);
-        color: #ffffff;
-        font-weight: 700;
-        cursor: pointer;
-      }
-    </style>
-  </head>
-  <body>
-    <form class="card" method="post" action="/api/auth/accept-invite">
-      <div class="eyebrow">FRIGEST Invite</div>
-      <h1>Activate your account</h1>
-      <p>Finish your access to <strong>${escapeHtml(
-        invite.membership?.organization_name || "FRIGEST"
-      )}</strong> by setting your password.</p>
-      <div class="meta">
-        <div><strong>Email:</strong> ${escapeHtml(invite.user.email || "")}</div>
-        <div><strong>Role:</strong> ${escapeHtml(invite.membership?.role || invite.user.role || "tecnico")}</div>
-      </div>
-      ${
-        errorMessage ? `<div class="error">${escapeHtml(errorMessage)}</div>` : ""
-      }
-      <input type="hidden" name="token" value="${escapeHtml(token)}" />
-      <input type="hidden" name="redirect_uri" value="${escapeHtml(redirectUri)}" />
-      <label for="full_name">Full name</label>
-      <input id="full_name" name="full_name" type="text" value="${escapeHtml(
-        invite.user.full_name || ""
-      )}" autocomplete="name" required />
-      <label for="password">Password</label>
-      <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required />
-      <button type="submit">Activate access</button>
-    </form>
-  </body>
-</html>`;
+  const rawFull = String(invite.user.full_name || "").trim();
+  const defaultFirst =
+    invite.user.first_name ||
+    (rawFull.includes(" ") ? rawFull.split(/\s+/)[0] : "") ||
+    "";
+  const defaultLast =
+    invite.user.last_name ||
+    (rawFull.includes(" ") ? rawFull.split(/\s+/).slice(1).join(" ") : "") ||
+    "";
+  const defaultDni = invite.user.dni || "";
+
+  return renderInviteActivationPageEs({
+    token,
+    redirectUri,
+    loginPath,
+    errorMessage,
+    organizationName: invite.membership?.organization_name || "FRIGEST",
+    email: invite.user.email || "",
+    roleLabelEs: formatInvitationRoleEs(
+      invite.membership?.role || invite.user.role || "tecnico"
+    ),
+    defaultFirstName: defaultFirst,
+    defaultLastName: defaultLast,
+    defaultDni: defaultDni,
+  });
 };
 
-const acceptInvitation = async ({ token, fullName, password }) => {
+const acceptInvitation = async ({
+  token,
+  firstName,
+  lastName,
+  dni,
+  otpVerifiedNonce,
+  password,
+  passwordConfirm,
+}) => {
   const invite = await getInvitationContext(token);
 
   if (!invite) {
-    throw new HttpError(404, "Invitation not found");
+    throw new HttpError(404, "Esta invitación ya fue utilizada o ha caducado.");
   }
 
-  if (invite.user.password_hash) {
-    throw new HttpError(409, "Invitation has already been accepted");
+  const first = assertActivationNamePart(firstName, "El nombre");
+  const last = assertActivationNamePart(lastName, "Los apellidos");
+  const dniNorm = normalizeActivationDni(dni);
+
+  if (String(password || "") !== String(passwordConfirm || "")) {
+    throw new HttpError(422, "Las contraseñas no coinciden.");
   }
 
-  const updatedUser = await userStore.update(invite.user.id, {
-    full_name: String(fullName || "").trim() || invite.user.full_name || invite.user.email,
-    password_hash: createPasswordHash(password),
-    invitation_token: null,
-    invitation_accepted_at: new Date().toISOString(),
+  const passwordHash = createPasswordHash(password);
+
+  await consumeInviteActivationNonce({
+    nonce: otpVerifiedNonce,
+    userId: invite.user.id,
+    firstName: first,
+    lastName: last,
+    dni: dniNorm,
   });
+
+  const fullName = `${first} ${last}`.trim();
+
+  let updatedUser;
+  try {
+    updatedUser = await userStore.update(invite.user.id, {
+      first_name: first,
+      last_name: last,
+      dni: dniNorm,
+      full_name: fullName || invite.user.email,
+      password_hash: passwordHash,
+      invitation_token: null,
+      invitation_accepted_at: new Date().toISOString(),
+      email_verified_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    await logInviteActivationAudit({
+      event: "invite_activation_failed",
+      userId: invite.user.id,
+      meta: { reason: "persist_error" },
+    });
+    throw err;
+  }
 
   await syncMembershipSnapshotForUser(updatedUser, {
     includeRole: false,
     includeStatus: false,
+  });
+
+  await logInviteActivationAudit({
+    event: "invite_activation_completed",
+    userId: invite.user.id,
+    meta: {},
   });
 
   return createSessionForUser(updatedUser.id, {
@@ -1413,6 +1389,69 @@ router.get(
 );
 
 router.post(
+  "/invite/request-otp",
+  inviteRequestOtpRateLimiter,
+  asyncHandler(async (req, res) => {
+    const token = String(req.body?.token || "").trim();
+    const invite = await getInvitationContext(token);
+    if (!invite) {
+      await logInviteActivationAudit({
+        event: "invite_otp_request_rejected",
+        userId: null,
+        meta: { reason: "invalid_token" },
+      });
+      return res.status(404).json({ message: "Solicitud no válida." });
+    }
+
+    const first = assertActivationNamePart(req.body?.first_name, "El nombre");
+    const last = assertActivationNamePart(req.body?.last_name, "Los apellidos");
+    const dniNorm = normalizeActivationDni(req.body?.dni);
+
+    const { plainCode } = await createInviteActivationOtp({
+      userId: invite.user.id,
+      firstName: first,
+      lastName: last,
+      dni: dniNorm,
+    });
+
+    await sendInviteOtpEmail({
+      to: invite.user.email,
+      organizationName: invite.membership?.organization_name || "FRIGEST",
+      code: plainCode,
+    });
+
+    const payload = { ok: true, message: "Código enviado. Revisa tu correo." };
+    if (process.env.APP_SMOKE_INVITE_OTP === "true" && !serverConfig.isProduction) {
+      payload.__smoke_otp = plainCode;
+    }
+    res.json(payload);
+  })
+);
+
+router.post(
+  "/invite/verify-otp",
+  inviteVerifyOtpRateLimiter,
+  asyncHandler(async (req, res) => {
+    const token = String(req.body?.token || "").trim();
+    const invite = await getInvitationContext(token);
+    if (!invite) {
+      return res.status(404).json({ message: "Solicitud no válida." });
+    }
+
+    const out = await verifyInviteActivationOtp({
+      userId: invite.user.id,
+      otp: String(req.body?.otp || "").trim(),
+    });
+
+    res.json({
+      ok: true,
+      otp_verified: true,
+      otp_verified_nonce: out.otp_verified_nonce,
+    });
+  })
+);
+
+router.post(
   "/accept-invite",
   express.urlencoded({ extended: true }),
   asyncHandler(async (req, res) => {
@@ -1423,8 +1462,12 @@ router.post(
     try {
       const session = await acceptInvitation({
         token,
-        fullName: req.body?.full_name,
+        firstName: req.body?.first_name,
+        lastName: req.body?.last_name,
+        dni: req.body?.dni,
+        otpVerifiedNonce: req.body?.otp_verified_nonce,
         password: req.body?.password,
+        passwordConfirm: req.body?.password_confirm,
       });
       const verificationDelivery = await sendVerificationEmailForUser(
         req,
