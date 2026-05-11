@@ -607,6 +607,42 @@ const runSmoke = async () => {
       );
     }
 
+    const ownerMe = await request("/api/auth/me", { headers: ownerHeaders });
+    const ownerEmailLower = String(ownerMe?.email || "").trim().toLowerCase();
+
+    const ownerCreateActivaSinFiscal = await requestExpectFailure("/api/organizations", {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        name: "Empresa Fiscal Fail",
+        slug: "fiscal-fail-smoke",
+        plan_code: "starter",
+        commercial_status: "activa",
+        legal_name: "",
+        tax_id: "",
+      }),
+    });
+    if (ownerCreateActivaSinFiscal.status !== 400) {
+      throw new Error(`Expected 400 for activa sin fiscal, got ${ownerCreateActivaSinFiscal.status}`);
+    }
+
+    const ownerCreateSelfAdmin = await requestExpectFailure("/api/organizations", {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        name: "Empresa Owner Admin",
+        slug: "owner-admin-smoke",
+        plan_code: "starter",
+        create_initial_admin: true,
+        initial_admin_full_name: "Owner Self",
+        initial_admin_email: ownerEmailLower,
+        initial_admin_access_mode: "invite",
+      }),
+    });
+    if (ownerCreateSelfAdmin.status !== 422) {
+      throw new Error(`Expected 422 when initial admin is owner, got ${ownerCreateSelfAdmin.status}`);
+    }
+
     // Create org A as owner (must start empty)
     const ownerOrgA = await request("/api/organizations", {
       method: "POST",
@@ -631,8 +667,70 @@ const runSmoke = async () => {
     if (!orgAOverview0) {
       throw new Error("Expected org A to appear in owner overview.");
     }
+    if (!orgAOverview0.owner_profile || typeof orgAOverview0.owner_profile !== "object") {
+      throw new Error("Expected owner_profile object on owner overview.");
+    }
+    if (typeof orgAOverview0.fiscal_complete !== "boolean") {
+      throw new Error("Expected fiscal_complete boolean on owner overview.");
+    }
+    if (typeof orgAOverview0.has_admin !== "boolean") {
+      throw new Error("Expected has_admin boolean on owner overview.");
+    }
     if (orgAOverview0.user_count !== 0 || (orgAOverview0.users || []).length !== 0) {
       throw new Error("Expected new org to start with 0 users.");
+    }
+
+    const dupSlug = await requestExpectFailure("/api/organizations", {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        name: "Duplicado",
+        slug: "smoke-a",
+        plan_code: "starter",
+      }),
+    });
+    if (dupSlug.status !== 409) {
+      throw new Error(`Expected duplicate slug 409, got ${dupSlug.status}`);
+    }
+    if (
+      typeof dupSlug.body !== "object" ||
+      !String(dupSlug.body?.message || "").includes("slug")
+    ) {
+      throw new Error(`Expected Spanish slug conflict message, got ${JSON.stringify(dupSlug.body)}`);
+    }
+
+    const ownerFullOrg = await request("/api/organizations", {
+      method: "POST",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        name: "Empresa Full Fiscal",
+        slug: "smoke-full-fiscal",
+        plan_code: "starter",
+        commercial_status: "activa",
+        legal_name: "Full Fiscal SL",
+        tax_id: "B99999999",
+        tax_id_type: "cif",
+        billing_email: "billing-full@local.test",
+        billing_address_line1: "Calle Uno 1",
+        billing_postal_code: "28001",
+        billing_city: "Madrid",
+        billing_country: "ES",
+        commercial_contact_email: "contact@fullfiscal.local",
+      }),
+    });
+    const fullOrgId = ownerFullOrg?.organization?.id;
+    if (!fullOrgId) {
+      throw new Error("Full fiscal org create failed.");
+    }
+    const patchFull = await request(`/api/organizations/${encodeURIComponent(fullOrgId)}/owner-profile`, {
+      method: "PATCH",
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        billing_phone: "+34900112233",
+      }),
+    });
+    if (!patchFull?.owner_profile || patchFull.owner_profile.billing_phone !== "+34900112233") {
+      throw new Error("PATCH owner-profile did not persist billing_phone.");
     }
 
     // Create admin user-a in org A

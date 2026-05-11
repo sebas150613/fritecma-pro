@@ -10,10 +10,12 @@ import {
   requireAuth,
   stripSensitiveUserFields,
   updateSessionOrganization,
+  upsertOrganizationSettingsForOrganization,
 } from "../lib/auth.js";
 import { HttpError } from "../lib/http-error.js";
 import {
   DEFAULT_ORGANIZATION_ID,
+  decryptOrganizationSettingsFromStorage,
   encryptOrganizationSettingsForStorage,
   getOrganizationMembershipStore,
   getOrganizationSettingsStore,
@@ -21,6 +23,15 @@ import {
   normalizeOrganizationSlug,
   sanitizeOrganizationSettingsForClient,
 } from "../lib/tenant.js";
+import {
+  extractOwnerProfileFromDecryptedSettings,
+  hasActiveAdminUser,
+  isFiscalProfileComplete,
+  mergeOrganizationAndProfileForOwnerApi,
+  parseCreateOrganizationBody,
+  parsePatchOrganizationBody,
+  trimOrNull,
+} from "../lib/owner-organization-profile.js";
 import {
   assertSeatAvailableForOrganization,
   ensureOrganizationSubscription,
@@ -37,6 +48,137 @@ const membershipStore = getOrganizationMembershipStore();
 const organizationSettingsStore = getOrganizationSettingsStore();
 const userStore = getUserStore();
 const organizationSubscriptionStore = getOrganizationSubscriptionStore();
+
+/**
+ * Owner-only: create or invite a user into an organization (shared by POST /users and org bootstrap).
+ * @returns {{ user: object, membership: object, invite_url: string | null, httpStatus: number }}
+ */
+async function inviteOrganizationUserAsOwner(req, organization, payload) {
+  const email = String(payload.email || "")
+    .trim()
+    .toLowerCase();
+  const fullName = String(payload.full_name || "").trim();
+  const desiredRole = String(payload.role || "admin").trim().toLowerCase();
+  const temporaryPassword = payload.temporary_password
+    ? String(payload.temporary_password)
+    : "";
+
+  if (!email) {
+    throw new HttpError(400, "email is required");
+  }
+
+  if (!["admin", "oficina", "encargado", "tecnico", "ayudante"].includes(desiredRole)) {
+    throw new HttpError(422, "role is not valid");
+  }
+
+  if (req.currentUser?.is_hidden_owner === true) {
+    const ownerMail = String(req.currentUser.email || "").trim().toLowerCase();
+    if (ownerMail && email === ownerMail) {
+      throw new HttpError(422, "La cuenta owner no puede añadirse como usuario de empresa.");
+    }
+  }
+
+  const existingUsers = await userStore.filter({
+    filter: { email },
+    limit: 1,
+  });
+  const existingUser = existingUsers[0] || null;
+
+  if (existingUser?.is_hidden_owner === true) {
+    throw new HttpError(409, "User cannot be added to an organization");
+  }
+
+  if (existingUser) {
+    const otherMemberships = await membershipStore.filter({
+      filter: { user_id: existingUser.id },
+    });
+    const belongsElsewhere = otherMemberships.some(
+      (membership) => membership.organization_id !== organization.id
+    );
+    if (belongsElsewhere) {
+      throw new HttpError(409, "Este usuario ya pertenece a otra empresa.");
+    }
+  }
+
+  const nextInvitationToken = randomUUID();
+  let userRecord = existingUser;
+
+  if (existingUser) {
+    const patch = {
+      is_active: true,
+      role: desiredRole,
+      full_name: fullName || existingUser.full_name || email,
+    };
+
+    if (temporaryPassword) {
+      patch.password_hash = createPasswordHash(temporaryPassword);
+      patch.invitation_token = null;
+    } else if (!existingUser.password_hash) {
+      patch.invitation_token = nextInvitationToken;
+    }
+
+    userRecord = await userStore.update(existingUser.id, patch);
+  } else {
+    userRecord = await userStore.create({
+      email,
+      role: desiredRole,
+      full_name: fullName || email || "Invitado",
+      is_active: true,
+      ...(temporaryPassword
+        ? { password_hash: createPasswordHash(temporaryPassword) }
+        : { invitation_token: nextInvitationToken }),
+    });
+  }
+
+  const memberships = await membershipStore.filter({
+    filter: {
+      organization_id: organization.id,
+      user_id: userRecord.id,
+    },
+    limit: 1,
+  });
+  const existingMembership = memberships[0] || null;
+  const willConsumeSeat = !existingMembership || existingMembership.status === "disabled";
+
+  if (willConsumeSeat) {
+    await assertSeatAvailableForOrganization(organization.id, 1);
+  }
+
+  const membershipPayload = {
+    organization_id: organization.id,
+    organization_name: organization.name,
+    user_id: userRecord.id,
+    user_email: userRecord.email || email,
+    user_name: userRecord.full_name || userRecord.email || "Invitado",
+    role: desiredRole,
+    status: userRecord.is_active === false ? "disabled" : "active",
+  };
+
+  const membership = existingMembership
+    ? await membershipStore.update(existingMembership.id, membershipPayload)
+    : await membershipStore.create(membershipPayload);
+
+  const inviteUrl = userRecord.invitation_token
+    ? `${req.protocol}://${req.get("host")}/api/auth/accept-invite?token=${encodeURIComponent(
+        userRecord.invitation_token
+      )}&redirect_uri=${encodeURIComponent(`${req.protocol}://${req.get("host")}/`)}`
+    : null;
+
+  return {
+    user: {
+      ...stripSensitiveUserFields(userRecord),
+      role: desiredRole,
+    },
+    membership: {
+      id: membership.id,
+      organization_id: membership.organization_id,
+      status: membership.status,
+      role: membership.role,
+    },
+    invite_url: inviteUrl,
+    httpStatus: existingUser ? 200 : 201,
+  };
+}
 
 router.use(requireAuth);
 
@@ -98,6 +240,20 @@ router.get(
             )
           );
 
+        const settingsRow = (
+          await organizationSettingsStore.filter({
+            filter: { organization_id: organization.id },
+            limit: 1,
+          })
+        )[0] || null;
+        const decryptedSettings = settingsRow
+          ? decryptOrganizationSettingsFromStorage({ ...settingsRow })
+          : {};
+        const profileExtract = extractOwnerProfileFromDecryptedSettings(decryptedSettings);
+        const owner_profile = mergeOrganizationAndProfileForOwnerApi(organization, profileExtract);
+        const fiscal_complete = isFiscalProfileComplete(organization, owner_profile);
+        const has_admin = hasActiveAdminUser(organizationUsers);
+
         const summary = await getSubscriptionSummary(organization.id).catch(() => null);
         const billing = summary
           ? {
@@ -151,6 +307,9 @@ router.get(
           user_count: organizationUsers.length,
           users: organizationUsers,
           billing,
+          owner_profile,
+          fiscal_complete,
+          has_admin,
         };
       })
     );
@@ -231,17 +390,12 @@ router.post(
       );
     }
 
-    const name = String(req.body?.name || "").trim();
-    const requestedSlug = String(req.body?.slug || "").trim();
-    const planCode = String(req.body?.plan_code || "starter").trim() || "starter";
-
-    if (!name) {
-      throw new HttpError(400, "Organization name is required");
-    }
+    const parsed = parseCreateOrganizationBody(req.body || {});
+    const { organizationFields, profilePatch, planCode, activateOnCreate, initialAdmin } = parsed;
 
     const selectedPlan = await getPlanByCode(planCode);
     if (!selectedPlan || selectedPlan.is_active === false) {
-      throw new HttpError(404, "Selected plan is not available");
+      throw new HttpError(404, "El plan seleccionado no está disponible.");
     }
     if (
       selectedPlan.code !== "starter" &&
@@ -249,43 +403,87 @@ router.post(
     ) {
       throw new HttpError(
         422,
-        "The selected paid plan is not available until Stripe billing is configured"
+        "El plan de pago seleccionado no está disponible hasta configurar Stripe en el servidor."
       );
     }
 
-    const slug = normalizeOrganizationSlug(requestedSlug || name);
     const existingOrganizations = await organizationStore.filter({
-      filter: { slug },
+      filter: { slug: organizationFields.slug },
       limit: 1,
     });
 
     if (existingOrganizations[0]) {
-      throw new HttpError(409, "An organization with that slug already exists");
+      throw new HttpError(409, "Ya existe una empresa con ese slug.");
+    }
+
+    if (initialAdmin.enabled) {
+      if (!initialAdmin.email || !initialAdmin.full_name) {
+        throw new HttpError(400, "Datos incompletos para el administrador inicial.");
+      }
+      const mode = String(initialAdmin.access_mode || "invite").toLowerCase();
+      if (mode === "password_temp" && !initialAdmin.temporary_password) {
+        throw new HttpError(400, "Indica una contraseña temporal o elige invitación por enlace.");
+      }
+      const ownerMail = String(req.currentUser.email || "").trim().toLowerCase();
+      if (ownerMail && initialAdmin.email === ownerMail) {
+        throw new HttpError(422, "La cuenta owner no puede añadirse como usuario de empresa.");
+      }
     }
 
     const organization = await organizationStore.create({
-      name,
-      slug,
-      is_active: true,
-      plan_code: planCode,
+      ...organizationFields,
+      plan_code: selectedPlan.code,
     });
 
-    // Hidden owner creates organizations without memberships/users.
     const isHiddenOwnerRequest = true;
+
+    const legalName = trimOrNull(organization.legal_name);
+    const taxId = trimOrNull(organization.tax_id);
+    const vfBase = {
+      organization_id: organization.id,
+      verifactu_nombre: legalName || organization.name,
+      verifactu_produccion: false,
+      ...(taxId ? { verifactu_nif: taxId } : {}),
+    };
 
     await organizationSettingsStore.create(
       encryptOrganizationSettingsForStorage({
-        organization_id: organization.id,
-        verifactu_nombre: organization.name,
-        verifactu_produccion: false,
+        ...vfBase,
+        ...profilePatch,
       })
     );
 
+    const subscriptionStatus = !activateOnCreate
+      ? "paused"
+      : parsed.subscriptionStatus;
+    const trialEndsAt = parsed.trialEndsAt || null;
+    const trialDaysFallback =
+      selectedPlan.code === "starter" && !trialEndsAt && activateOnCreate ? 15 : 0;
+
     await ensureOrganizationSubscription(organization, {
       planCode: selectedPlan.code,
-      status: selectedPlan.code === "starter" ? "trialing" : "incomplete",
-      trialDays: selectedPlan.code === "starter" ? 15 : 0,
+      status: subscriptionStatus,
+      trialDays: trialDaysFallback,
+      trialEndsAt,
     });
+
+    let initial_admin_warning = null;
+    if (initialAdmin.enabled) {
+      const mode = String(initialAdmin.access_mode || "invite").toLowerCase();
+      const temporaryPassword =
+        mode === "password_temp" ? String(initialAdmin.temporary_password || "") : "";
+      try {
+        await inviteOrganizationUserAsOwner(req, organization, {
+          email: initialAdmin.email,
+          full_name: initialAdmin.full_name,
+          role: "admin",
+          temporary_password: temporaryPassword,
+        });
+      } catch (error) {
+        initial_admin_warning =
+          "La empresa se ha creado, pero no se pudo crear el administrador inicial.";
+      }
+    }
 
     const createdSession = req.authSessionToken || isHiddenOwnerRequest
       ? null
@@ -305,6 +503,98 @@ router.post(
       ...(createdSession ? { access_token: createdSession.token } : {}),
       organization,
       billing: summary,
+      ...(initial_admin_warning ? { initial_admin_warning } : {}),
+    });
+  })
+);
+
+router.patch(
+  "/:organizationId/owner-profile",
+  asyncHandler(async (req, res) => {
+    if (!canAccessHiddenUsers(req.currentUser)) {
+      throw new HttpError(403, "Forbidden");
+    }
+
+    const organizationId = String(req.params.organizationId || "").trim();
+    if (!organizationId) {
+      throw new HttpError(400, "organizationId is required");
+    }
+
+    const organizations = await organizationStore.filter({
+      filter: { id: organizationId },
+      limit: 1,
+    });
+    const organization = organizations[0] || null;
+    if (!organization) {
+      throw new HttpError(404, "Organization not found");
+    }
+
+    const { organizationPatch, profilePatch } = parsePatchOrganizationBody(req.body || {});
+
+    if (
+      Object.keys(organizationPatch).length === 0 &&
+      Object.keys(profilePatch).length === 0
+    ) {
+      throw new HttpError(400, "No hay cambios que guardar.");
+    }
+
+    if (Object.prototype.hasOwnProperty.call(organizationPatch, "slug")) {
+      const nextSlug = organizationPatch.slug;
+      if (nextSlug) {
+        const others = await organizationStore.filter({
+          filter: { slug: nextSlug },
+          limit: 5,
+        });
+        const collision = others.find((item) => item.id !== organizationId);
+        if (collision) {
+          throw new HttpError(409, "Ya existe una empresa con ese slug.");
+        }
+      }
+    }
+
+    let orgRecord = organization;
+    if (Object.keys(organizationPatch).length > 0) {
+      orgRecord = await organizationStore.update(organization.id, organizationPatch);
+    }
+
+    if (Object.keys(profilePatch).length > 0) {
+      await upsertOrganizationSettingsForOrganization(organizationId, profilePatch);
+    }
+
+    const vfPatch = {};
+    if (trimOrNull(orgRecord.legal_name)) {
+      vfPatch.verifactu_nombre = orgRecord.legal_name;
+    }
+    if (trimOrNull(orgRecord.tax_id)) {
+      vfPatch.verifactu_nif = orgRecord.tax_id;
+    }
+    if (Object.keys(vfPatch).length > 0) {
+      await upsertOrganizationSettingsForOrganization(organizationId, vfPatch);
+    }
+
+    const refreshed = (
+      await organizationStore.filter({
+        filter: { id: organizationId },
+        limit: 1,
+      })
+    )[0] || orgRecord;
+
+    const settingsRow = (
+      await organizationSettingsStore.filter({
+        filter: { organization_id: organizationId },
+        limit: 1,
+      })
+    )[0] || null;
+    const decryptedSettings = settingsRow
+      ? decryptOrganizationSettingsFromStorage({ ...settingsRow })
+      : {};
+    const profileExtract = extractOwnerProfileFromDecryptedSettings(decryptedSettings);
+    const owner_profile = mergeOrganizationAndProfileForOwnerApi(refreshed, profileExtract);
+
+    res.json({
+      organization: refreshed,
+      owner_profile,
+      fiscal_complete: isFiscalProfileComplete(refreshed, owner_profile),
     });
   })
 );
@@ -330,124 +620,17 @@ router.post(
       throw new HttpError(404, "Organization not found");
     }
 
-    const email = String(req.body?.email || "")
-      .trim()
-      .toLowerCase();
-    const fullName = String(req.body?.full_name || "").trim();
-    const desiredRole = String(req.body?.role || "").trim().toLowerCase();
-    const temporaryPassword = req.body?.temporary_password
-      ? String(req.body.temporary_password)
-      : "";
-
-    if (!email) {
-      throw new HttpError(400, "email is required");
-    }
-
-    if (!["admin", "oficina", "encargado", "tecnico", "ayudante"].includes(desiredRole)) {
-      throw new HttpError(422, "role is not valid");
-    }
-
-    const existingUsers = await userStore.filter({
-      filter: { email },
-      limit: 1,
+    const result = await inviteOrganizationUserAsOwner(req, organization, {
+      email: req.body?.email,
+      full_name: req.body?.full_name,
+      role: req.body?.role,
+      temporary_password: req.body?.temporary_password,
     });
-    const existingUser = existingUsers[0] || null;
 
-    if (existingUser?.is_hidden_owner === true) {
-      throw new HttpError(409, "User cannot be added to an organization");
-    }
-
-    if (existingUser) {
-      const otherMemberships = await membershipStore.filter({
-        filter: { user_id: existingUser.id },
-      });
-      const belongsElsewhere = otherMemberships.some(
-        (membership) => membership.organization_id !== organization.id
-      );
-      if (belongsElsewhere) {
-        throw new HttpError(409, "Este usuario ya pertenece a otra empresa.");
-      }
-    }
-
-    const nextInvitationToken = randomUUID();
-    let userRecord = existingUser;
-
-    if (existingUser) {
-      const patch = {
-        is_active: true,
-        role: desiredRole,
-        full_name: fullName || existingUser.full_name || email,
-      };
-
-      if (temporaryPassword) {
-        patch.password_hash = createPasswordHash(temporaryPassword);
-        patch.invitation_token = null;
-      } else if (!existingUser.password_hash) {
-        patch.invitation_token = nextInvitationToken;
-      }
-
-      userRecord = await userStore.update(existingUser.id, patch);
-    } else {
-      userRecord = await userStore.create({
-        email,
-        role: desiredRole,
-        full_name: fullName || email || "Invitado",
-        is_active: true,
-        ...(temporaryPassword
-          ? { password_hash: createPasswordHash(temporaryPassword) }
-          : { invitation_token: nextInvitationToken }),
-      });
-    }
-
-    const memberships = await membershipStore.filter({
-      filter: {
-        organization_id: organization.id,
-        user_id: userRecord.id,
-      },
-      limit: 1,
-    });
-    const existingMembership = memberships[0] || null;
-    const willConsumeSeat =
-      !existingMembership || existingMembership.status === "disabled";
-
-    if (willConsumeSeat) {
-      await assertSeatAvailableForOrganization(organization.id, 1);
-    }
-
-    const membershipPayload = {
-      organization_id: organization.id,
-      organization_name: organization.name,
-      user_id: userRecord.id,
-      user_email: userRecord.email || email,
-      user_name: userRecord.full_name || userRecord.email || "Invitado",
-      role: desiredRole,
-      status: userRecord.is_active === false ? "disabled" : "active",
-    };
-
-    const membership = existingMembership
-      ? await membershipStore.update(existingMembership.id, membershipPayload)
-      : await membershipStore.create(membershipPayload);
-
-    const inviteUrl = userRecord.invitation_token
-      ? `${req.protocol}://${req.get("host")}/api/auth/accept-invite?token=${encodeURIComponent(
-          userRecord.invitation_token
-        )}&redirect_uri=${encodeURIComponent(
-          `${req.protocol}://${req.get("host")}/`
-        )}`
-      : null;
-
-    res.status(existingUser ? 200 : 201).json({
-      user: {
-        ...stripSensitiveUserFields(userRecord),
-        role: desiredRole,
-      },
-      membership: {
-        id: membership.id,
-        organization_id: membership.organization_id,
-        status: membership.status,
-        role: membership.role,
-      },
-      invite_url: inviteUrl,
+    res.status(result.httpStatus).json({
+      user: result.user,
+      membership: result.membership,
+      invite_url: result.invite_url,
     });
   })
 );

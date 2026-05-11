@@ -196,7 +196,12 @@ export const getPlanByStripePriceId = async (stripePriceId) => {
 
 export const ensureOrganizationSubscription = async (
   organization,
-  { planCode = "starter", status = "active", trialDays = 0 } = {}
+  {
+    planCode = "starter",
+    status = "active",
+    trialDays = 0,
+    trialEndsAt = null,
+  } = {}
 ) => {
   await ensurePlanCatalog();
   const existingSubscriptions = await subscriptionStore.filter({
@@ -209,15 +214,22 @@ export const ensureOrganizationSubscription = async (
     return existing;
   }
 
+  const resolvedTrialEnd =
+    trialEndsAt && String(trialEndsAt).trim()
+      ? new Date(trialEndsAt).toISOString()
+      : trialDays > 0
+        ? addDaysIso(trialDays)
+        : null;
+
   return subscriptionStore.create({
     organization_id: organization.id,
     organization_name: organization.name,
     plan_code: planCode,
     status,
     billing_provider: serverConfig.stripeSecretKey ? "stripe" : "manual",
-    trial_ends_at: trialDays > 0 ? addDaysIso(trialDays) : null,
+    trial_ends_at: resolvedTrialEnd,
     current_period_start: new Date().toISOString(),
-    current_period_end: trialDays > 0 ? addDaysIso(trialDays) : addDaysIso(30),
+    current_period_end: resolvedTrialEnd || addDaysIso(30),
     cancel_at_period_end: false,
   });
 };

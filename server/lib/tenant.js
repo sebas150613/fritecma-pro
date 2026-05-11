@@ -143,6 +143,9 @@ export const sanitizeOrganizationSettingsForClient = (settings) => {
   const result = {};
 
   for (const [key, value] of Object.entries(settings)) {
+    if (key.startsWith("owner_profile_")) {
+      continue;
+    }
     if (isSensitiveOrganizationSettingsKey(key)) {
       result[`${key}_configured`] = isSecretValuePresent(value);
       continue;

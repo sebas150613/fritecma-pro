@@ -34,6 +34,7 @@ export type AppApi = {
     ownerOverview: () => Promise<any>;
     current: () => Promise<any>;
     create: (payload: any) => Promise<any>;
+    updateOwnerProfile: (organizationId: string, payload: any) => Promise<any>;
     createUser: (organizationId: string, payload: any) => Promise<any>;
     deleteUser: (organizationId: string, userId: string) => Promise<any>;
     pauseLicense: (organizationId: string) => Promise<any>;

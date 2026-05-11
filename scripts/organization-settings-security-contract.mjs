@@ -19,6 +19,7 @@ const assertNoSecretKeys = (sanitized, forbiddenKeys) => {
 const input = {
   id: "settings-1",
   organization_id: "org-1",
+  owner_profile_billing_email: "billing@example.com",
   verifactu_nif: "B12345678",
   verifactu_nombre: "Acme SL",
   verifactu_cert_uri: "private/org/x.p12",
@@ -58,6 +59,10 @@ assert.equal(sanitized.invitation_token_configured, true);
 
 assert.equal(sanitized.verifactu_produccion, true);
 assert.equal(sanitized.verifactu_nif, "B12345678");
+assert.ok(
+  !Object.prototype.hasOwnProperty.call(sanitized, "owner_profile_billing_email"),
+  "owner_profile_* keys must not appear in tenant-facing sanitized settings"
+);
 assert.equal(sanitized.pedidos_smtp_host, "smtp.example.com");
 assert.equal(sanitized.pedidos_smtp_user, "notify@example.com");
 assert.equal(sanitized.organization_id, "org-1");

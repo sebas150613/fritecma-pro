@@ -1,9 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { NewCompanyModal } from "@/pages/owner-clients/NewCompanyModal";
 import {
   AlertTriangle,
   Building2,
@@ -12,14 +17,46 @@ import {
   Loader2,
   PauseCircle,
   PlayCircle,
+  Plus,
+  Search,
   Trash2,
   UserPlus,
 } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
-/** Default tenant id — must match `DEFAULT_ORGANIZATION_ID` in `server/lib/tenant.js`. */
+/** Must match `DEFAULT_ORGANIZATION_ID` in `server/lib/tenant.js`. */
 const PLATFORM_INTERNAL_ORG_ID = "org-frigest";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
+const INITIAL_FISCAL_DRAFT = {
+  name: "",
+  trade_name: "",
+  legal_name: "",
+  tax_id: "",
+  tax_id_type: "nif",
+  commercial_status: "prueba",
+  billing_fiscal_name: "",
+  billing_tax_id: "",
+  billing_email: "",
+  billing_phone: "",
+  billing_contact_name: "",
+  billing_address_line1: "",
+  billing_address_line2: "",
+  billing_postal_code: "",
+  billing_city: "",
+  billing_region: "",
+  billing_country: "ES",
+  payment_method: "pendiente",
+  payment_terms: "30_dias",
+  internal_customer_reference: "",
+  owner_private_notes: "",
+  commercial_notes: "",
+  commercial_contact_name: "",
+  commercial_contact_role: "",
+  commercial_contact_email: "",
+  commercial_contact_phone: "",
+  commercial_contact_mobile: "",
+  preferred_language: "es",
+  preferred_contact_channel: "email",
+};
 
 const ROLE_OPTIONS = [
   { value: "admin", label: "Admin" },
@@ -37,7 +74,14 @@ const statusLabel = (status) => {
   if (value === "past_due") return "Impago";
   if (value === "canceled") return "Cancelada";
   if (value === "incomplete") return "Pendiente";
-  return status || "N/D";
+  return "Sin datos";
+};
+
+const formatMetric = (value, suffix = "") => {
+  if (value === null || value === undefined || value === "") {
+    return "Sin datos";
+  }
+  return `${value}${suffix}`;
 };
 
 export default function OwnerClients() {
@@ -46,7 +90,16 @@ export default function OwnerClients() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [organizations, setOrganizations] = useState([]);
+  const [plans, setPlans] = useState([]);
   const [selectedId, setSelectedId] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterLicense, setFilterLicense] = useState("all");
+  const [filterPlan, setFilterPlan] = useState("all");
+  const [filterExtra, setFilterExtra] = useState("all");
+  const [detailTab, setDetailTab] = useState("resumen");
+  const [newCompanyOpen, setNewCompanyOpen] = useState(false);
+  const [fiscalDraft, setFiscalDraft] = useState(() => ({ ...INITIAL_FISCAL_DRAFT }));
+  const [userDeleteTarget, setUserDeleteTarget] = useState(null);
 
   const [createUserForm, setCreateUserForm] = useState({
     full_name: "",
@@ -63,11 +116,13 @@ export default function OwnerClients() {
     setLoading(true);
     setError("");
     try {
-      const [currentMe, overview] = await Promise.all([
+      const [currentMe, overview, plansList] = await Promise.all([
         appApi.auth.me(),
         appApi.organizations.ownerOverview(),
+        appApi.organizations.listPlans().catch(() => []),
       ]);
       setMe(currentMe);
+      setPlans(Array.isArray(plansList) ? plansList : []);
       const items = overview?.organizations || [];
       const sorted = [...items].sort((a, b) => {
         const internal = (o) =>
@@ -75,11 +130,14 @@ export default function OwnerClients() {
         return Number(internal(a)) - Number(internal(b));
       });
       setOrganizations(sorted);
-      if (!selectedId && items[0]?.id) {
-        setSelectedId(items[0].id);
-      }
+      setSelectedId((prev) => {
+        if (prev && sorted.some((o) => o.id === prev)) {
+          return prev;
+        }
+        return sorted[0]?.id || "";
+      });
     } catch (e) {
-      setError(e?.message || "No se pudo cargar el panel de clientes.");
+      setError(e?.message || "No se pudo cargar el panel.");
     } finally {
       setLoading(false);
     }
@@ -105,6 +163,91 @@ export default function OwnerClients() {
     () => organizations.find((org) => org.id === selectedId) || null,
     [organizations, selectedId]
   );
+
+  useEffect(() => {
+    if (!selectedOrganization) {
+      setFiscalDraft({ ...INITIAL_FISCAL_DRAFT });
+      return;
+    }
+    const p = selectedOrganization.owner_profile || {};
+    setFiscalDraft({
+      ...INITIAL_FISCAL_DRAFT,
+      name: p.name || selectedOrganization.name || "",
+      trade_name: p.trade_name || "",
+      legal_name: p.legal_name || "",
+      tax_id: p.tax_id || "",
+      tax_id_type: p.tax_id_type || "nif",
+      commercial_status: p.commercial_status || selectedOrganization.commercial_status || "prueba",
+      billing_fiscal_name: p.billing_fiscal_name || "",
+      billing_tax_id: p.billing_tax_id || "",
+      billing_email: p.billing_email || "",
+      billing_phone: p.billing_phone || "",
+      billing_contact_name: p.billing_contact_name || "",
+      billing_address_line1: p.billing_address_line1 || "",
+      billing_address_line2: p.billing_address_line2 || "",
+      billing_postal_code: p.billing_postal_code || "",
+      billing_city: p.billing_city || "",
+      billing_region: p.billing_region || "",
+      billing_country: p.billing_country || "ES",
+      payment_method: p.payment_method || "pendiente",
+      payment_terms: p.payment_terms || "30_dias",
+      internal_customer_reference: p.internal_customer_reference || "",
+      owner_private_notes: p.owner_private_notes || "",
+      commercial_notes: p.commercial_notes || "",
+      commercial_contact_name: p.commercial_contact_name || "",
+      commercial_contact_role: p.commercial_contact_role || "",
+      commercial_contact_email: p.commercial_contact_email || "",
+      commercial_contact_phone: p.commercial_contact_phone || "",
+      commercial_contact_mobile: p.commercial_contact_mobile || "",
+      preferred_language: p.preferred_language || "es",
+      preferred_contact_channel: p.preferred_contact_channel || "email",
+    });
+  }, [selectedOrganization]);
+
+  const filteredOrganizations = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return organizations.filter((org) => {
+      const p = org.owner_profile || {};
+      const hay = [
+        org.name,
+        org.slug,
+        org.legal_name,
+        org.tax_id,
+        p.legal_name,
+        p.tax_id,
+        p.billing_email,
+        p.commercial_contact_email,
+        ...(org.users || []).map((u) => u.email),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (q) {
+        const tokens = q.split(/\s+/).filter((t) => t.length > 0);
+        if (!tokens.every((t) => hay.includes(t))) {
+          return false;
+        }
+      }
+      const lic = String(org.billing?.subscription?.status || "").toLowerCase();
+      if (filterLicense !== "all" && lic !== filterLicense) {
+        return false;
+      }
+      const pc = org.billing?.subscription?.plan_code || org.plan_code || "";
+      if (filterPlan !== "all" && String(pc) !== filterPlan) {
+        return false;
+      }
+      if (filterExtra === "trial" && lic !== "trialing") {
+        return false;
+      }
+      if (filterExtra === "no_admin" && org.has_admin) {
+        return false;
+      }
+      if (filterExtra === "no_fiscal" && org.fiscal_complete) {
+        return false;
+      }
+      return true;
+    });
+  }, [organizations, searchQuery, filterLicense, filterPlan, filterExtra]);
 
   const selectedBilling = selectedOrganization?.billing || null;
   const licenseStatus = selectedBilling?.subscription?.status || "active";
@@ -137,6 +280,14 @@ export default function OwnerClients() {
 
   const hardDeleteBlocked =
     isSessionOwnerContextOrg || (selectedOrganization && isPlatformInternalOrg(selectedOrganization));
+
+  const planFilterOptions = useMemo(() => {
+    const codes = new Set();
+    organizations.forEach((o) => {
+      codes.add(o.billing?.subscription?.plan_code || o.plan_code || "starter");
+    });
+    return [...codes].sort();
+  }, [organizations]);
 
   const handleCreateUser = async () => {
     if (!selectedOrganization?.id) return;
@@ -206,10 +357,6 @@ export default function OwnerClients() {
       setError("Escribe exactamente el slug de la empresa para confirmar.");
       return;
     }
-    const ok = window.confirm(
-      "Esta acción eliminará todos los datos de la empresa sin dejar rastro funcional en FRIGEST. No afecta a otras empresas. ¿Continuar?"
-    );
-    if (!ok) return;
     setBusy("hard-delete-org");
     setError("");
     try {
@@ -225,16 +372,12 @@ export default function OwnerClients() {
     }
   };
 
-  const handleDeleteUser = async (organizationId, userId) => {
-    if (!organizationId || !userId) {
+  const confirmDeleteUser = async () => {
+    if (!userDeleteTarget) {
       return;
     }
-    const confirmed = window.confirm(
-      "¿Quitar el acceso de este usuario a esta empresa? Sus registros históricos se conservarán."
-    );
-    if (!confirmed) {
-      return;
-    }
+    const { organizationId, userId } = userDeleteTarget;
+    setUserDeleteTarget(null);
     setBusy(`delete-user:${userId}`);
     setError("");
     try {
@@ -247,12 +390,72 @@ export default function OwnerClients() {
     }
   };
 
+  const handleSaveFiscal = async () => {
+    if (!selectedOrganization?.id) return;
+    setBusy("save-fiscal");
+    setError("");
+    try {
+      await appApi.organizations.updateOwnerProfile(selectedOrganization.id, {
+        name: fiscalDraft.name?.trim() || selectedOrganization.name,
+        trade_name: fiscalDraft.trade_name,
+        legal_name: fiscalDraft.legal_name,
+        tax_id: fiscalDraft.tax_id,
+        tax_id_type: fiscalDraft.tax_id_type,
+        commercial_status: fiscalDraft.commercial_status,
+        billing_fiscal_name: fiscalDraft.billing_fiscal_name,
+        billing_tax_id: fiscalDraft.billing_tax_id,
+        billing_email: fiscalDraft.billing_email,
+        billing_phone: fiscalDraft.billing_phone,
+        billing_contact_name: fiscalDraft.billing_contact_name,
+        billing_address_line1: fiscalDraft.billing_address_line1,
+        billing_address_line2: fiscalDraft.billing_address_line2,
+        billing_postal_code: fiscalDraft.billing_postal_code,
+        billing_city: fiscalDraft.billing_city,
+        billing_region: fiscalDraft.billing_region,
+        billing_country: fiscalDraft.billing_country,
+        payment_method: fiscalDraft.payment_method,
+        payment_terms: fiscalDraft.payment_terms,
+        internal_customer_reference: fiscalDraft.internal_customer_reference,
+        owner_private_notes: fiscalDraft.owner_private_notes,
+        commercial_notes: fiscalDraft.commercial_notes,
+        commercial_contact_name: fiscalDraft.commercial_contact_name,
+        commercial_contact_role: fiscalDraft.commercial_contact_role,
+        commercial_contact_email: fiscalDraft.commercial_contact_email,
+        commercial_contact_phone: fiscalDraft.commercial_contact_phone,
+        commercial_contact_mobile: fiscalDraft.commercial_contact_mobile,
+        preferred_language: fiscalDraft.preferred_language,
+        preferred_contact_channel: fiscalDraft.preferred_contact_channel,
+      });
+      await load();
+    } catch (e) {
+      setError(e?.message || "No se pudieron guardar los datos.");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const onNewCompanyCreated = useCallback(
+    async ({ organizationId, initial_admin_warning }) => {
+      await load();
+      if (organizationId) {
+        setSelectedId(organizationId);
+        setDetailTab("resumen");
+      }
+      if (initial_admin_warning) {
+        setError(
+          "La empresa se ha creado, pero no se pudo crear el administrador inicial. Puede reintentar desde Usuarios."
+        );
+      }
+    },
+    []
+  );
+
   if (loading) {
     return (
       <div className="p-6 lg:p-10 max-w-6xl mx-auto">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
-          Cargando clientes...
+          Cargando empresas…
         </div>
       </div>
     );
@@ -269,16 +472,35 @@ export default function OwnerClients() {
   }
 
   return (
-    <div className="p-4 lg:p-10 max-w-6xl mx-auto space-y-6 pb-32 lg:pb-10">
-      <div className="flex items-center gap-3">
-        <Building2 className="h-6 w-6 text-amber-600" />
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight">Clientes</h1>
-          <p className="text-sm text-muted-foreground">
-            Empresas, usuarios, plan, consumo y estado de licencia.
-          </p>
+    <div className="p-4 lg:p-10 max-w-7xl mx-auto space-y-6 pb-32 lg:pb-10">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex items-start gap-3 min-w-0">
+          <Building2 className="h-7 w-7 text-amber-600 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight">Empresas FRIGEST</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Consola owner: alta de clientes, ficha fiscal, licencias y soporte. Sin acceso a datos
+              operativos del tenant.
+            </p>
+          </div>
         </div>
+        <Button
+          type="button"
+          className="rounded-xl shrink-0 self-start"
+          onClick={() => setNewCompanyOpen(true)}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Nueva empresa
+        </Button>
       </div>
+
+      <NewCompanyModal
+        open={newCompanyOpen}
+        onOpenChange={setNewCompanyOpen}
+        plans={plans}
+        ownerEmail={me?.email}
+        onCreated={onNewCompanyCreated}
+      />
 
       {error && (
         <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
@@ -286,61 +508,130 @@ export default function OwnerClients() {
         </div>
       )}
 
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+        <div className="relative flex-1 max-w-xl">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            className="pl-9 rounded-xl"
+            placeholder="Buscar por nombre, razón social, NIF, slug o email…"
+            value={searchQuery}
+            autoComplete="off"
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Select value={filterLicense} onValueChange={setFilterLicense}>
+            <SelectTrigger className="w-[160px] rounded-xl">
+              <SelectValue placeholder="Licencia" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las licencias</SelectItem>
+              <SelectItem value="active">Activa</SelectItem>
+              <SelectItem value="trialing">Prueba</SelectItem>
+              <SelectItem value="paused">Pausada</SelectItem>
+              <SelectItem value="past_due">Impago</SelectItem>
+              <SelectItem value="incomplete">Pendiente</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterPlan} onValueChange={setFilterPlan}>
+            <SelectTrigger className="w-[140px] rounded-xl">
+              <SelectValue placeholder="Plan" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los planes</SelectItem>
+              {planFilterOptions.map((c) => (
+                <SelectItem key={c} value={String(c)}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterExtra} onValueChange={setFilterExtra}>
+            <SelectTrigger className="w-[200px] rounded-xl">
+              <SelectValue placeholder="Filtro" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Sin filtro extra</SelectItem>
+              <SelectItem value="trial">Solo en prueba</SelectItem>
+              <SelectItem value="no_admin">Sin administrador</SelectItem>
+              <SelectItem value="no_fiscal">Fiscal incompleto</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        <aside className="lg:col-span-4">
+        <aside className="lg:col-span-4 space-y-2">
           <div className="rounded-2xl border border-border bg-card overflow-hidden">
-            <div className="p-4 border-b border-border">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                Empresas
-              </p>
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Directorio</p>
+              <span className="text-xs text-muted-foreground">{filteredOrganizations.length}</span>
             </div>
-            <div className="divide-y divide-border">
-              {(organizations || []).map((org) => {
+            <div className="divide-y divide-border max-h-[70vh] overflow-y-auto">
+              {filteredOrganizations.map((org) => {
                 const billing = org.billing || null;
                 const status = billing?.subscription?.status || "active";
                 const seats = billing?.usage?.active_seats ?? org.user_count ?? 0;
                 const limit = billing?.limits?.seat_limit ?? null;
                 const isSelected = org.id === selectedId;
                 const internal = isPlatformInternalOrg(org);
+                const p = org.owner_profile || {};
                 return (
                   <button
                     key={org.id}
                     type="button"
-                    onClick={() => setSelectedId(org.id)}
+                    onClick={() => {
+                      setSelectedId(org.id);
+                      setDetailTab("resumen");
+                    }}
                     className={[
                       "w-full text-left p-4 hover:bg-muted/30 transition-colors",
                       isSelected ? "bg-muted/40" : "",
                     ].join(" ")}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
+                      <div className="min-w-0 space-y-1">
                         <div className="flex items-center gap-2 min-w-0">
                           <p className="font-semibold truncate">{org.name}</p>
                           {internal ? (
-                            <span className="shrink-0 text-[10px] uppercase tracking-wide rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-800 px-1.5 py-0.5">
-                              Interna FRIGEST
+                            <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground border border-border px-1 py-0.5 rounded">
+                              Interna
                             </span>
                           ) : null}
                         </div>
+                        {p.legal_name || org.legal_name ? (
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {p.legal_name || org.legal_name}
+                          </p>
+                        ) : null}
+                        {(p.tax_id || org.tax_id) && !internal ? (
+                          <p className="text-[11px] font-mono text-muted-foreground">{p.tax_id || org.tax_id}</p>
+                        ) : null}
                         <p className="text-xs text-muted-foreground truncate">{org.slug || "sin-slug"}</p>
+                        {!org.fiscal_complete && !internal ? (
+                          <p className="text-[11px] text-amber-800">Fiscal incompleto</p>
+                        ) : null}
+                        {!org.has_admin && !internal ? (
+                          <p className="text-[11px] text-amber-800">Sin administrador</p>
+                        ) : null}
                       </div>
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <p className="text-xs font-medium">{statusLabel(status)}</p>
                         <p className="text-[11px] text-muted-foreground">
-                          {seats}{limit ? ` / ${limit}` : " / ∞"}
+                          {seats}
+                          {limit ? ` / ${limit}` : " / ∞"}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground mt-1">
+                          {billing?.subscription?.plan_code || org.plan_code || "starter"}
                         </p>
                       </div>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                      <span>Plan: {billing?.subscription?.plan_code || org.plan_code || "starter"}</span>
-                      <span>{org.user_count || 0} usuarios</span>
                     </div>
                   </button>
                 );
               })}
-              {!organizations?.length && (
-                <div className="p-4 text-sm text-muted-foreground">
-                  No hay empresas para mostrar.
+              {!filteredOrganizations.length && (
+                <div className="p-6 text-sm text-muted-foreground text-center">
+                  {organizations.length ? "Ninguna empresa coincide con el criterio." : "Todavía no hay empresas."}
                 </div>
               )}
             </div>
@@ -350,170 +641,350 @@ export default function OwnerClients() {
         <section className="lg:col-span-8 space-y-4">
           {!selectedOrganization ? (
             <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
-              Selecciona una empresa para ver el detalle.
+              Seleccione una empresa en el directorio.
             </div>
           ) : (
-            <>
-              <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-lg font-semibold">{selectedOrganization.name}</h2>
-                      {isPlatformInternalOrg(selectedOrganization) ? (
-                        <span className="text-[10px] uppercase tracking-wide rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-800 px-1.5 py-0.5">
-                          Interna FRIGEST
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="text-sm text-muted-foreground">{selectedOrganization.slug || "sin-slug"}</p>
-                  </div>
-                  <div className="flex flex-col sm:items-end gap-2">
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Licencia:</span>{" "}
-                      <span className="font-medium">{statusLabel(licenseStatus)}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      {canPause && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="rounded-xl"
-                          disabled={busy === "pause"}
-                          onClick={handlePause}
-                        >
-                          {busy === "pause" ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : (
-                            <PauseCircle className="h-4 w-4 mr-2" />
-                          )}
-                          Pausar licencia
-                        </Button>
-                      )}
-                      {canActivate && (
-                        <Button
-                          type="button"
-                          className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
-                          disabled={busy === "activate"}
-                          onClick={handleActivate}
-                        >
-                          {busy === "activate" ? (
-                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                          ) : (
-                            <PlayCircle className="h-4 w-4 mr-2" />
-                          )}
-                          Activar licencia
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="rounded-2xl border border-border bg-muted/20 p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Plan</p>
-                    <p className="mt-2 font-semibold">
-                      {selectedBilling?.plan?.name ||
-                        selectedBilling?.subscription?.plan_code ||
-                        selectedOrganization.plan_code ||
-                        "starter"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {selectedBilling?.plan?.monthly_price_cents !== null &&
-                      selectedBilling?.plan?.monthly_price_cents !== undefined
-                        ? `${Number(selectedBilling.plan.monthly_price_cents) / 100}€ / mes`
-                        : ""}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-border bg-muted/20 p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Usuarios</p>
-                    <p className="mt-2 font-semibold">
-                      {activeSeats}{seatLimit ? ` / ${seatLimit}` : " / ∞"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">Activos / límite</p>
-                  </div>
-                  <div className="rounded-2xl border border-border bg-muted/20 p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Consumo</p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Almacenamiento:{" "}
-                      <span className="font-medium text-foreground">
-                        {selectedBilling?.usage?.storage_used_gb ?? null}
-                      </span>{" "}
-                      /{" "}
-                      <span className="font-medium text-foreground">
-                        {selectedBilling?.limits?.storage_limit_gb ?? null}
-                      </span>
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      IA:{" "}
-                      <span className="font-medium text-foreground">
-                        {selectedBilling?.usage?.ai_requests_month ?? null}
-                      </span>{" "}
-                      /{" "}
-                      <span className="font-medium text-foreground">
-                        {selectedBilling?.limits?.ai_requests_month ?? null}
-                      </span>
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Si no hay dato, se muestra <span className="font-mono">null</span>.
-                    </p>
-                  </div>
-                </div>
+            <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-4">
+              <div className="rounded-2xl border border-border bg-card px-2 pt-2">
+                <TabsList className="flex w-full flex-wrap h-auto gap-1 bg-transparent p-0 justify-start">
+                  {[
+                    ["resumen", "Resumen"],
+                    ["fiscal", "Datos fiscales"],
+                    ["contactos", "Contactos"],
+                    ["usuarios", "Usuarios"],
+                    ["plan", "Plan y licencia"],
+                    ["consumo", "Consumo"],
+                    ["soporte", "Soporte"],
+                    ["peligro", "Zona de peligro"],
+                  ].map(([id, label]) => (
+                    <TabsTrigger
+                      key={id}
+                      value={id}
+                      className="rounded-lg text-xs sm:text-sm data-[state=active]:bg-muted px-3 py-2"
+                    >
+                      {label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
               </div>
 
-              <form
-                className="rounded-2xl border border-border bg-card p-5 space-y-4"
-                autoComplete="off"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                }}
-              >
-                <div className="flex items-center gap-2">
-                  <UserPlus className="h-4 w-4 text-accent" />
-                  <h3 className="font-semibold">Crear / invitar usuario</h3>
+              <TabsContent value="resumen" className="mt-0 space-y-4">
+                <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold">{selectedOrganization.name}</h2>
+                    {isPlatformInternalOrg(selectedOrganization) ? (
+                      <span className="text-[10px] uppercase tracking-wide text-muted-foreground border border-border px-1.5 py-0.5 rounded">
+                        Interna FRIGEST
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-sm text-muted-foreground">{selectedOrganization.slug}</p>
+                  <div className="grid sm:grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-border/80 p-4 bg-muted/10">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Licencia</p>
+                      <p className="mt-2 font-medium">{statusLabel(licenseStatus)}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/80 p-4 bg-muted/10">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Plan</p>
+                      <p className="mt-2 font-medium">
+                        {selectedBilling?.plan?.name ||
+                          selectedBilling?.subscription?.plan_code ||
+                          selectedOrganization.plan_code ||
+                          "Sin datos"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/80 p-4 bg-muted/10">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Usuarios</p>
+                      <p className="mt-2 font-medium">
+                        {activeSeats}
+                        {seatLimit ? ` / ${seatLimit}` : " / ∞"}
+                      </p>
+                    </div>
+                  </div>
+                  {!selectedOrganization.has_admin && !isPlatformInternalOrg(selectedOrganization) ? (
+                    <p className="text-sm text-amber-900 border border-amber-500/25 bg-amber-500/5 rounded-xl px-3 py-2">
+                      Esta empresa aún no tiene administrador.
+                    </p>
+                  ) : null}
+                  {!selectedOrganization.fiscal_complete && !isPlatformInternalOrg(selectedOrganization) ? (
+                    <p className="text-sm text-amber-900 border border-amber-500/25 bg-amber-500/5 rounded-xl px-3 py-2">
+                      Faltan datos fiscales para facturación.
+                    </p>
+                  ) : null}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Por defecto se envía una invitación por enlace. La contraseña provisional solo aplica si la
-                  configuras en opciones avanzadas.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <Label>Nombre</Label>
-                    <Input
-                      className="mt-1 rounded-xl"
-                      name="invite_full_name"
-                      autoComplete="off"
-                      value={createUserForm.full_name}
-                      onChange={(e) =>
-                        setCreateUserForm((c) => ({ ...c, full_name: e.target.value }))
-                      }
-                      placeholder="Nombre y apellidos"
-                    />
+              </TabsContent>
+
+              <TabsContent value="fiscal" className="mt-0">
+                <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold">Datos fiscales y comerciales</h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {selectedOrganization.fiscal_complete ? "Ficha fiscal completa" : "Faltan datos"}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      className="rounded-xl"
+                      disabled={busy === "save-fiscal" || isPlatformInternalOrg(selectedOrganization)}
+                      onClick={handleSaveFiscal}
+                    >
+                      {busy === "save-fiscal" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                      Guardar cambios
+                    </Button>
                   </div>
-                  <div>
-                    <Label>Email</Label>
-                    <Input
-                      className="mt-1 rounded-xl"
-                      type="email"
-                      name="corporate_invite_email"
-                      autoComplete="off"
-                      inputMode="email"
-                      value={createUserForm.email}
-                      onChange={(e) =>
-                        setCreateUserForm((c) => ({ ...c, email: e.target.value }))
-                      }
-                      placeholder="usuario@empresa.com"
-                    />
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label>Nombre comercial</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        autoComplete="off"
+                        name="owner_edit_org_name"
+                        value={fiscalDraft.name}
+                        onChange={(e) => setFiscalDraft((d) => ({ ...d, name: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Marca (opcional)</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        autoComplete="off"
+                        value={fiscalDraft.trade_name}
+                        onChange={(e) => setFiscalDraft((d) => ({ ...d, trade_name: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Razón social</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        autoComplete="off"
+                        value={fiscalDraft.legal_name}
+                        onChange={(e) => setFiscalDraft((d) => ({ ...d, legal_name: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>NIF / CIF / VAT</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        autoComplete="off"
+                        value={fiscalDraft.tax_id}
+                        onChange={(e) => setFiscalDraft((d) => ({ ...d, tax_id: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Tipo fiscal</Label>
+                      <Select
+                        value={fiscalDraft.tax_id_type}
+                        onValueChange={(v) => setFiscalDraft((d) => ({ ...d, tax_id_type: v }))}
+                      >
+                        <SelectTrigger className="mt-1 rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="nif">NIF</SelectItem>
+                          <SelectItem value="cif">CIF</SelectItem>
+                          <SelectItem value="nie">NIE</SelectItem>
+                          <SelectItem value="vat">VAT</SelectItem>
+                          <SelectItem value="other">Otro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Estado comercial</Label>
+                      <Select
+                        value={fiscalDraft.commercial_status}
+                        onValueChange={(v) => setFiscalDraft((d) => ({ ...d, commercial_status: v }))}
+                      >
+                        <SelectTrigger className="mt-1 rounded-xl">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="prueba">Prueba</SelectItem>
+                          <SelectItem value="activa">Activa</SelectItem>
+                          <SelectItem value="pendiente_pago">Pendiente de pago</SelectItem>
+                          <SelectItem value="pausada">Pausada</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Nombre fiscal facturación</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        autoComplete="off"
+                        value={fiscalDraft.billing_fiscal_name}
+                        onChange={(e) =>
+                          setFiscalDraft((d) => ({ ...d, billing_fiscal_name: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>NIF facturación</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        autoComplete="off"
+                        value={fiscalDraft.billing_tax_id}
+                        onChange={(e) => setFiscalDraft((d) => ({ ...d, billing_tax_id: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Email facturación</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        type="email"
+                        autoComplete="off"
+                        name="owner_edit_billing_email"
+                        value={fiscalDraft.billing_email}
+                        onChange={(e) => setFiscalDraft((d) => ({ ...d, billing_email: e.target.value }))}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Dirección fiscal línea 1</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        autoComplete="off"
+                        value={fiscalDraft.billing_address_line1}
+                        onChange={(e) =>
+                          setFiscalDraft((d) => ({ ...d, billing_address_line1: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Código postal</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        autoComplete="off"
+                        value={fiscalDraft.billing_postal_code}
+                        onChange={(e) =>
+                          setFiscalDraft((d) => ({ ...d, billing_postal_code: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Población</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        autoComplete="off"
+                        value={fiscalDraft.billing_city}
+                        onChange={(e) => setFiscalDraft((d) => ({ ...d, billing_city: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>País</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        autoComplete="off"
+                        value={fiscalDraft.billing_country}
+                        onChange={(e) =>
+                          setFiscalDraft((d) => ({ ...d, billing_country: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Notas comerciales internas</Label>
+                      <Textarea
+                        className="mt-1 rounded-xl min-h-[72px]"
+                        autoComplete="off"
+                        value={fiscalDraft.commercial_notes}
+                        onChange={(e) =>
+                          setFiscalDraft((d) => ({ ...d, commercial_notes: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label>Notas privadas facturación</Label>
+                      <Textarea
+                        className="mt-1 rounded-xl min-h-[72px]"
+                        autoComplete="off"
+                        value={fiscalDraft.owner_private_notes}
+                        onChange={(e) =>
+                          setFiscalDraft((d) => ({ ...d, owner_private_notes: e.target.value }))
+                        }
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <Label>Rol</Label>
-                    <div className="mt-1">
+                </div>
+              </TabsContent>
+
+              <TabsContent value="contactos" className="mt-0">
+                <div className="rounded-2xl border border-border bg-card p-5 space-y-4 text-sm">
+                  <h3 className="font-semibold">Contactos</h3>
+                  <div className="grid sm:grid-cols-2 gap-4 text-muted-foreground">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground/80">Principal</p>
+                      <p className="mt-2 text-foreground font-medium">
+                        {fiscalDraft.commercial_contact_name || "Sin datos"}
+                      </p>
+                      <p>{fiscalDraft.commercial_contact_role || "—"}</p>
+                      <p className="mt-1">{fiscalDraft.commercial_contact_email || "—"}</p>
+                      <p>{fiscalDraft.commercial_contact_phone || "—"}</p>
+                      <p className="text-xs mt-2">
+                        Idioma: {fiscalDraft.preferred_language || "—"} · Canal:{" "}
+                        {fiscalDraft.preferred_contact_channel || "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground/80">Facturación</p>
+                      <p className="mt-2 text-foreground font-medium">
+                        {fiscalDraft.billing_contact_name || "Sin datos"}
+                      </p>
+                      <p>{fiscalDraft.billing_email || "—"}</p>
+                      <p>{fiscalDraft.billing_phone || "—"}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Edite los datos en la pestaña «Datos fiscales» y pulse Guardar cambios.
+                  </p>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="usuarios" className="mt-0 space-y-4">
+                <form
+                  className="rounded-2xl border border-border bg-card p-5 space-y-4"
+                  autoComplete="off"
+                  onSubmit={(e) => e.preventDefault()}
+                >
+                  <div className="flex items-center gap-2">
+                    <UserPlus className="h-4 w-4 text-accent" />
+                    <h3 className="font-semibold">Crear / invitar usuario</h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Por defecto, invitación por enlace. La contraseña provisional solo en opciones avanzadas.
+                  </p>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label>Nombre</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        name="invite_full_name"
+                        autoComplete="off"
+                        value={createUserForm.full_name}
+                        onChange={(e) =>
+                          setCreateUserForm((c) => ({ ...c, full_name: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Email</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        type="email"
+                        name="corporate_invite_email"
+                        autoComplete="off"
+                        value={createUserForm.email}
+                        onChange={(e) =>
+                          setCreateUserForm((c) => ({ ...c, email: e.target.value }))
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label>Rol</Label>
                       <Select
                         value={createUserForm.role}
                         onValueChange={(value) =>
                           setCreateUserForm((c) => ({ ...c, role: value }))
                         }
                       >
-                        <SelectTrigger className="rounded-xl">
+                        <SelectTrigger className="mt-1 rounded-xl">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -526,29 +997,27 @@ export default function OwnerClients() {
                       </Select>
                     </div>
                   </div>
-                </div>
-
-                <Collapsible open={advancedInviteOpen} onOpenChange={setAdvancedInviteOpen}>
-                  <CollapsibleTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex w-full items-center justify-between rounded-xl border border-border bg-muted/15 px-3 py-2 text-left text-sm font-medium hover:bg-muted/25 transition-colors"
-                    >
-                      <span>Opciones avanzadas</span>
-                      <ChevronDown
-                        className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
-                          advancedInviteOpen ? "rotate-180" : ""
-                        }`}
-                      />
-                    </button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="pt-3">
-                    <div>
+                  <Collapsible open={advancedInviteOpen} onOpenChange={setAdvancedInviteOpen}>
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between rounded-xl border border-border bg-muted/15 px-3 py-2 text-left text-sm font-medium hover:bg-muted/25 transition-colors"
+                      >
+                        <span>Opciones avanzadas</span>
+                        <ChevronDown
+                          className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
+                            advancedInviteOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-3">
                       <Label>Contraseña temporal (opcional)</Label>
                       <Input
                         className="mt-1 rounded-xl"
                         name="corporate_invite_temp_password"
                         autoComplete="new-password"
+                        type="password"
                         value={createUserForm.temporary_password}
                         onChange={(e) =>
                           setCreateUserForm((c) => ({
@@ -556,129 +1025,200 @@ export default function OwnerClients() {
                             temporary_password: e.target.value,
                           }))
                         }
-                        placeholder="Solo si no quieres usar el flujo de invitación"
-                        type="password"
                       />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Si permanece vacío, el usuario recibirá invitación con enlace (recomendado).
-                      </p>
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-
-                {isOwnerEmailInInviteForm ? (
-                  <p className="text-sm text-amber-800 bg-amber-500/10 border border-amber-500/25 rounded-xl px-3 py-2">
-                    La cuenta owner no puede añadirse como usuario de empresa.
-                  </p>
-                ) : null}
-
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <Button
-                    type="button"
-                    className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
-                    disabled={
-                      busy === "create-user" ||
-                      !createUserForm.email.trim() ||
-                      isOwnerEmailInInviteForm
-                    }
-                    onClick={handleCreateUser}
-                  >
-                    {busy === "create-user" ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                    )}
-                    Crear usuario
-                  </Button>
-                  {inviteUrl && (
-                    <div className="flex-1 rounded-xl border border-border bg-muted/20 p-3 text-sm">
-                      <p className="text-xs text-muted-foreground">Invite URL</p>
-                      <p className="font-mono text-xs break-all mt-1">{inviteUrl}</p>
-                    </div>
-                  )}
-                </div>
-              </form>
-
-              <div className="rounded-2xl border border-destructive/25 bg-destructive/5 p-5 space-y-3">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="font-semibold text-destructive">Zona de peligro — eliminar empresa</h3>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      La única forma de borrar todos los datos de una empresa es desde aquí. No elimina otras empresas ni usuarios que sigan en otra empresa.
+                    </CollapsibleContent>
+                  </Collapsible>
+                  {isOwnerEmailInInviteForm ? (
+                    <p className="text-sm text-amber-900 bg-amber-500/10 border border-amber-500/25 rounded-xl px-3 py-2">
+                      La cuenta owner no puede añadirse como usuario de empresa.
                     </p>
-                    {isSessionOwnerContextOrg ? (
-                      <p className="text-xs text-amber-900 mt-2 leading-relaxed">
-                        Esta organización está asociada al contexto interno de la sesión owner y no puede eliminarse
-                        desde el panel de clientes.
-                      </p>
-                    ) : null}
-                    {isPlatformInternalOrg(selectedOrganization) && !isSessionOwnerContextOrg ? (
-                      <p className="text-xs text-amber-900 mt-2 leading-relaxed">
-                        Organización interna de plataforma: el borrado definitivo no está disponible para este
-                        registro.
-                      </p>
-                    ) : null}
+                  ) : null}
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <Button
                       type="button"
-                      variant="destructive"
-                      className="mt-3 rounded-xl"
-                      disabled={busy !== "" || hardDeleteBlocked}
-                      onClick={() => {
-                        setHardDeletePhrase("");
-                        setHardDeleteOpen(true);
-                      }}
+                      disabled={
+                        busy === "create-user" ||
+                        !createUserForm.email.trim() ||
+                        isOwnerEmailInInviteForm
+                      }
+                      className="rounded-xl"
+                      onClick={handleCreateUser}
                     >
-                      Eliminar empresa definitivamente
+                      {busy === "create-user" ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                      )}
+                      Crear usuario
                     </Button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-card overflow-hidden">
-                <div className="p-4 border-b border-border">
-                  <h3 className="font-semibold">Usuarios</h3>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Usuarios actuales de la empresa seleccionada.
-                  </p>
-                </div>
-                <div className="divide-y divide-border">
-                  {(selectedOrganization.users || []).map((u) => (
-                    <div key={u.membership_id || u.id} className="p-4 flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{u.full_name || u.email}</p>
-                        <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                    {inviteUrl ? (
+                      <div className="flex-1 rounded-xl border border-border bg-muted/20 p-3 text-sm">
+                        <p className="text-xs text-muted-foreground">Enlace de invitación</p>
+                        <p className="font-mono text-xs break-all mt-1">{inviteUrl}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">{u.role || "sin-rol"}</p>
-                        <p className="text-xs text-muted-foreground">{u.membership_status || "active"}</p>
-                        <div className="mt-2 flex justify-end">
+                    ) : null}
+                  </div>
+                </form>
+
+                <div className="rounded-2xl border border-border bg-card overflow-hidden">
+                  <div className="p-4 border-b border-border">
+                    <h3 className="font-semibold">Usuarios actuales</h3>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {(selectedOrganization.users || []).map((u) => (
+                      <div
+                        key={u.membership_id || u.id}
+                        className="p-4 flex items-start justify-between gap-4"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{u.full_name || u.email}</p>
+                          <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-medium">{u.role || "—"}</p>
                           <Button
                             type="button"
                             variant="outline"
-                            className="h-8 px-3 rounded-xl text-destructive border-destructive/30 hover:bg-destructive/5"
-                            disabled={busy === `delete-user:${u.id}` || busy === "pause" || busy === "activate"}
-                            onClick={() => handleDeleteUser(selectedOrganization.id, u.id)}
+                            className="mt-2 h-8 rounded-xl text-destructive border-destructive/30"
+                            disabled={busy.startsWith("delete-user")}
+                            onClick={() =>
+                              setUserDeleteTarget({
+                                organizationId: selectedOrganization.id,
+                                userId: u.id,
+                                label: u.full_name || u.email,
+                              })
+                            }
                           >
-                            {busy === `delete-user:${u.id}` ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />
-                            ) : (
-                              <Trash2 className="h-3.5 w-3.5 mr-2" />
-                            )}
-                            Eliminar
+                            <Trash2 className="h-3.5 w-3.5 mr-1 inline" />
+                            Quitar
                           </Button>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                  {!selectedOrganization.users?.length && (
-                    <div className="p-4 text-sm text-muted-foreground">
-                      Esta empresa no tiene usuarios asociados todavía.
-                    </div>
-                  )}
+                    ))}
+                    {!selectedOrganization.users?.length && (
+                      <div className="p-4 text-sm text-muted-foreground">Sin usuarios todavía.</div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </>
+              </TabsContent>
+
+              <TabsContent value="plan" className="mt-0 space-y-4">
+                <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    {canPause && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-xl"
+                        disabled={busy === "pause"}
+                        onClick={handlePause}
+                      >
+                        {busy === "pause" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        <PauseCircle className="h-4 w-4 mr-2" />
+                        Pausar licencia
+                      </Button>
+                    )}
+                    {canActivate && (
+                      <Button
+                        type="button"
+                        className="rounded-xl"
+                        disabled={busy === "activate"}
+                        onClick={handleActivate}
+                      >
+                        {busy === "activate" ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        <PlayCircle className="h-4 w-4 mr-2" />
+                        Activar licencia
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground border border-dashed border-border rounded-xl p-3">
+                    Cambio de plan: pendiente de integración con facturación y validación comercial. Use el flujo
+                    actual de Stripe o soporte interno hasta activar esta acción en el panel.
+                  </p>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="consumo" className="mt-0">
+                <div className="rounded-2xl border border-border bg-card p-5 space-y-3 text-sm">
+                  <h3 className="font-semibold">Consumo</h3>
+                  <p>
+                    Almacenamiento:{" "}
+                    <span className="font-medium text-foreground">
+                      {formatMetric(selectedBilling?.usage?.storage_used_gb)} GB
+                    </span>{" "}
+                    /{" "}
+                    <span className="font-medium text-foreground">
+                      {formatMetric(selectedBilling?.limits?.storage_limit_gb)} GB
+                    </span>
+                  </p>
+                  <p>
+                    IA (mes):{" "}
+                    <span className="font-medium text-foreground">
+                      {formatMetric(selectedBilling?.usage?.ai_requests_month)}
+                    </span>{" "}
+                    /{" "}
+                    <span className="font-medium text-foreground">
+                      {formatMetric(selectedBilling?.limits?.ai_requests_month)}
+                    </span>
+                  </p>
+                  <p>
+                    Usuarios activos:{" "}
+                    <span className="font-medium text-foreground">{formatMetric(activeSeats)}</span> /{" "}
+                    <span className="font-medium text-foreground">
+                      {seatLimit != null ? seatLimit : "Sin datos"}
+                    </span>
+                  </p>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="soporte" className="mt-0">
+                <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground space-y-2">
+                  <h3 className="font-semibold text-foreground">Soporte FRIGEST</h3>
+                  <p>
+                    Use los datos de contacto de la pestaña «Contactos» para coordinar incidencias con el
+                    cliente. Este espacio reservará enlaces internos de soporte cuando estén disponibles.
+                  </p>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="peligro" className="mt-0">
+                <div className="rounded-2xl border border-destructive/25 bg-destructive/5 p-5 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                    <div>
+                      <h3 className="font-semibold text-destructive">Eliminar empresa definitivamente</h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Borrado completo del tenant. No afecta a otras empresas. Requiere escribir el slug en el
+                        diálogo de confirmación.
+                      </p>
+                      {isSessionOwnerContextOrg ? (
+                        <p className="text-xs text-amber-900 mt-2 leading-relaxed">
+                          Esta organización está asociada al contexto interno de la sesión owner y no puede
+                          eliminarse desde el panel de clientes.
+                        </p>
+                      ) : null}
+                      {isPlatformInternalOrg(selectedOrganization) && !isSessionOwnerContextOrg ? (
+                        <p className="text-xs text-amber-900 mt-2 leading-relaxed">
+                          Organización interna de plataforma: el borrado definitivo no está disponible.
+                        </p>
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        className="mt-3 rounded-xl"
+                        disabled={busy !== "" || hardDeleteBlocked}
+                        onClick={() => {
+                          setHardDeletePhrase("");
+                          setHardDeleteOpen(true);
+                        }}
+                      >
+                        Eliminar empresa…
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
           )}
         </section>
       </div>
@@ -687,17 +1227,18 @@ export default function OwnerClients() {
         <DialogContent className="max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" /> Eliminar empresa definitivamente
+              <AlertTriangle className="h-5 w-5" /> Confirmar eliminación
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Esta acción eliminará todos los datos de la empresa sin dejar rastro funcional en FRIGEST. No afecta a otras empresas.
+            Esta acción elimina todos los datos de la empresa en FRIGEST. Escriba el slug exacto para
+            continuar.
           </p>
           <p className="text-xs font-mono bg-muted/50 rounded-lg px-3 py-2">
             Slug: <span className="font-semibold">{selectedOrganization?.slug || "—"}</span>
           </p>
           <div>
-            <Label className="text-xs">Escribe el slug exacto para confirmar</Label>
+            <Label className="text-xs">Slug de confirmación</Label>
             <Input
               className="mt-1 rounded-xl"
               value={hardDeletePhrase}
@@ -723,7 +1264,33 @@ export default function OwnerClients() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={Boolean(userDeleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setUserDeleteTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Quitar usuario</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            ¿Retirar el acceso de <strong>{userDeleteTarget?.label}</strong> a esta empresa? El histórico se
+            conserva.
+          </p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" className="rounded-xl" onClick={() => setUserDeleteTarget(null)}>
+              Cancelar
+            </Button>
+            <Button type="button" variant="destructive" className="rounded-xl" onClick={confirmDeleteUser}>
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-

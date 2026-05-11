@@ -123,6 +123,9 @@ export const appApi = {
     ),
     current: withProviderMethod((provider) => provider.appApi.organizations?.current),
     create: withProviderMethod((provider) => provider.appApi.organizations?.create),
+    updateOwnerProfile: withProviderMethod(
+      (provider) => provider.appApi.organizations?.updateOwnerProfile
+    ),
     createUser: withProviderMethod(
       (provider) => provider.appApi.organizations?.createUser
     ),

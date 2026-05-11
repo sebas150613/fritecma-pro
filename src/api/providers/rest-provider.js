@@ -428,6 +428,11 @@ export const createRestProvider = () => {
 
         return response;
       },
+      updateOwnerProfile: (organizationId, payload) =>
+        http.request(`/api/organizations/${encodeURIComponent(organizationId)}/owner-profile`, {
+          method: "PATCH",
+          body: payload,
+        }),
       createUser: (organizationId, payload) =>
         http.request(`/api/organizations/${encodeURIComponent(organizationId)}/users`, {
           method: "POST",
