@@ -13,6 +13,7 @@ import {
 } from "../lib/auth.js";
 import { HttpError } from "../lib/http-error.js";
 import {
+  DEFAULT_ORGANIZATION_ID,
   encryptOrganizationSettingsForStorage,
   getOrganizationMembershipStore,
   getOrganizationSettingsStore,
@@ -146,6 +147,7 @@ router.get(
         return {
           ...organization,
           is_current: organization.id === req.currentOrganization?.id,
+          is_platform_internal: organization.id === DEFAULT_ORGANIZATION_ID,
           user_count: organizationUsers.length,
           users: organizationUsers,
           billing,
@@ -174,7 +176,14 @@ router.delete(
     if (organizationId === req.currentOrganization?.id) {
       throw new HttpError(
         403,
-        "No se puede eliminar la empresa activa en la sesión actual. Cambia de empresa en la sesión antes de borrarla."
+        "No se puede eliminar la organización activa en el contexto de esta sesión."
+      );
+    }
+
+    if (organizationId === DEFAULT_ORGANIZATION_ID) {
+      throw new HttpError(
+        403,
+        "La organización interna de plataforma no admite borrado definitivo."
       );
     }
 

@@ -4,7 +4,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, CheckCircle2, Loader2, PauseCircle, PlayCircle, Trash2, UserPlus, AlertTriangle } from "lucide-react";
+import {
+  AlertTriangle,
+  Building2,
+  CheckCircle2,
+  ChevronDown,
+  Loader2,
+  PauseCircle,
+  PlayCircle,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+
+/** Default tenant id — must match `DEFAULT_ORGANIZATION_ID` in `server/lib/tenant.js`. */
+const PLATFORM_INTERNAL_ORG_ID = "org-frigest";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const ROLE_OPTIONS = [
@@ -43,6 +57,7 @@ export default function OwnerClients() {
   const [inviteUrl, setInviteUrl] = useState("");
   const [hardDeleteOpen, setHardDeleteOpen] = useState(false);
   const [hardDeletePhrase, setHardDeletePhrase] = useState("");
+  const [advancedInviteOpen, setAdvancedInviteOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -54,7 +69,12 @@ export default function OwnerClients() {
       ]);
       setMe(currentMe);
       const items = overview?.organizations || [];
-      setOrganizations(items);
+      const sorted = [...items].sort((a, b) => {
+        const internal = (o) =>
+          o?.is_platform_internal === true || o?.id === PLATFORM_INTERNAL_ORG_ID;
+        return Number(internal(a)) - Number(internal(b));
+      });
+      setOrganizations(sorted);
       if (!selectedId && items[0]?.id) {
         setSelectedId(items[0].id);
       }
@@ -69,6 +89,17 @@ export default function OwnerClients() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setCreateUserForm({
+      full_name: "",
+      email: "",
+      role: "admin",
+      temporary_password: "",
+    });
+    setInviteUrl("");
+    setAdvancedInviteOpen(false);
+  }, [selectedId]);
 
   const selectedOrganization = useMemo(
     () => organizations.find((org) => org.id === selectedId) || null,
@@ -85,9 +116,32 @@ export default function OwnerClients() {
   const activeSeats = selectedBilling?.usage?.active_seats ?? selectedOrganization?.user_count ?? 0;
   const seatLimit = selectedBilling?.limits?.seat_limit ?? null;
 
+  const ownerEmailNormalized = String(me?.email || "")
+    .trim()
+    .toLowerCase();
+  const inviteEmailNormalized = String(createUserForm.email || "")
+    .trim()
+    .toLowerCase();
+  const isOwnerEmailInInviteForm =
+    Boolean(ownerEmailNormalized) &&
+    Boolean(inviteEmailNormalized) &&
+    inviteEmailNormalized === ownerEmailNormalized;
+
+  const isPlatformInternalOrg = (org) =>
+    org?.is_platform_internal === true || org?.id === PLATFORM_INTERNAL_ORG_ID;
+
+  const isSessionOwnerContextOrg =
+    me?.is_hidden_owner === true &&
+    Boolean(me?.current_organization?.id) &&
+    selectedOrganization?.id === me.current_organization.id;
+
+  const hardDeleteBlocked =
+    isSessionOwnerContextOrg || (selectedOrganization && isPlatformInternalOrg(selectedOrganization));
+
   const handleCreateUser = async () => {
     if (!selectedOrganization?.id) return;
     if (!createUserForm.email.trim()) return;
+    if (isOwnerEmailInInviteForm) return;
     setBusy("create-user");
     setError("");
     setInviteUrl("");
@@ -247,6 +301,7 @@ export default function OwnerClients() {
                 const seats = billing?.usage?.active_seats ?? org.user_count ?? 0;
                 const limit = billing?.limits?.seat_limit ?? null;
                 const isSelected = org.id === selectedId;
+                const internal = isPlatformInternalOrg(org);
                 return (
                   <button
                     key={org.id}
@@ -259,7 +314,14 @@ export default function OwnerClients() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-semibold truncate">{org.name}</p>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <p className="font-semibold truncate">{org.name}</p>
+                          {internal ? (
+                            <span className="shrink-0 text-[10px] uppercase tracking-wide rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-800 px-1.5 py-0.5">
+                              Interna FRIGEST
+                            </span>
+                          ) : null}
+                        </div>
                         <p className="text-xs text-muted-foreground truncate">{org.slug || "sin-slug"}</p>
                       </div>
                       <div className="text-right">
@@ -295,7 +357,14 @@ export default function OwnerClients() {
               <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h2 className="text-lg font-semibold">{selectedOrganization.name}</h2>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-semibold">{selectedOrganization.name}</h2>
+                      {isPlatformInternalOrg(selectedOrganization) ? (
+                        <span className="text-[10px] uppercase tracking-wide rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-800 px-1.5 py-0.5">
+                          Interna FRIGEST
+                        </span>
+                      ) : null}
+                    </div>
                     <p className="text-sm text-muted-foreground">{selectedOrganization.slug || "sin-slug"}</p>
                   </div>
                   <div className="flex flex-col sm:items-end gap-2">
@@ -391,16 +460,28 @@ export default function OwnerClients() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+              <form
+                className="rounded-2xl border border-border bg-card p-5 space-y-4"
+                autoComplete="off"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                }}
+              >
                 <div className="flex items-center gap-2">
                   <UserPlus className="h-4 w-4 text-accent" />
                   <h3 className="font-semibold">Crear / invitar usuario</h3>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Por defecto se envía una invitación por enlace. La contraseña provisional solo aplica si la
+                  configuras en opciones avanzadas.
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label>Nombre</Label>
                     <Input
                       className="mt-1 rounded-xl"
+                      name="invite_full_name"
+                      autoComplete="off"
                       value={createUserForm.full_name}
                       onChange={(e) =>
                         setCreateUserForm((c) => ({ ...c, full_name: e.target.value }))
@@ -412,6 +493,10 @@ export default function OwnerClients() {
                     <Label>Email</Label>
                     <Input
                       className="mt-1 rounded-xl"
+                      type="email"
+                      name="corporate_invite_email"
+                      autoComplete="off"
+                      inputMode="email"
                       value={createUserForm.email}
                       onChange={(e) =>
                         setCreateUserForm((c) => ({ ...c, email: e.target.value }))
@@ -441,27 +526,61 @@ export default function OwnerClients() {
                       </Select>
                     </div>
                   </div>
-                  <div>
-                    <Label>Contraseña temporal (opcional)</Label>
-                    <Input
-                      className="mt-1 rounded-xl"
-                      value={createUserForm.temporary_password}
-                      onChange={(e) =>
-                        setCreateUserForm((c) => ({
-                          ...c,
-                          temporary_password: e.target.value,
-                        }))
-                      }
-                      placeholder="Si la dejas vacía, se genera invitación"
-                      type="password"
-                    />
-                  </div>
                 </div>
+
+                <Collapsible open={advancedInviteOpen} onOpenChange={setAdvancedInviteOpen}>
+                  <CollapsibleTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-xl border border-border bg-muted/15 px-3 py-2 text-left text-sm font-medium hover:bg-muted/25 transition-colors"
+                    >
+                      <span>Opciones avanzadas</span>
+                      <ChevronDown
+                        className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${
+                          advancedInviteOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-3">
+                    <div>
+                      <Label>Contraseña temporal (opcional)</Label>
+                      <Input
+                        className="mt-1 rounded-xl"
+                        name="corporate_invite_temp_password"
+                        autoComplete="new-password"
+                        value={createUserForm.temporary_password}
+                        onChange={(e) =>
+                          setCreateUserForm((c) => ({
+                            ...c,
+                            temporary_password: e.target.value,
+                          }))
+                        }
+                        placeholder="Solo si no quieres usar el flujo de invitación"
+                        type="password"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Si permanece vacío, el usuario recibirá invitación con enlace (recomendado).
+                      </p>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+
+                {isOwnerEmailInInviteForm ? (
+                  <p className="text-sm text-amber-800 bg-amber-500/10 border border-amber-500/25 rounded-xl px-3 py-2">
+                    La cuenta owner no puede añadirse como usuario de empresa.
+                  </p>
+                ) : null}
+
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button
                     type="button"
                     className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
-                    disabled={busy === "create-user" || !createUserForm.email.trim()}
+                    disabled={
+                      busy === "create-user" ||
+                      !createUserForm.email.trim() ||
+                      isOwnerEmailInInviteForm
+                    }
                     onClick={handleCreateUser}
                   >
                     {busy === "create-user" ? (
@@ -478,7 +597,7 @@ export default function OwnerClients() {
                     </div>
                   )}
                 </div>
-              </div>
+              </form>
 
               <div className="rounded-2xl border border-destructive/25 bg-destructive/5 p-5 space-y-3">
                 <div className="flex items-start gap-2">
@@ -488,19 +607,23 @@ export default function OwnerClients() {
                     <p className="text-xs text-muted-foreground mt-1">
                       La única forma de borrar todos los datos de una empresa es desde aquí. No elimina otras empresas ni usuarios que sigan en otra empresa.
                     </p>
-                    {me?.current_organization?.id === selectedOrganization.id && (
-                      <p className="text-xs text-amber-800 mt-2">
-                        Cambia de empresa en la sesión antes de borrar esta: es la empresa activa en tu sesión actual.
+                    {isSessionOwnerContextOrg ? (
+                      <p className="text-xs text-amber-900 mt-2 leading-relaxed">
+                        Esta organización está asociada al contexto interno de la sesión owner y no puede eliminarse
+                        desde el panel de clientes.
                       </p>
-                    )}
+                    ) : null}
+                    {isPlatformInternalOrg(selectedOrganization) && !isSessionOwnerContextOrg ? (
+                      <p className="text-xs text-amber-900 mt-2 leading-relaxed">
+                        Organización interna de plataforma: el borrado definitivo no está disponible para este
+                        registro.
+                      </p>
+                    ) : null}
                     <Button
                       type="button"
                       variant="destructive"
                       className="mt-3 rounded-xl"
-                      disabled={
-                        busy !== "" ||
-                        me?.current_organization?.id === selectedOrganization.id
-                      }
+                      disabled={busy !== "" || hardDeleteBlocked}
                       onClick={() => {
                         setHardDeletePhrase("");
                         setHardDeleteOpen(true);
