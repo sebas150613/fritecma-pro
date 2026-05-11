@@ -140,6 +140,8 @@ export const serverConfig = {
   emailReplyTo: process.env.APP_EMAIL_REPLY_TO || "",
   salesEmail: process.env.APP_SALES_EMAIL || "",
   appSettingsSecret: process.env.APP_SETTINGS_SECRET || "",
+  /** Secreto para HMAC de OTP de invitación; por defecto APP_SETTINGS_SECRET. */
+  inviteOtpSecret: process.env.APP_INVITE_OTP_SECRET || process.env.APP_SETTINGS_SECRET || "",
   stripeSecretKey: process.env.STRIPE_SECRET_KEY || "",
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
   stripePublishableKey: process.env.VITE_STRIPE_PUBLISHABLE_KEY || "",

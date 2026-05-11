@@ -245,6 +245,7 @@ const createServerProcess = ({ dataDir, uploadsDir }) => {
         process.env.APP_SETTINGS_SECRET ||
         "smoke-local-app-settings-secret-key-at-least-32-chars-long!!",
       APP_COMPANY_PURCHASE_SMTP_STUB: "true",
+      APP_SMOKE_INVITE_OTP: "true",
     }),
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -857,6 +858,128 @@ const runSmoke = async () => {
       throw new Error("Expected email_delivery on secure invite user create.");
     }
 
+    const workerInviteUrl = ownerInviteEmailOnly.invite_url;
+    if (!workerInviteUrl || typeof workerInviteUrl !== "string") {
+      throw new Error("Expected invite_url for stub invite (worker-invite-email).");
+    }
+    const workerInviteToken = new URL(workerInviteUrl, BASE_URL).searchParams.get("token");
+    if (!workerInviteToken) {
+      throw new Error("Could not parse invitation token from invite_url.");
+    }
+    const otpRequest = await request("/api/auth/invite/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        token: workerInviteToken,
+        first_name: "Worker",
+        last_name: "Smoke",
+        dni: "12345678Z",
+      }),
+    });
+    if (!otpRequest?.ok) {
+      throw new Error("request-otp expected ok:true.");
+    }
+    if (otpRequest.__smoke_otp === undefined || otpRequest.__smoke_otp === null) {
+      throw new Error("Expected __smoke_otp in smoke invite OTP response.");
+    }
+    if (!/^\d{6}$/.test(String(otpRequest.__smoke_otp))) {
+      throw new Error("Expected __smoke_otp to be 6 digits in smoke.");
+    }
+    const badVerify = await requestExpectFailure("/api/auth/invite/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ token: workerInviteToken, otp: "000000" }),
+    });
+    if (badVerify.status !== 422) {
+      throw new Error(`verify-otp wrong code expected 422, got ${badVerify.status}`);
+    }
+    const goodVerify = await request("/api/auth/invite/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ token: workerInviteToken, otp: String(otpRequest.__smoke_otp) }),
+    });
+    if (!goodVerify?.otp_verified_nonce) {
+      throw new Error("verify-otp success must return otp_verified_nonce.");
+    }
+    const activateNoNonceRes = await fetch(`${BASE_URL}/api/auth/accept-invite`, {
+      method: "POST",
+      redirect: "manual",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+      body: new URLSearchParams({
+        token: workerInviteToken,
+        redirect_uri: `${BASE_URL}/`,
+        first_name: "Worker",
+        last_name: "Smoke",
+        dni: "12345678Z",
+        password: "ActivateOk1!",
+        password_confirm: "ActivateOk1!",
+      }).toString(),
+    });
+    if (activateNoNonceRes.status !== 302 && activateNoNonceRes.status !== 422) {
+      throw new Error(
+        `accept-invite without nonce expected 302 or 422, got ${activateNoNonceRes.status}`
+      );
+    }
+    const activateMismatch = await loginViaRedirect({
+      pathname: "/api/auth/accept-invite",
+      formFields: {
+        token: workerInviteToken,
+        redirect_uri: `${BASE_URL}/`,
+        first_name: "Worker",
+        last_name: "Smoke",
+        dni: "12345678Z",
+        otp_verified_nonce: goodVerify.otp_verified_nonce,
+        password: "ActivateOk1!",
+        password_confirm: "Different1!",
+      },
+    });
+    if (activateMismatch.status !== 302 || !activateMismatch.location.includes("error=")) {
+      throw new Error("accept-invite password mismatch must redirect with error.");
+    }
+    const activateOk = await loginViaRedirect({
+      pathname: "/api/auth/accept-invite",
+      formFields: {
+        token: workerInviteToken,
+        redirect_uri: `${BASE_URL}/`,
+        first_name: "Worker",
+        last_name: "Smoke",
+        dni: "12345678Z",
+        otp_verified_nonce: goodVerify.otp_verified_nonce,
+        password: "ActivateOk1!",
+        password_confirm: "ActivateOk1!",
+      },
+    });
+    if (!activateOk.token) {
+      throw new Error("accept-invite with valid OTP nonce must return access_token redirect.");
+    }
+    const workerLogin = await loginViaRedirect({
+      pathname: "/api/auth/login",
+      formFields: {
+        email: "worker-invite-email@local.test",
+        password: "ActivateOk1!",
+        redirect_uri: `${BASE_URL}/`,
+      },
+    });
+    if (!workerLogin.token) {
+      throw new Error("Activated worker must login with new password.");
+    }
+    const afterActivateRequestOtp = await requestExpectFailure("/api/auth/invite/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        token: workerInviteToken,
+        first_name: "Worker",
+        last_name: "Smoke",
+        dni: "12345678Z",
+      }),
+    });
+    if (afterActivateRequestOtp.status !== 404) {
+      throw new Error(`request-otp after activation expected 404, got ${afterActivateRequestOtp.status}`);
+    }
+
     // Multi-company restriction: owner cannot add user-a to org B
     const ownerAddUserAToB = await requestExpectFailure(
       `/api/organizations/${encodeURIComponent(orgBId)}/users`,
@@ -941,6 +1064,54 @@ const runSmoke = async () => {
       throw new Error(
         `Expected invite multi-company message. got=${JSON.stringify(adminBInvitesUserA.body)}`
       );
+    }
+
+    const adminBInviteOtpUser = await request("/api/users/invite", {
+      method: "POST",
+      headers: adminBHeaders,
+      body: JSON.stringify({
+        email: "smoke-admin-invite-otp@local.test",
+        role: "ayudante",
+      }),
+    });
+    const adminInviteUrl = adminBInviteOtpUser.invite_url;
+    if (!adminInviteUrl) {
+      throw new Error("Expected invite_url on admin /users/invite (stub).");
+    }
+    const adminInviteToken = new URL(adminInviteUrl, BASE_URL).searchParams.get("token");
+    const adminOtpReq = await request("/api/auth/invite/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        token: adminInviteToken,
+        first_name: "Admin",
+        last_name: "Invitado",
+        dni: "23456789X",
+      }),
+    });
+    const adminVerify = await request("/api/auth/invite/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        token: adminInviteToken,
+        otp: String(adminOtpReq.__smoke_otp),
+      }),
+    });
+    const adminActivate = await loginViaRedirect({
+      pathname: "/api/auth/accept-invite",
+      formFields: {
+        token: adminInviteToken,
+        redirect_uri: `${BASE_URL}/`,
+        first_name: "Admin",
+        last_name: "Invitado",
+        dni: "23456789X",
+        otp_verified_nonce: adminVerify.otp_verified_nonce,
+        password: "AdminInvOtp1!",
+        password_confirm: "AdminInvOtp1!",
+      },
+    });
+    if (!adminActivate.token) {
+      throw new Error("Admin-invited user activation must succeed.");
     }
 
     // Re-inviting same user to same org should not duplicate membership
