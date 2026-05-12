@@ -885,18 +885,84 @@ const runSmoke = async () => {
     if (!/^\d{6}$/.test(String(otpRequest.__smoke_otp))) {
       throw new Error("Expected __smoke_otp to be 6 digits in smoke.");
     }
-    const badVerify = await requestExpectFailure("/api/auth/invite/verify-otp", {
+    const assertInviteOtp422Shape = (result, label) => {
+      if (result.status !== 422) {
+        throw new Error(`${label}: expected 422, got ${result.status}`);
+      }
+      const b = result.body;
+      if (typeof b !== "object" || b === null) {
+        throw new Error(`${label}: expected JSON body`);
+      }
+      if (typeof b.attempts_remaining !== "number" || typeof b.code_exhausted !== "boolean") {
+        throw new Error(
+          `${label}: missing attempts_remaining or code_exhausted: ${JSON.stringify(b)}`
+        );
+      }
+    };
+
+    const badVerify1 = await requestExpectFailure("/api/auth/invite/verify-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ token: workerInviteToken, otp: "000000" }),
     });
-    if (badVerify.status !== 422) {
-      throw new Error(`verify-otp wrong code expected 422, got ${badVerify.status}`);
+    assertInviteOtp422Shape(badVerify1, "verify-otp wrong #1");
+    if (badVerify1.body.attempts_remaining !== 2 || badVerify1.body.code_exhausted !== false) {
+      throw new Error(`verify-otp wrong #1 unexpected body: ${JSON.stringify(badVerify1.body)}`);
     }
-    const goodVerify = await request("/api/auth/invite/verify-otp", {
+
+    const badVerify2 = await requestExpectFailure("/api/auth/invite/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ token: workerInviteToken, otp: "000001" }),
+    });
+    assertInviteOtp422Shape(badVerify2, "verify-otp wrong #2");
+    if (badVerify2.body.attempts_remaining !== 1 || badVerify2.body.code_exhausted !== false) {
+      throw new Error(`verify-otp wrong #2 unexpected body: ${JSON.stringify(badVerify2.body)}`);
+    }
+
+    const badVerify3 = await requestExpectFailure("/api/auth/invite/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ token: workerInviteToken, otp: "000002" }),
+    });
+    assertInviteOtp422Shape(badVerify3, "verify-otp wrong #3");
+    if (badVerify3.body.attempts_remaining !== 0 || badVerify3.body.code_exhausted !== true) {
+      throw new Error(`verify-otp wrong #3 unexpected body: ${JSON.stringify(badVerify3.body)}`);
+    }
+
+    const goodWhileExhausted = await requestExpectFailure("/api/auth/invite/verify-otp", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ token: workerInviteToken, otp: String(otpRequest.__smoke_otp) }),
+    });
+    assertInviteOtp422Shape(goodWhileExhausted, "verify-otp correct code after exhaustion");
+    if (!goodWhileExhausted.body.code_exhausted) {
+      throw new Error(
+        `Expected exhausted/caducado after max bad attempts, got ${JSON.stringify(goodWhileExhausted.body)}`
+      );
+    }
+
+    const otpRequest2 = await request("/api/auth/invite/request-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        token: workerInviteToken,
+        first_name: "Worker",
+        last_name: "Smoke",
+        dni: "12345678Z",
+      }),
+    });
+    if (!otpRequest2?.ok) {
+      throw new Error("request-otp (second) expected ok:true.");
+    }
+    if (otpRequest2.__smoke_otp === undefined || otpRequest2.__smoke_otp === null) {
+      throw new Error("Expected __smoke_otp in second invite OTP response.");
+    }
+
+    const goodVerify = await request("/api/auth/invite/verify-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ token: workerInviteToken, otp: String(otpRequest2.__smoke_otp) }),
     });
     if (!goodVerify?.otp_verified_nonce) {
       throw new Error("verify-otp success must return otp_verified_nonce.");

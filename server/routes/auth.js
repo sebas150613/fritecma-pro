@@ -1453,16 +1453,31 @@ router.post(
       return res.status(404).json({ message: "Solicitud no válida." });
     }
 
-    const out = await verifyInviteActivationOtp({
-      userId: invite.user.id,
-      otp: String(req.body?.otp || "").trim(),
-    });
+    try {
+      const out = await verifyInviteActivationOtp({
+        userId: invite.user.id,
+        otp: String(req.body?.otp || "").trim(),
+      });
 
-    res.json({
-      ok: true,
-      otp_verified: true,
-      otp_verified_nonce: out.otp_verified_nonce,
-    });
+      return res.json({
+        ok: true,
+        otp_verified: true,
+        otp_verified_nonce: out.otp_verified_nonce,
+      });
+    } catch (error) {
+      if (
+        error instanceof HttpError &&
+        error.status === 422 &&
+        error.data?.invite_otp
+      ) {
+        return res.status(422).json({
+          message: error.message,
+          attempts_remaining: error.data.attempts_remaining,
+          code_exhausted: error.data.code_exhausted,
+        });
+      }
+      throw error;
+    }
   })
 );
 

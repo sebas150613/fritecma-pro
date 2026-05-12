@@ -19,7 +19,7 @@ const inviteActivationAuditStore = createJsonFileStore("auth-invite-activation-a
 const EMAIL_VERIFICATION_TTL_HOURS = 48;
 const PASSWORD_RESET_TTL_MINUTES = 60;
 const INVITE_OTP_TTL_MS = 10 * 60 * 1000;
-const INVITE_OTP_MAX_ATTEMPTS = 5;
+const INVITE_OTP_MAX_ATTEMPTS = 3;
 const INVITE_OTP_NONCE_TTL_MS = 15 * 60 * 1000;
 
 const addHours = (date, hours) => {
@@ -465,17 +465,22 @@ export const sendInviteOtpEmail = async ({ to, organizationName, code }) => {
   });
 };
 
-const genericOtpError = () =>
-  new HttpError(422, "Código incorrecto o caducado.");
+const inviteOtpVerifyPayload = (message, attemptsRemaining, codeExhausted) =>
+  new HttpError(422, message, {
+    invite_otp: true,
+    attempts_remaining: attemptsRemaining,
+    code_exhausted: codeExhausted,
+  });
 
 /**
  * Verifica OTP y emite nonce de un solo uso para completar la activación con contraseña.
+ * Un intento fallido no consume el código salvo que se agoten los intentos o caduque.
  */
 export const verifyInviteActivationOtp = async ({ userId, otp }) => {
   const uid = String(userId || "").trim();
   const code = String(otp || "").trim();
   if (!uid || !/^\d{6}$/.test(code)) {
-    throw genericOtpError();
+    throw new HttpError(422, "Introduce un código de 6 dígitos.");
   }
 
   const current = await inviteActivationOtpStore.read();
@@ -496,37 +501,49 @@ export const verifyInviteActivationOtp = async ({ userId, otp }) => {
       userId: uid,
       meta: { reason: "no_active_otp" },
     });
-    throw genericOtpError();
+    throw inviteOtpVerifyPayload("Código caducado. Solicita uno nuevo.", 0, true);
   }
 
   const expected = Buffer.from(String(active.otp_hash || ""), "hex");
   const actual = Buffer.from(hashInviteOtpCode(active.salt, code), "hex");
 
-  const patchAttempts = async (nextAttempts) => {
+  if (expected.length === 0 || actual.length !== expected.length || !timingSafeEqual(expected, actual)) {
+    const nextAttempts = Number(active.attempts || 0) + 1;
     const nextList = list.map((row) =>
       row.id === active.id ? { ...row, attempts: nextAttempts } : row
     );
     await writeInviteOtps(nextList);
-  };
 
-  if (expected.length === 0 || actual.length !== expected.length || !timingSafeEqual(expected, actual)) {
-    const nextAttempts = Number(active.attempts || 0) + 1;
-    await patchAttempts(nextAttempts);
     await logInviteActivationAudit({
       event: "invite_otp_verify_failed",
       userId: uid,
       meta: { reason: "bad_code", attempts: nextAttempts },
     });
+
     if (nextAttempts >= INVITE_OTP_MAX_ATTEMPTS) {
-      const invalidated = list.map((row) =>
+      const invalidated = nextList.map((row) =>
         row.id === active.id ? { ...row, consumed_at: new Date().toISOString() } : row
       );
       await writeInviteOtps(invalidated);
+      await logInviteActivationAudit({
+        event: "invite_otp_exhausted",
+        userId: uid,
+        meta: { attempts: nextAttempts },
+      });
+      throw inviteOtpVerifyPayload(
+        "Has agotado los intentos de este código. Solicita uno nuevo.",
+        0,
+        true
+      );
     }
-    throw genericOtpError();
+
+    const remaining = INVITE_OTP_MAX_ATTEMPTS - nextAttempts;
+    throw inviteOtpVerifyPayload("Código incorrecto.", remaining, false);
   }
 
-  const consumedList = list.map((row) =>
+  const latest = await inviteActivationOtpStore.read();
+  const latestList = Array.isArray(latest) ? latest : [];
+  const consumedList = latestList.map((row) =>
     row.id === active.id ? { ...row, consumed_at: new Date().toISOString() } : row
   );
   await writeInviteOtps(consumedList);
