@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { appApi } from "@/api/app-api";
 import { useAuth } from "@/lib/app-auth";
-import { Button } from "@/components/ui/button";
+import { PremiumSubmitButton } from "@/components/PremiumSubmitButton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -95,9 +95,9 @@ export default function PrivateLoginPage() {
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? "Entrando…" : "Entrar"}
-            </Button>
+            <PremiumSubmitButton loading={submitting} variant="dark">
+              Entrar
+            </PremiumSubmitButton>
 
             <p className="text-center text-sm text-slate-500">
               <Link to="/login" className="text-teal-400/90 underline-offset-4 hover:underline">
