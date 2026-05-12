@@ -1499,12 +1499,6 @@ router.post(
         password: req.body?.password,
         passwordConfirm: req.body?.password_confirm,
       });
-      const verificationDelivery = await sendVerificationEmailForUser(
-        req,
-        session.user,
-        session.organization?.name,
-        redirectUri
-      );
 
       if (isBrowserFormRequest(req)) {
         return sendAuthSuccessResponse(req, res, session, redirectUri);
@@ -1514,8 +1508,6 @@ router.post(
         access_token: session.token,
         user: session.user,
         organization: session.organization,
-        email_verification_sent: true,
-        verification_delivery: verificationDelivery,
       });
     } catch (error) {
       return handleAuthActionError(req, res, error, {
@@ -1668,9 +1660,10 @@ router.get(
 
       return res.type("html").send(
         renderStatusPage({
-          title: "Verification unavailable",
-          message: error.message || "The verification link is not valid.",
-          actionLabel: "Volver al login",
+          title: "Verificación no disponible",
+          message:
+            "Este enlace no es válido, ha caducado o ya fue utilizado.",
+          actionLabel: "Volver al inicio de sesión",
           actionHref: buildAuthViewUrl("/api/auth/login", { redirectUri }),
         })
       );
