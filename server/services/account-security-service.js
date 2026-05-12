@@ -559,10 +559,14 @@ export const verifyInviteActivationOtp = async ({ userId, otp }) => {
   return { otp_verified_nonce: nonce };
 };
 
+const inviteNonceMissingError = () =>
+  new HttpError(422, "Debes verificar el código antes de crear la contraseña.");
+
 /**
- * Valida y consume el nonce emitido tras verificar el OTP (un solo uso).
+ * Localiza un nonce de activación pendiente (sin consumir, no caducado, perfil coincidente).
+ * @returns {Promise<{ row: object, list: object[] } | { error: HttpError }>}
  */
-export const consumeInviteActivationNonce = async ({
+const findPendingInviteActivationNonceContext = async ({
   nonce,
   userId,
   firstName,
@@ -572,7 +576,7 @@ export const consumeInviteActivationNonce = async ({
   const uid = String(userId || "").trim();
   const n = String(nonce || "").trim();
   if (!uid || !n) {
-    throw new HttpError(422, "Debes verificar el código antes de crear la contraseña.");
+    return { error: inviteNonceMissingError() };
   }
 
   const expectedBinding = computeInviteProfileBindingHash(firstName, lastName, dni);
@@ -588,8 +592,34 @@ export const consumeInviteActivationNonce = async ({
     ) || null;
 
   if (!row || String(row.profile_binding_hash || "") !== expectedBinding) {
-    throw new HttpError(422, "Debes verificar el código antes de crear la contraseña.");
+    return { error: inviteNonceMissingError() };
   }
+
+  return { row, list };
+};
+
+/**
+ * Comprueba que el nonce OTP sigue vigente antes de persistir la contraseña.
+ * No consume el nonce (así un fallo al guardar no bloquea un nuevo intento con el mismo nonce).
+ */
+export const assertInviteActivationNonceValid = async (args) => {
+  const ctx = await findPendingInviteActivationNonceContext(args);
+  if (ctx.error) {
+    throw ctx.error;
+  }
+};
+
+/**
+ * Consume el nonce tras completar la activación (un solo uso).
+ */
+export const consumeInviteActivationNonce = async (args) => {
+  const ctx = await findPendingInviteActivationNonceContext(args);
+  if (ctx.error) {
+    throw ctx.error;
+  }
+
+  const { row, list } = ctx;
+  const uid = String(args.userId || "").trim();
 
   const next = list.map((item) =>
     item.id === row.id ? { ...item, consumed_at: new Date().toISOString() } : item

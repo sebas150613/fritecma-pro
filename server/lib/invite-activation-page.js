@@ -231,7 +231,7 @@ export const renderInviteActivationPageEs = ({
         <input id="dni" name="dni" type="text" autocomplete="off" value="${escapeHtml(defaultDni)}" required />
 
         <div class="section-title">Verificación por email</div>
-        <p class="hint">Enviaremos un código de un solo uso al email de esta invitación.</p>
+        <p class="hint">Enviaremos un código de un solo uso al email de esta invitación. Si el código o la verificación caducan, pulsa de nuevo «Solicitar código»; no hace falta un enlace nuevo.</p>
         <button type="button" class="btn secondary" id="btn-request-otp">Solicitar código</button>
 
         <div id="otp-block" class="hidden">
@@ -297,14 +297,25 @@ export const renderInviteActivationPageEs = ({
             }),
           })
             .then(function (r) {
-              return r.json().then(function (j) {
+              return r.text().then(function (t) {
+                var j = null;
+                try {
+                  j = t ? JSON.parse(t) : null;
+                } catch (e) {
+                  j = null;
+                }
                 return { ok: r.ok, status: r.status, body: j };
               });
             })
             .then(function (res) {
               $("btn-request-otp").disabled = false;
               if (!res.ok) {
-                show($("msg-err"), (res.body && res.body.message) || "No se pudo enviar el código.", false);
+                var reqMsg =
+                  (res.body && res.body.message) ||
+                  (res.status === 403
+                    ? "No se pudo enviar el código (origen no permitido). Recarga la página o contacta con soporte."
+                    : "No se pudo enviar el código.");
+                show($("msg-err"), reqMsg, false);
                 return;
               }
               show($("msg-ok"), "Código enviado. Revisa tu correo.", true);
@@ -312,7 +323,7 @@ export const renderInviteActivationPageEs = ({
             })
             .catch(function () {
               $("btn-request-otp").disabled = false;
-              show($("msg-err"), "No se pudo enviar el código.", false);
+              show($("msg-err"), "No se pudo enviar el código. Comprueba tu conexión e inténtalo de nuevo.", false);
             });
         });
         $("btn-verify-otp").addEventListener("click", function () {
@@ -326,14 +337,25 @@ export const renderInviteActivationPageEs = ({
             body: JSON.stringify({ token: cfg.token, otp: otp }),
           })
             .then(function (r) {
-              return r.json().then(function (j) {
-                return { ok: r.ok, body: j };
+              return r.text().then(function (t) {
+                var j = null;
+                try {
+                  j = t ? JSON.parse(t) : null;
+                } catch (e) {
+                  j = null;
+                }
+                return { ok: r.ok, status: r.status, body: j };
               });
             })
             .then(function (res) {
               $("btn-verify-otp").disabled = false;
               if (!res.ok || !res.body || !res.body.otp_verified_nonce) {
-                show($("msg-err"), "Código incorrecto o caducado.", false);
+                var verifyMsg =
+                  (res.body && res.body.message) ||
+                  (res.status === 403
+                    ? "No se pudo verificar el código (origen no permitido). Recarga la página o contacta con soporte."
+                    : "Código incorrecto o caducado. Puedes solicitar un código nuevo con el botón de arriba.");
+                show($("msg-err"), verifyMsg, false);
                 return;
               }
               var p = readProfile();
@@ -346,7 +368,77 @@ export const renderInviteActivationPageEs = ({
             })
             .catch(function () {
               $("btn-verify-otp").disabled = false;
-              show($("msg-err"), "Código incorrecto o caducado.", false);
+              show($("msg-err"), "No se pudo verificar el código. Comprueba tu conexión e inténtalo de nuevo.", false);
+            });
+        });
+
+        function parseJsonResponse(text) {
+          if (!text) return null;
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            return null;
+          }
+        }
+
+        function activationErrorMessage(status, body) {
+          if (body && body.message) return String(body.message);
+          if (status === 403) {
+            return "No se pudo activar la cuenta (origen no permitido). Recarga la página desde el enlace de invitación o contacta con soporte.";
+          }
+          if (status === 404) {
+            return "Esta invitación ya no es válida. Solicita una nueva invitación al administrador.";
+          }
+          if (status >= 500) {
+            return "Error del servidor. Inténtalo de nuevo en unos minutos.";
+          }
+          return "No se pudo activar la cuenta. Revisa los datos e inténtalo de nuevo.";
+        }
+
+        $("activate-form").addEventListener("submit", function (ev) {
+          ev.preventDefault();
+          hideMsg($("msg-ok"));
+          hideMsg($("msg-err"));
+          var btn = $("btn-activate");
+          btn.disabled = true;
+          var fd = new FormData($("activate-form"));
+          var params = new URLSearchParams();
+          fd.forEach(function (v, k) {
+            params.append(k, v);
+          });
+          fetch("/api/auth/accept-invite", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+              Accept: "application/json",
+              "X-Frigest-Invite-Activation": "1",
+            },
+            body: params.toString(),
+          })
+            .then(function (r) {
+              return r.text().then(function (t) {
+                return { ok: r.ok, status: r.status, body: parseJsonResponse(t), raw: t };
+              });
+            })
+            .then(function (res) {
+              btn.disabled = false;
+              if (res.ok && res.body && res.body.access_token) {
+                var red = new URL(cfg.redirectUri);
+                red.searchParams.set("access_token", res.body.access_token);
+                red.searchParams.set("from_url", cfg.redirectUri);
+                window.location.href = red.toString();
+                return;
+              }
+              var msg = activationErrorMessage(res.status, res.body);
+              show($("msg-err"), msg, false);
+            })
+            .catch(function () {
+              btn.disabled = false;
+              show(
+                $("msg-err"),
+                "No se pudo conectar con el servidor. Comprueba tu conexión e inténtalo de nuevo.",
+                false
+              );
             });
         });
       })();

@@ -31,6 +31,7 @@ import {
 } from "../services/billing-service.js";
 import {
   consumeEmailVerificationToken,
+  assertInviteActivationNonceValid,
   consumeInviteActivationNonce,
   consumePasswordResetToken,
   createEmailVerificationToken,
@@ -136,7 +137,14 @@ const buildAuthViewUrl = (
   return `${url.pathname}${url.search}`;
 };
 
+const isInviteActivationAjaxRequest = (req) =>
+  String(req.headers["x-frigest-invite-activation"] || "").trim() === "1";
+
 const isBrowserFormRequest = (req) => {
+  if (isInviteActivationAjaxRequest(req)) {
+    return false;
+  }
+
   const contentType = String(req.headers["content-type"] || "");
   const accept = String(req.headers.accept || "");
 
@@ -880,9 +888,7 @@ const acceptInvitation = async ({
     throw new HttpError(422, "Las contraseñas no coinciden.");
   }
 
-  const passwordHash = createPasswordHash(password);
-
-  await consumeInviteActivationNonce({
+  await assertInviteActivationNonceValid({
     nonce: otpVerifiedNonce,
     userId: invite.user.id,
     firstName: first,
@@ -890,6 +896,7 @@ const acceptInvitation = async ({
     dni: dniNorm,
   });
 
+  const passwordHash = createPasswordHash(password);
   const fullName = `${first} ${last}`.trim();
 
   let updatedUser;
@@ -912,6 +919,14 @@ const acceptInvitation = async ({
     });
     throw err;
   }
+
+  await consumeInviteActivationNonce({
+    nonce: otpVerifiedNonce,
+    userId: invite.user.id,
+    firstName: first,
+    lastName: last,
+    dni: dniNorm,
+  });
 
   await syncMembershipSnapshotForUser(updatedUser, {
     includeRole: false,
