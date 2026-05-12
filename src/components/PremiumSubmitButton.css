@@ -1,0 +1,76 @@
+/* Premium submit — shimmer / glow; respect prefers-reduced-motion */
+
+.premium-submit {
+  position: relative;
+  isolation: isolate;
+}
+
+.premium-submit::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  background: radial-gradient(
+    120% 80% at 50% 120%,
+    rgba(45, 212, 191, 0.35) 0%,
+    transparent 55%
+  );
+}
+
+.premium-submit:not(:disabled):hover::after {
+  opacity: 1;
+}
+
+.premium-submit__shimmer {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0) 38%,
+    rgba(255, 255, 255, 0.18) 50%,
+    rgba(255, 255, 255, 0) 62%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: premium-submit-shimmer 2.75s ease-in-out infinite;
+  z-index: 0;
+}
+
+.premium-submit--dark .premium-submit__shimmer {
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0) 36%,
+    rgba(255, 255, 255, 0.12) 50%,
+    rgba(255, 255, 255, 0) 64%,
+    transparent 100%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .premium-submit__shimmer {
+    animation: none;
+    transform: none;
+    opacity: 0;
+  }
+
+  .premium-submit::after {
+    transition: none;
+  }
+}
+
+@keyframes premium-submit-shimmer {
+  0%,
+  100% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+}

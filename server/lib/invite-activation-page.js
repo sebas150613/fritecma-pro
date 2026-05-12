@@ -177,6 +177,153 @@ export const renderInviteActivationPageEs = ({
         box-shadow: none;
         border: 1px solid var(--line);
       }
+      .btn.premium-act {
+        position: relative;
+        overflow: hidden;
+        transition: box-shadow 0.2s ease, transform 0.15s ease;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .btn.premium-act {
+          transition: none;
+        }
+      }
+      .btn.premium-act:focus-visible {
+        outline: 2px solid rgba(15, 118, 110, 0.45);
+        outline-offset: 2px;
+      }
+      .btn.premium-act:not(:disabled):active {
+        transform: scale(0.992);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .btn.premium-act:not(:disabled):active {
+          transform: none;
+        }
+      }
+      .btn.premium-act .btn-inner {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        width: 100%;
+        min-height: 1.25em;
+        position: relative;
+        z-index: 2;
+      }
+      .btn.premium-act .btn-spinner {
+        display: none;
+        width: 1.05rem;
+        height: 1.05rem;
+        border: 2px solid rgba(15, 23, 42, 0.12);
+        border-top-color: rgba(15, 118, 110, 0.95);
+        border-radius: 50%;
+        box-sizing: border-box;
+      }
+      .btn.premium-act:not(.secondary) .btn-spinner {
+        border: 2px solid rgba(255, 255, 255, 0.28);
+        border-top-color: rgba(255, 255, 255, 0.95);
+      }
+      .btn.premium-act.is-loading .btn-spinner {
+        display: block;
+        animation: invActSpin 0.75s linear infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .btn.premium-act.is-loading .btn-spinner {
+          animation: none;
+          opacity: 0.85;
+        }
+      }
+      @keyframes invActSpin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .btn.premium-act.is-loading .btn-label {
+        opacity: 0.92;
+      }
+      .btn.premium-act .btn-check {
+        display: none;
+        font-size: 1.05rem;
+        font-weight: 800;
+        line-height: 1;
+      }
+      .btn.secondary.premium-act .btn-check {
+        color: var(--brand-deep);
+      }
+      .btn.premium-act:not(.secondary) .btn-check {
+        color: #fff;
+      }
+      .btn.premium-act.is-success .btn-check {
+        display: block;
+      }
+      .btn.premium-act.is-success .btn-spinner {
+        display: none;
+      }
+      .btn.premium-act.is-success .btn-label {
+        display: none;
+      }
+      .btn.premium-act.is-success::before {
+        display: none;
+      }
+      .btn.premium-act.is-loading::before,
+      .btn.premium-act:not(.is-loading):not(:disabled):not(.is-success)::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        z-index: 1;
+        background: linear-gradient(
+          105deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0) 38%,
+          rgba(255, 255, 255, 0.16) 50%,
+          rgba(255, 255, 255, 0) 62%,
+          transparent 100%
+        );
+        transform: translateX(-100%);
+        opacity: 0.85;
+      }
+      .btn.secondary.premium-act:not(.is-loading):not(:disabled):not(.is-success)::before {
+        background: linear-gradient(
+          105deg,
+          transparent 0%,
+          rgba(255, 255, 255, 0) 38%,
+          rgba(15, 118, 110, 0.12) 50%,
+          rgba(255, 255, 255, 0) 62%,
+          transparent 100%
+        );
+      }
+      .btn.premium-act.is-loading::before {
+        opacity: 0.3;
+        animation: none;
+      }
+      .btn.premium-act:not(.is-loading):not(:disabled):not(.is-success)::before {
+        animation: invActShimmer 2.7s ease-in-out infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .btn.premium-act.is-loading::before,
+        .btn.premium-act:not(.is-loading):not(:disabled):not(.is-success)::before {
+          animation: none;
+          opacity: 0;
+        }
+      }
+      @keyframes invActShimmer {
+        0%,
+        100% {
+          transform: translateX(-100%);
+        }
+        50% {
+          transform: translateX(100%);
+        }
+      }
+      .btn.premium-act:not(.secondary) {
+        box-shadow:
+          0 10px 28px rgba(11, 79, 84, 0.26),
+          0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+      }
+      .btn.secondary.premium-act:not(:disabled) {
+        box-shadow: 0 1px 0 rgba(255, 255, 255, 0.75) inset;
+      }
       .section-title {
         margin: 22px 0 8px;
         font-size: 13px;
@@ -244,7 +391,13 @@ export const renderInviteActivationPageEs = ({
 
         <div class="section-title">Verificación por email</div>
         <p class="hint">Enviaremos un código de un solo uso al email de esta invitación. Si el código o la verificación caducan, pulsa de nuevo «Solicitar código»; no hace falta un enlace nuevo.</p>
-        <button type="button" class="btn secondary" id="btn-request-otp">Solicitar código</button>
+        <button type="button" class="btn secondary premium-act" id="btn-request-otp">
+          <span class="btn-inner">
+            <span class="btn-label">Solicitar código</span>
+            <span class="btn-spinner" aria-hidden="true"></span>
+            <span class="btn-check" aria-hidden="true">✓</span>
+          </span>
+        </button>
 
         <div id="otp-block" class="hidden">
           <label for="otp">Código de verificación</label>
@@ -253,7 +406,13 @@ export const renderInviteActivationPageEs = ({
           <p class="hint" id="otp-static-hint">
             El código caduca en 10 minutos. Puedes introducirlo hasta 3 veces. Si agotas los intentos, solicita un código nuevo con el botón superior.
           </p>
-          <button type="button" class="btn secondary" id="btn-verify-otp">Verificar código</button>
+          <button type="button" class="btn secondary premium-act" id="btn-verify-otp">
+            <span class="btn-inner">
+              <span class="btn-label">Verificar código</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+              <span class="btn-check" aria-hidden="true">✓</span>
+            </span>
+          </button>
           <p id="post-otp-success" class="hint hidden">Código verificado. Ya puedes crear tu contraseña.</p>
         </div>
 
@@ -270,7 +429,13 @@ export const renderInviteActivationPageEs = ({
           <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" required />
           <label for="password_confirm">Repetir contraseña</label>
           <input id="password_confirm" name="password_confirm" type="password" autocomplete="new-password" minlength="8" required />
-          <button type="submit" class="btn" id="btn-activate">Activar cuenta</button>
+          <button type="submit" class="btn premium-act" id="btn-activate">
+            <span class="btn-inner">
+              <span class="btn-label">Activar cuenta</span>
+              <span class="btn-spinner" aria-hidden="true"></span>
+              <span class="btn-check" aria-hidden="true">✓</span>
+            </span>
+          </button>
         </form>
       </div>
       <p class="foot"><a href="${escapeHtml(loginPath)}">Volver al inicio de sesión</a></p>
@@ -297,6 +462,34 @@ export const renderInviteActivationPageEs = ({
             last_name: ($("last_name").value || "").trim(),
             dni: ($("dni").value || "").trim(),
           };
+        }
+        function premiumBtnLabel(btn, text) {
+          if (!btn) return;
+          var lab = btn.querySelector(".btn-label");
+          if (lab) lab.textContent = text;
+          else btn.textContent = text;
+        }
+        function premiumBtnLoad(btn, on) {
+          if (!btn) return;
+          btn.classList.toggle("is-loading", !!on);
+          if (on) btn.setAttribute("aria-busy", "true");
+          else btn.removeAttribute("aria-busy");
+        }
+        function premiumBriefSuccess(btn, tempLabel, ms, thenFn) {
+          if (!btn) {
+            if (thenFn) thenFn();
+            return;
+          }
+          var lab = btn.querySelector(".btn-label");
+          btn.classList.remove("is-loading");
+          btn.removeAttribute("aria-busy");
+          btn.classList.add("is-success");
+          if (lab) lab.textContent = tempLabel;
+          setTimeout(function () {
+            btn.classList.remove("is-success");
+            if (lab) lab.textContent = "Verificar código";
+            if (thenFn) thenFn();
+          }, ms || 340);
         }
         var COOLDOWN_MS = 60000;
         var cooldownKey = "frigest_invite_otp_req_" + cfg.token;
@@ -345,12 +538,12 @@ export const renderInviteActivationPageEs = ({
             sessionStorage.removeItem(cooldownKey);
             clearCooldownInterval();
             btn.disabled = false;
-            btn.textContent = "Solicitar código";
+            premiumBtnLabel(btn, "Solicitar código");
             return;
           }
           var sec = Math.max(0, Math.ceil((until - Date.now()) / 1000));
           btn.disabled = true;
-          btn.textContent = "Solicitar nuevo código en " + sec + " s";
+          premiumBtnLabel(btn, "Solicitar nuevo código en " + sec + " s");
         }
 
         function startRequestOtpCooldown() {
@@ -361,7 +554,9 @@ export const renderInviteActivationPageEs = ({
         }
 
         function syncRequestButtonAfterNetwork() {
-          $("btn-request-otp").disabled = false;
+          var b = $("btn-request-otp");
+          premiumBtnLoad(b, false);
+          b.disabled = false;
           applyCooldownButtonState();
         }
 
@@ -378,7 +573,9 @@ export const renderInviteActivationPageEs = ({
           hideMsg($("msg-err"));
           hideOtpMsg();
           var p = readProfile();
-          $("btn-request-otp").disabled = true;
+          var rqBtn = $("btn-request-otp");
+          premiumBtnLoad(rqBtn, true);
+          rqBtn.disabled = true;
           fetch("/api/auth/invite/request-otp", {
             method: "POST",
             headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -401,6 +598,7 @@ export const renderInviteActivationPageEs = ({
               });
             })
             .then(function (res) {
+              premiumBtnLoad(rqBtn, false);
               if (!res.ok) {
                 syncRequestButtonAfterNetwork();
                 var reqMsg =
@@ -422,6 +620,7 @@ export const renderInviteActivationPageEs = ({
               startRequestOtpCooldown();
             })
             .catch(function () {
+              premiumBtnLoad(rqBtn, false);
               syncRequestButtonAfterNetwork();
               show($("msg-err"), "No se pudo enviar el código. Comprueba tu conexión e inténtalo de nuevo.", false);
             });
@@ -433,7 +632,9 @@ export const renderInviteActivationPageEs = ({
           var postOk = $("post-otp-success");
           if (postOk) postOk.classList.add("hidden");
           var otp = ($("otp").value || "").trim();
-          $("btn-verify-otp").disabled = true;
+          var vbtn = $("btn-verify-otp");
+          premiumBtnLoad(vbtn, true);
+          vbtn.disabled = true;
           fetch("/api/auth/invite/verify-otp", {
             method: "POST",
             headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -451,20 +652,25 @@ export const renderInviteActivationPageEs = ({
               });
             })
             .then(function (res) {
-              $("btn-verify-otp").disabled = false;
+              premiumBtnLoad(vbtn, false);
               if (res.ok && res.body && res.body.otp_verified_nonce) {
-                var p = readProfile();
-                $("hf-first").value = p.first_name;
-                $("hf-last").value = p.last_name;
-                $("hf-dni").value = p.dni;
-                $("hf-nonce").value = res.body.otp_verified_nonce;
-                $("otp").value = "";
-                hideOtpMsg();
-                if (postOk) postOk.classList.remove("hidden");
-                $("activate-form").classList.remove("hidden");
-                $("password").focus();
+                vbtn.disabled = true;
+                premiumBriefSuccess(vbtn, "Verificado", 360, function () {
+                  vbtn.disabled = false;
+                  var p = readProfile();
+                  $("hf-first").value = p.first_name;
+                  $("hf-last").value = p.last_name;
+                  $("hf-dni").value = p.dni;
+                  $("hf-nonce").value = res.body.otp_verified_nonce;
+                  $("otp").value = "";
+                  hideOtpMsg();
+                  if (postOk) postOk.classList.remove("hidden");
+                  $("activate-form").classList.remove("hidden");
+                  $("password").focus();
+                });
                 return;
               }
+              vbtn.disabled = false;
               var isInviteOtp =
                 res.body &&
                 (typeof res.body.attempts_remaining === "number" || res.body.code_exhausted === true);
@@ -482,6 +688,7 @@ export const renderInviteActivationPageEs = ({
               }
             })
             .catch(function () {
+              premiumBtnLoad(vbtn, false);
               $("btn-verify-otp").disabled = false;
               show($("msg-err"), "No se pudo verificar el código. Comprueba tu conexión e inténtalo de nuevo.", false);
             });
@@ -518,6 +725,7 @@ export const renderInviteActivationPageEs = ({
           var ps = $("post-otp-success");
           if (ps) ps.classList.add("hidden");
           var btn = $("btn-activate");
+          premiumBtnLoad(btn, true);
           btn.disabled = true;
           var fd = new FormData($("activate-form"));
           var params = new URLSearchParams();
@@ -539,6 +747,7 @@ export const renderInviteActivationPageEs = ({
               });
             })
             .then(function (res) {
+              premiumBtnLoad(btn, false);
               btn.disabled = false;
               if (res.ok && res.body && res.body.access_token) {
                 var red = new URL(cfg.redirectUri);
@@ -551,6 +760,7 @@ export const renderInviteActivationPageEs = ({
               show($("msg-err"), msg, false);
             })
             .catch(function () {
+              premiumBtnLoad(btn, false);
               btn.disabled = false;
               show(
                 $("msg-err"),
