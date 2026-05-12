@@ -197,6 +197,18 @@ export const renderInviteActivationPageEs = ({
       .msg.err { background: var(--danger-bg); color: var(--danger); border: 1px solid #fecdd3; }
       .msg.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid #a7f3d0; }
       .hint { margin-top: 8px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+      .otp-msg {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        display: none;
+      }
+      .otp-msg.show { display: block; }
+      .otp-msg.err { background: var(--danger-bg); color: var(--danger); border: 1px solid #fecdd3; }
+      .otp-msg.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid #a7f3d0; }
+      #post-otp-success { margin-top: 10px; font-weight: 600; color: var(--ok); }
       .hidden { display: none !important; }
       .foot { margin-top: 22px; font-size: 12px; color: var(--muted); text-align: center; }
       .foot a { color: var(--brand-deep); font-weight: 700; text-decoration: none; }
@@ -237,7 +249,12 @@ export const renderInviteActivationPageEs = ({
         <div id="otp-block" class="hidden">
           <label for="otp">Código de verificación</label>
           <input id="otp" name="otp" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="000000" />
+          <div id="otp-msg" class="otp-msg" role="alert" aria-live="polite"></div>
+          <p class="hint" id="otp-static-hint">
+            El código caduca en 10 minutos. Puedes introducirlo hasta 3 veces. Si agotas los intentos, solicita un código nuevo con el botón superior.
+          </p>
           <button type="button" class="btn secondary" id="btn-verify-otp">Verificar código</button>
+          <p id="post-otp-success" class="hint hidden">Código verificado. Ya puedes crear tu contraseña.</p>
         </div>
 
         <form id="activate-form" class="hidden" method="post" action="/api/auth/accept-invite">
@@ -281,9 +298,85 @@ export const renderInviteActivationPageEs = ({
             dni: ($("dni").value || "").trim(),
           };
         }
+        var COOLDOWN_MS = 60000;
+        var cooldownKey = "frigest_invite_otp_req_" + cfg.token;
+        var cooldownInterval = null;
+
+        function hideOtpMsg() {
+          var el = $("otp-msg");
+          if (!el) return;
+          el.textContent = "";
+          el.className = "otp-msg";
+        }
+
+        function showOtpMsg(text, asOk) {
+          var el = $("otp-msg");
+          if (!el) return;
+          el.textContent = text || "";
+          el.className = "otp-msg show " + (asOk ? "ok" : "err");
+        }
+
+        function formatOtpVerifyUserMessage(body) {
+          if (!body) return "No se pudo verificar el código.";
+          if (
+            body.message === "Código incorrecto." &&
+            typeof body.attempts_remaining === "number" &&
+            !body.code_exhausted
+          ) {
+            var r = body.attempts_remaining;
+            if (r === 1) return "Código incorrecto. Te queda 1 intento.";
+            return "Código incorrecto. Te quedan " + r + " intentos.";
+          }
+          return String(body.message || "No se pudo verificar el código.");
+        }
+
+        function clearCooldownInterval() {
+          if (cooldownInterval) {
+            clearInterval(cooldownInterval);
+            cooldownInterval = null;
+          }
+        }
+
+        function applyCooldownButtonState() {
+          var btn = $("btn-request-otp");
+          if (!btn) return;
+          var until = parseInt(sessionStorage.getItem(cooldownKey) || "0", 10);
+          if (!until || until <= Date.now()) {
+            sessionStorage.removeItem(cooldownKey);
+            clearCooldownInterval();
+            btn.disabled = false;
+            btn.textContent = "Solicitar código";
+            return;
+          }
+          var sec = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+          btn.disabled = true;
+          btn.textContent = "Solicitar nuevo código en " + sec + " s";
+        }
+
+        function startRequestOtpCooldown() {
+          sessionStorage.setItem(cooldownKey, String(Date.now() + COOLDOWN_MS));
+          clearCooldownInterval();
+          applyCooldownButtonState();
+          cooldownInterval = setInterval(applyCooldownButtonState, 1000);
+        }
+
+        function syncRequestButtonAfterNetwork() {
+          $("btn-request-otp").disabled = false;
+          applyCooldownButtonState();
+        }
+
+        applyCooldownButtonState();
+        if (parseInt(sessionStorage.getItem(cooldownKey) || "0", 10) > Date.now()) {
+          cooldownInterval = setInterval(applyCooldownButtonState, 1000);
+        }
+
         $("btn-request-otp").addEventListener("click", function () {
+          if (parseInt(sessionStorage.getItem(cooldownKey) || "0", 10) > Date.now()) {
+            return;
+          }
           hideMsg($("msg-ok"));
           hideMsg($("msg-err"));
+          hideOtpMsg();
           var p = readProfile();
           $("btn-request-otp").disabled = true;
           fetch("/api/auth/invite/request-otp", {
@@ -308,8 +401,8 @@ export const renderInviteActivationPageEs = ({
               });
             })
             .then(function (res) {
-              $("btn-request-otp").disabled = false;
               if (!res.ok) {
+                syncRequestButtonAfterNetwork();
                 var reqMsg =
                   (res.body && res.body.message) ||
                   (res.status === 403
@@ -319,16 +412,26 @@ export const renderInviteActivationPageEs = ({
                 return;
               }
               show($("msg-ok"), "Código enviado. Revisa tu correo.", true);
+              $("activate-form").classList.add("hidden");
+              var ps0 = $("post-otp-success");
+              if (ps0) ps0.classList.add("hidden");
+              var hn = $("hf-nonce");
+              if (hn) hn.value = "";
+              hideOtpMsg();
               $("otp-block").classList.remove("hidden");
+              startRequestOtpCooldown();
             })
             .catch(function () {
-              $("btn-request-otp").disabled = false;
+              syncRequestButtonAfterNetwork();
               show($("msg-err"), "No se pudo enviar el código. Comprueba tu conexión e inténtalo de nuevo.", false);
             });
         });
         $("btn-verify-otp").addEventListener("click", function () {
           hideMsg($("msg-ok"));
           hideMsg($("msg-err"));
+          hideOtpMsg();
+          var postOk = $("post-otp-success");
+          if (postOk) postOk.classList.add("hidden");
           var otp = ($("otp").value || "").trim();
           $("btn-verify-otp").disabled = true;
           fetch("/api/auth/invite/verify-otp", {
@@ -349,22 +452,34 @@ export const renderInviteActivationPageEs = ({
             })
             .then(function (res) {
               $("btn-verify-otp").disabled = false;
-              if (!res.ok || !res.body || !res.body.otp_verified_nonce) {
-                var verifyMsg =
+              if (res.ok && res.body && res.body.otp_verified_nonce) {
+                var p = readProfile();
+                $("hf-first").value = p.first_name;
+                $("hf-last").value = p.last_name;
+                $("hf-dni").value = p.dni;
+                $("hf-nonce").value = res.body.otp_verified_nonce;
+                $("otp").value = "";
+                hideOtpMsg();
+                if (postOk) postOk.classList.remove("hidden");
+                $("activate-form").classList.remove("hidden");
+                $("password").focus();
+                return;
+              }
+              var isInviteOtp =
+                res.body &&
+                (typeof res.body.attempts_remaining === "number" || res.body.code_exhausted === true);
+              if (isInviteOtp) {
+                showOtpMsg(formatOtpVerifyUserMessage(res.body), false);
+                $("otp").value = "";
+                $("otp").focus();
+              } else {
+                var verifyGlobal =
                   (res.body && res.body.message) ||
                   (res.status === 403
                     ? "No se pudo verificar el código (origen no permitido). Recarga la página o contacta con soporte."
-                    : "Código incorrecto o caducado. Puedes solicitar un código nuevo con el botón de arriba.");
-                show($("msg-err"), verifyMsg, false);
-                return;
+                    : "No se pudo verificar el código.");
+                show($("msg-err"), verifyGlobal, false);
               }
-              var p = readProfile();
-              $("hf-first").value = p.first_name;
-              $("hf-last").value = p.last_name;
-              $("hf-dni").value = p.dni;
-              $("hf-nonce").value = res.body.otp_verified_nonce;
-              $("activate-form").classList.remove("hidden");
-              show($("msg-ok"), "Código verificado. Crea tu contraseña.", true);
             })
             .catch(function () {
               $("btn-verify-otp").disabled = false;
@@ -399,6 +514,9 @@ export const renderInviteActivationPageEs = ({
           ev.preventDefault();
           hideMsg($("msg-ok"));
           hideMsg($("msg-err"));
+          hideOtpMsg();
+          var ps = $("post-otp-success");
+          if (ps) ps.classList.add("hidden");
           var btn = $("btn-activate");
           btn.disabled = true;
           var fd = new FormData($("activate-form"));
