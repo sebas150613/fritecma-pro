@@ -88,6 +88,9 @@ const statusLabel = (status) => {
   return "Sin datos";
 };
 
+const isPlatformInternalOrg = (org) =>
+  org?.is_platform_internal === true || org?.id === PLATFORM_INTERNAL_ORG_ID;
+
 const formatMetric = (value, suffix = "") => {
   if (value === null || value === undefined || value === "") {
     return "Sin datos";
@@ -141,16 +144,15 @@ export default function OwnerClients() {
       setPlans(Array.isArray(plansList) ? plansList : []);
       const items = overview?.organizations || [];
       const sorted = [...items].sort((a, b) => {
-        const internal = (o) =>
-          o?.is_platform_internal === true || o?.id === PLATFORM_INTERNAL_ORG_ID;
-        return Number(internal(a)) - Number(internal(b));
+        return Number(isPlatformInternalOrg(a)) - Number(isPlatformInternalOrg(b));
       });
       setOrganizations(sorted);
+      const clientSorted = sorted.filter((o) => !isPlatformInternalOrg(o));
       setSelectedId((prev) => {
-        if (prev && sorted.some((o) => o.id === prev)) {
+        if (prev && clientSorted.some((o) => o.id === prev)) {
           return prev;
         }
-        return sorted[0]?.id || "";
+        return clientSorted[0]?.id || "";
       });
     } catch (e) {
       setError(e?.message || "No se pudo cargar el panel.");
@@ -180,9 +182,14 @@ export default function OwnerClients() {
     setBillingDirty(emptyBillingDirty());
   }, [selectedId]);
 
+  const clientOrganizations = useMemo(
+    () => organizations.filter((org) => !isPlatformInternalOrg(org)),
+    [organizations]
+  );
+
   const selectedOrganization = useMemo(
-    () => organizations.find((org) => org.id === selectedId) || null,
-    [organizations, selectedId]
+    () => clientOrganizations.find((org) => org.id === selectedId) || null,
+    [clientOrganizations, selectedId]
   );
 
   useEffect(() => {
@@ -267,7 +274,7 @@ export default function OwnerClients() {
 
   const filteredOrganizations = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return organizations.filter((org) => {
+    return clientOrganizations.filter((org) => {
       const p = org.owner_profile || {};
       const hay = [
         org.name,
@@ -308,7 +315,7 @@ export default function OwnerClients() {
       }
       return true;
     });
-  }, [organizations, searchQuery, filterLicense, filterPlan, filterExtra]);
+  }, [clientOrganizations, searchQuery, filterLicense, filterPlan, filterExtra]);
 
   const selectedBilling = selectedOrganization?.billing || null;
   const licenseStatus = selectedBilling?.subscription?.status || "active";
@@ -330,9 +337,6 @@ export default function OwnerClients() {
     Boolean(ownerEmailNormalized) &&
     Boolean(inviteEmailNormalized) &&
     inviteEmailNormalized === ownerEmailNormalized;
-
-  const isPlatformInternalOrg = (org) =>
-    org?.is_platform_internal === true || org?.id === PLATFORM_INTERNAL_ORG_ID;
 
   const applyCommercialToBilling = () => {
     setFiscalDraft((d) => ({
@@ -372,11 +376,11 @@ export default function OwnerClients() {
 
   const planFilterOptions = useMemo(() => {
     const codes = new Set();
-    organizations.forEach((o) => {
+    clientOrganizations.forEach((o) => {
       codes.add(o.billing?.subscription?.plan_code || o.plan_code || "starter");
     });
     return [...codes].sort();
-  }, [organizations]);
+  }, [clientOrganizations]);
 
   const handleCreateUser = async () => {
     if (!selectedOrganization?.id) return;
@@ -790,8 +794,15 @@ export default function OwnerClients() {
                 );
               })}
               {!filteredOrganizations.length && (
-                <div className="p-6 text-sm text-muted-foreground text-center">
-                  {organizations.length ? "Ninguna empresa coincide con el criterio." : "Todavía no hay empresas."}
+                <div className="p-6 text-sm text-muted-foreground text-center space-y-2">
+                  {clientOrganizations.length ? (
+                    <p>Ninguna empresa coincide con el criterio.</p>
+                  ) : (
+                    <>
+                      <p>Todavía no hay empresas cliente.</p>
+                      <p>Crea la primera empresa desde Nueva empresa.</p>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -800,8 +811,15 @@ export default function OwnerClients() {
 
         <section className="lg:col-span-8 space-y-4">
           {!selectedOrganization ? (
-            <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
-              Seleccione una empresa en el directorio.
+            <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground space-y-2">
+              {clientOrganizations.length ? (
+                <p>Seleccione una empresa en el directorio.</p>
+              ) : (
+                <>
+                  <p>Todavía no hay empresas cliente.</p>
+                  <p>Crea la primera empresa desde Nueva empresa.</p>
+                </>
+              )}
             </div>
           ) : (
             <Tabs value={detailTab} onValueChange={setDetailTab} className="space-y-4">
