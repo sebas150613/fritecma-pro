@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 import multer from "multer";
 import { serverConfig } from "./config.js";
 import authRoutes from "./routes/auth.js";
@@ -52,36 +52,87 @@ const ensureRuntimeDirs = async () => {
 };
 
 const createCorsForbiddenError = () => {
-  const error = new Error("Origin is not allowed by CORS policy.");
+  const error = new Error(
+    "Este origen no está permitido por la política de la aplicación. Si usas un dominio distinto para la web y la API, revisa APP_ALLOWED_ORIGINS."
+  );
   error.status = 403;
   return error;
 };
 
-const corsOptions = serverConfig.isProduction
-  ? {
+/** Permite peticiones cuyo Origin coincide con el host público de esta API (p. ej. HTML de /api/auth/accept-invite). */
+const productionOriginIsAllowed = (req, origin) => {
+  if (!serverConfig.isProduction) {
+    return true;
+  }
+  if (!origin) {
+    return true;
+  }
+  if (serverConfig.allowedOrigins.includes(origin)) {
+    return true;
+  }
+  try {
+    const url = new URL(origin);
+    const forwarded = String(req.headers["x-forwarded-host"] || req.headers.host || "");
+    const requestHost = forwarded.split(",")[0].trim().split(":")[0].toLowerCase();
+    const originHost = url.hostname.toLowerCase();
+    return Boolean(requestHost && originHost === requestHost);
+  } catch {
+    return false;
+  }
+};
+
+const sendProductionOriginRejected = (req, res) => {
+  const message =
+    "Este origen no está permitido por la política de la aplicación. Si usas un dominio distinto para la web y la API, revisa APP_ALLOWED_ORIGINS.";
+  const wantsHtml =
+    String(req.headers.accept || "").includes("text/html") ||
+    String(req.headers["content-type"] || "").includes("application/x-www-form-urlencoded");
+
+  if (wantsHtml) {
+    return res.status(403).type("html").send(`<!doctype html>
+<html lang="es"><head><meta charset="UTF-8"/><title>Acceso denegado</title></head>
+<body style="font-family:system-ui,sans-serif;padding:24px;max-width:520px;margin:40px auto;">
+<p style="font-size:16px;line-height:1.6">${message}</p>
+</body></html>`);
+  }
+
+  return res.status(403).json({ message });
+};
+
+if (serverConfig.isProduction) {
+  app.use((req, res, next) => {
+    cors({
       origin(origin, callback) {
-        if (!origin || serverConfig.allowedOrigins.includes(origin)) {
+        if (productionOriginIsAllowed(req, origin)) {
           callback(null, true);
           return;
         }
-
         callback(createCorsForbiddenError());
       },
-    }
-  : undefined;
+    })(req, res, next);
+  });
+} else {
+  app.use(cors());
+}
 
-app.use(cors(corsOptions));
 app.use((req, res, next) => {
-  if (!serverConfig.isProduction || !req.headers.origin) {
+  if (!serverConfig.isProduction) {
     next();
     return;
   }
 
-  if (!serverConfig.allowedOrigins.includes(req.headers.origin)) {
-    return res.status(403).json({ message: "Origin is not allowed by CORS policy." });
+  const origin = req.headers.origin;
+  if (!origin) {
+    next();
+    return;
   }
 
-  next();
+  if (productionOriginIsAllowed(req, origin)) {
+    next();
+    return;
+  }
+
+  return sendProductionOriginRejected(req, res);
 });
 
 app.use(
