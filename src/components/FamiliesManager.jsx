@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { appApi } from "@/api/app-api";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,6 +15,8 @@ export default function FamiliesManager({ open, onClose }) {
   const [newFamilyName, setNewFamilyName] = useState("");
   const [newSubName, setNewSubName] = useState("");
   const [newSubFamily, setNewSubFamily] = useState("");
+  const [familyToDelete, setFamilyToDelete] = useState(null);
+  const [subfamilyToDelete, setSubfamilyToDelete] = useState(null);
 
   const load = async () => {
     const [fams, subs] = await Promise.all([
@@ -34,13 +37,8 @@ export default function FamiliesManager({ open, onClose }) {
     load();
   };
 
-  const deleteFamily = async (id) => {
-    if (!confirm("¿Eliminar esta familia y sus subfamilias?")) return;
-    const subs = subfamilies.filter(s => s.family_id === id);
-    for (const s of subs) await appApi.entities.MaterialSubfamily.delete(s.id);
-    await appApi.entities.MaterialFamily.delete(id);
-    if (selectedFamily === id) setSelectedFamily(null);
-    load();
+  const deleteFamily = (family) => {
+    setFamilyToDelete(family);
   };
 
   const addSubfamily = async () => {
@@ -53,10 +51,8 @@ export default function FamiliesManager({ open, onClose }) {
     load();
   };
 
-  const deleteSubfamily = async (id) => {
-    if (!confirm("¿Eliminar esta subfamilia?")) return;
-    await appApi.entities.MaterialSubfamily.delete(id);
-    load();
+  const deleteSubfamily = (subfamily) => {
+    setSubfamilyToDelete(subfamily);
   };
 
   const filteredSubs = selectedFamily ? subfamilies.filter(s => s.family_id === selectedFamily) : subfamilies;
@@ -89,7 +85,7 @@ export default function FamiliesManager({ open, onClose }) {
                   <div className="flex items-center gap-1">
                     <span className="text-xs opacity-60">{subfamilies.filter(s => s.family_id === f.id).length}</span>
                     <Button variant="ghost" size="icon" className="h-6 w-6 hover:text-destructive"
-                      onClick={e => { e.stopPropagation(); deleteFamily(f.id); }}>
+                      onClick={e => { e.stopPropagation(); deleteFamily(f); }}>
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
@@ -126,7 +122,7 @@ export default function FamiliesManager({ open, onClose }) {
                     {!selectedFamily && <span className="text-xs text-muted-foreground mr-2">{s.family_name}</span>}
                     {s.name}
                   </span>
-                  <Button variant="ghost" size="icon" className="h-6 w-6 hover:text-destructive" onClick={() => deleteSubfamily(s.id)}>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 hover:text-destructive" onClick={() => deleteSubfamily(s)}>
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 </div>
@@ -135,6 +131,57 @@ export default function FamiliesManager({ open, onClose }) {
             </div>
           </div>
         </div>
+
+        <ConfirmModal
+          icon={null}
+          open={!!familyToDelete}
+          onOpenChange={(open) => {
+            if (!open) setFamilyToDelete(null);
+          }}
+          title="Eliminar familia"
+          description={
+            <>
+              Vas a eliminar <strong>{familyToDelete?.name}</strong> y sus subfamilias.
+            </>
+          }
+          note="Esta acción eliminará también las subfamilias asociadas a esta familia. Revisa antes si se usan en materiales del catálogo."
+          confirmText="Eliminar familia"
+          variant="danger"
+          onConfirm={async () => {
+            if (!familyToDelete) return;
+            const subs = subfamilies.filter((s) => s.family_id === familyToDelete.id);
+            for (const s of subs) {
+              await appApi.entities.MaterialSubfamily.delete(s.id);
+            }
+            await appApi.entities.MaterialFamily.delete(familyToDelete.id);
+            if (selectedFamily === familyToDelete.id) setSelectedFamily(null);
+            setFamilyToDelete(null);
+            await load();
+          }}
+        />
+
+        <ConfirmModal
+          icon={null}
+          open={!!subfamilyToDelete}
+          onOpenChange={(open) => {
+            if (!open) setSubfamilyToDelete(null);
+          }}
+          title="Eliminar subfamilia"
+          description={
+            <>
+              Vas a eliminar <strong>{subfamilyToDelete?.name}</strong>.
+            </>
+          }
+          note="Esta acción eliminará la subfamilia del listado. Revisa antes si se usa en materiales del catálogo."
+          confirmText="Eliminar subfamilia"
+          variant="danger"
+          onConfirm={async () => {
+            if (!subfamilyToDelete) return;
+            await appApi.entities.MaterialSubfamily.delete(subfamilyToDelete.id);
+            setSubfamilyToDelete(null);
+            await load();
+          }}
+        />
       </DialogContent>
     </Dialog>
   );
