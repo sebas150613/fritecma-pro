@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Plus, Trash2, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import moment from "moment";
@@ -25,6 +26,7 @@ export default function AbsenceManagement() {
     type: "vacaciones",
     notes: ""
   });
+  const [absenceToDelete, setAbsenceToDelete] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -82,14 +84,8 @@ export default function AbsenceManagement() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("¿Eliminar esta ausencia?")) return;
-    try {
-      await appApi.entities.Absence.delete(id);
-      await loadData();
-    } catch (error) {
-      console.error("Error deleting absence:", error);
-    }
+  const handleDelete = (absence) => {
+    setAbsenceToDelete(absence);
   };
 
   const typeLabels = { vacaciones: "Vacaciones", asuntos_propios: "Asuntos Propios", baja_medica: "Baja Médica", otro: "Otro" };
@@ -186,13 +182,40 @@ export default function AbsenceManagement() {
                 {a.notes && <p className="text-xs text-muted-foreground mt-1">{a.notes}</p>}
                 <p className="text-xs text-muted-foreground mt-1">Registrado por: {a.created_by_name}</p>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => handleDelete(a.id)} className="text-destructive hover:text-destructive rounded-lg">
+              <Button variant="ghost" size="sm" onClick={() => handleDelete(a)} className="text-destructive hover:text-destructive rounded-lg">
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
           ))
         )}
       </div>
+
+      <ConfirmModal
+        icon={null}
+        open={!!absenceToDelete}
+        onOpenChange={(open) => {
+          if (!open) setAbsenceToDelete(null);
+        }}
+        title="Eliminar ausencia"
+        description={
+          <>
+            Vas a eliminar la ausencia de <strong>{absenceToDelete?.user_name}</strong>.
+          </>
+        }
+        note="Esta acción elimina el registro de ausencia del calendario de planificación."
+        confirmText="Eliminar ausencia"
+        variant="danger"
+        onConfirm={async () => {
+          if (!absenceToDelete) return;
+          try {
+            await appApi.entities.Absence.delete(absenceToDelete.id);
+            setAbsenceToDelete(null);
+            await loadData();
+          } catch (error) {
+            console.error("Error deleting absence:", error);
+          }
+        }}
+      />
     </div>
   );
 }
