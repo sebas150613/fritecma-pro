@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "react-router-dom";
 import { Plus, ArrowRightLeft, FlaskConical, History, AlertTriangle, Pencil, Trash2 } from "lucide-react";
@@ -78,6 +79,7 @@ export default function GasBottles() {
   const [transferForm, setTransferForm] = useState(EMPTY_TRANSFER);
   const [saving, setSaving] = useState(false);
   const [transferError, setTransferError] = useState("");
+  const [bottleToDelete, setBottleToDelete] = useState(null);
 
   const [interventionMap, setInterventionMap] = useState({});
 
@@ -210,13 +212,22 @@ export default function GasBottles() {
     }
   };
 
-  const deleteBottle = async (id) => {
-    if (!confirm("¿Eliminar esta botella?")) return;
-    const target = bottles.find((b) => b.id === id);
-    const gasBefore = target?.gas_type;
-    await appApi.entities.GasBottle.delete(id);
+  const deleteBottle = (bottle) => {
+    setBottleToDelete(bottle);
+  };
+
+  const confirmDeleteBottle = async () => {
+    if (!bottleToDelete) return;
+
+    const gasBefore = bottleToDelete.gas_type;
+
+    await appApi.entities.GasBottle.delete(bottleToDelete.id);
+    setBottleToDelete(null);
     await reload();
-    if (gasBefore) await syncGasMaterialStock(gasBefore);
+
+    if (gasBefore) {
+      await syncGasMaterialStock(gasBefore);
+    }
   };
 
   // Transfer
@@ -365,7 +376,7 @@ export default function GasBottles() {
                     <Button variant="outline" size="sm" onClick={() => openEdit(b)} className="rounded-xl flex-1 gap-1 text-xs"><Pencil className="h-3 w-3" /> Editar</Button>
                     <Button variant="ghost" size="sm" onClick={() => setHistoryBottle(b)} className="rounded-xl gap-1 text-xs"><History className="h-3 w-3" /></Button>
                     {!isTecnico && (
-                      <Button variant="ghost" size="sm" onClick={() => deleteBottle(b.id)} className="rounded-xl text-destructive hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => deleteBottle(b)} className="rounded-xl text-destructive hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></Button>
                     )}
                   </div>
                 </div>
@@ -422,6 +433,31 @@ export default function GasBottles() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <ConfirmModal
+        icon={null}
+        open={!!bottleToDelete}
+        onOpenChange={(open) => {
+          if (!open) setBottleToDelete(null);
+        }}
+        title="Eliminar botella"
+        description={
+          <>
+            Vas a eliminar la botella{" "}
+            <strong>{bottleToDelete?.serial_number}</strong>
+            {bottleToDelete?.gas_type ? (
+              <>
+                {" "}de <strong>{bottleToDelete.gas_type}</strong>
+              </>
+            ) : null}
+            .
+          </>
+        }
+        note="Esta acción elimina la botella del inventario y recalcula el stock sincronizado del gas asociado."
+        confirmText="Eliminar botella"
+        variant="danger"
+        onConfirm={confirmDeleteBottle}
+      />
 
       {/* ── BOTTLE MODAL ── */}
       <Dialog open={bottleModal} onOpenChange={setBottleModal}>
