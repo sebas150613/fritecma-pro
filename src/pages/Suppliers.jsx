@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Truck, Phone, Mail, Edit, Trash2, FlaskConical, Package } from "lucide-react";
 import MapLink from "../components/MapLink";
@@ -77,8 +78,10 @@ export default function Suppliers() {
   };
 
   const del = async () => {
+    if (!deleteTarget) return;
     await appApi.entities.Supplier.delete(deleteTarget.id);
-    await reload(); setDeleteTarget(null);
+    await reload();
+    setDeleteTarget(null);
   };
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
@@ -340,21 +343,23 @@ export default function Suppliers() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirm */}
-      <Dialog open={!!deleteTarget} onOpenChange={v => !v && setDeleteTarget(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-destructive flex items-center gap-2">
-              <Trash2 className="h-5 w-5" /> Eliminar Proveedor
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">¿Eliminar <strong>{deleteTarget?.name}</strong>? Las referencias de materiales asociados no se eliminarán.</p>
-          <DialogFooter className="gap-2 mt-2">
-            <Button variant="outline" onClick={() => setDeleteTarget(null)} className="rounded-xl">Cancelar</Button>
-            <Button variant="destructive" onClick={del} className="rounded-xl">Eliminar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmModal
+        icon={null}
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Eliminar proveedor"
+        description={
+          <>
+            Vas a eliminar <strong>{deleteTarget?.name}</strong>.
+          </>
+        }
+        note="Las referencias de materiales asociados no se eliminarán."
+        confirmText="Eliminar proveedor"
+        variant="danger"
+        onConfirm={del}
+      />
     </div>
   );
 }
