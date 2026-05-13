@@ -10,7 +10,8 @@ import BackButton from "../components/BackButton";
 import RectificativaForm from "../components/RectificativaForm";
 import { FileText, Mail, Clock, Flame, User, Loader2, Package, CheckCircle2, Pencil, Trash2, Plus, AlertTriangle, Wrench, Lock, Receipt, RotateCcw } from "lucide-react";
 import MapLink from "../components/MapLink";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { cn } from "@/lib/utils";
 import moment from "moment";
 import { generateInvoicePdf } from "../utils/generateInvoicePdf";
@@ -133,20 +134,24 @@ export default function InterventionDetail() {
   };
 
   const handleDelete = async () => {
+    if (!intervention || !user) return;
     setDeleting(true);
-    await appApi.entities.AuditLog.create({
-      action: "eliminacion",
-      entity_type: "Intervention",
-      entity_id: id,
-      entity_reference: intervention.number,
-      user_email: user.email,
-      user_name: user.full_name,
-      changes_summary: `Parte eliminado: ${intervention.client_name} - ${intervention.number}`,
-      timestamp: new Date().toISOString(),
-    });
-    await appApi.entities.Intervention.delete(id);
-    setDeleting(false);
-    navigate("/interventions");
+    try {
+      await appApi.entities.AuditLog.create({
+        action: "eliminacion",
+        entity_type: "Intervention",
+        entity_id: id,
+        entity_reference: intervention.number,
+        user_email: user.email,
+        user_name: user.full_name,
+        changes_summary: `Parte eliminado: ${intervention.client_name} - ${intervention.number}`,
+        timestamp: new Date().toISOString(),
+      });
+      await appApi.entities.Intervention.delete(id);
+      navigate("/interventions");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleValidateOption = async (mode) => {
@@ -468,23 +473,24 @@ export default function InterventionDetail() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirm Modal */}
-      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-destructive flex items-center gap-2">
-              <Trash2 className="h-5 w-5" /> Eliminar Parte
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">¿Estás seguro de que quieres eliminar el parte <strong>{intervention?.number}</strong>? Esta acción no se puede deshacer pero quedará registrada en el log de auditoría.</p>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} className="rounded-xl">Cancelar</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting} className="rounded-xl">
-              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />} Eliminar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmModal
+        icon={null}
+        open={showDeleteConfirm}
+        onOpenChange={(open) => {
+          if (!open) setShowDeleteConfirm(false);
+        }}
+        title="Eliminar parte"
+        description={
+          <>
+            Vas a eliminar el parte <strong>{intervention?.number}</strong>.
+          </>
+        }
+        note="Esta acción no se puede deshacer, pero quedará registrada en el log de auditoría."
+        confirmText="Eliminar parte"
+        variant="danger"
+        loading={deleting}
+        onConfirm={handleDelete}
+      />
 
       {/* Header */}
       <div className="flex items-center justify-between">
