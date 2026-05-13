@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Plus, Building2, ArrowDownToLine, Undo2, ChevronsUpDown, Trash2, BarChart2 } from "lucide-react";
@@ -45,6 +46,7 @@ export default function Projects() {
   const [deleteProjectTarget, setDeleteProjectTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const [detailProject, setDetailProject] = useState(null);
+  const [stockWarning, setStockWarning] = useState(null);
 
   useEffect(() => {
     init();
@@ -94,18 +96,7 @@ export default function Projects() {
   // Vale de salida
   const openVale = (project) => { setSelectedProject(project); setValeForm({ material_id: "", quantity: "", notes: "" }); setValeModal(true); };
 
-  const confirmVale = async () => {
-    if (!valeForm.material_id || !valeForm.quantity) return;
-    setSaving(true);
-    const mat = materials.find(m => m.id === valeForm.material_id);
-    const qty = parseFloat(valeForm.quantity);
-
-    // Check stock
-    if ((mat?.stock_quantity || 0) < qty) {
-      const ok = window.confirm(`⚠️ Stock insuficiente: ${mat?.name} tiene ${mat?.stock_quantity || 0} ${mat?.unit}. ¿Continuar?`);
-      if (!ok) { setSaving(false); return; }
-    }
-
+  const processVale = async ({ mat, qty }) => {
     // Log in ProjectMaterial
     await appApi.entities.ProjectMaterial.create({
       project_id: selectedProject.id,
@@ -139,6 +130,21 @@ export default function Projects() {
     });
 
     await reload(); setSaving(false); setValeModal(false);
+  };
+
+  const confirmVale = async () => {
+    if (!valeForm.material_id || !valeForm.quantity) return;
+    setSaving(true);
+    const mat = materials.find(m => m.id === valeForm.material_id);
+    const qty = parseFloat(valeForm.quantity);
+
+    if ((mat?.stock_quantity || 0) < qty) {
+      setStockWarning({ material: mat, quantity: qty });
+      setSaving(false);
+      return;
+    }
+
+    await processVale({ mat, qty });
   };
 
   // Return
@@ -188,10 +194,13 @@ export default function Projects() {
   const deleteProject = async () => {
     if (!deleteProjectTarget) return;
     setDeleting(true);
-    await appApi.entities.Project.delete(deleteProjectTarget.id);
-    await reload();
-    setDeleting(false);
-    setDeleteProjectTarget(null);
+    try {
+      await appApi.entities.Project.delete(deleteProjectTarget.id);
+      await reload();
+      setDeleteProjectTarget(null);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
@@ -390,22 +399,53 @@ export default function Projects() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Project Confirm */}
-      <Dialog open={!!deleteProjectTarget} onOpenChange={v => !v && setDeleteProjectTarget(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle className="text-destructive flex items-center gap-2"><Trash2 className="h-5 w-5" /> Eliminar Obra</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            ¿Estás seguro de que quieres eliminar la obra <strong>{deleteProjectTarget?.name}</strong>?
-            Los movimientos de material asociados no se eliminarán.
-          </p>
-          <DialogFooter className="gap-2 mt-2">
-            <Button variant="outline" onClick={() => setDeleteProjectTarget(null)} className="rounded-xl">Cancelar</Button>
-            <Button variant="destructive" onClick={deleteProject} disabled={deleting} className="rounded-xl">
-              {deleting ? "Eliminando..." : "Eliminar Obra"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmModal
+        icon={null}
+        open={!!stockWarning}
+        onOpenChange={(open) => {
+          if (!open) setStockWarning(null);
+        }}
+        title="Stock insuficiente"
+        description={
+          <>
+            <strong>{stockWarning?.material?.name}</strong> tiene{" "}
+            <strong>{stockWarning?.material?.stock_quantity || 0} {stockWarning?.material?.unit}</strong>{" "}
+            disponibles y estás intentando sacar{" "}
+            <strong>{stockWarning?.quantity} {stockWarning?.material?.unit}</strong>.
+          </>
+        }
+        note="Si continúas, el stock del material quedará en negativo y se registrará igualmente el vale de salida."
+        confirmText="Continuar salida"
+        variant="warning"
+        onConfirm={async () => {
+          if (!stockWarning?.material || !stockWarning?.quantity) return;
+          setSaving(true);
+          await processVale({
+            mat: stockWarning.material,
+            qty: stockWarning.quantity,
+          });
+          setStockWarning(null);
+        }}
+      />
+
+      <ConfirmModal
+        icon={null}
+        open={!!deleteProjectTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteProjectTarget(null);
+        }}
+        title="Eliminar obra"
+        description={
+          <>
+            Vas a eliminar la obra <strong>{deleteProjectTarget?.name}</strong>.
+          </>
+        }
+        note="Los movimientos de material asociados no se eliminarán."
+        confirmText="Eliminar obra"
+        variant="danger"
+        loading={deleting}
+        onConfirm={deleteProject}
+      />
 
       {/* Return Modal */}
       <Dialog open={returnModal} onOpenChange={setReturnModal}>
