@@ -83,7 +83,10 @@ export function ConfirmModal({
       if (!keepOpenOnConfirm) {
         onOpenChange?.(false)
       }
-    } catch {
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error("ConfirmModal onConfirm failed", error)
+      }
       // parent handles error / toast; keep modal open
     } finally {
       setIsSubmitting(false)
