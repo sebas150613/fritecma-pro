@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Plus, MapPin, Loader2, Save, LogIn, AlertTriangle } from "lucide-react";
 import BackButton from "../components/BackButton";
 import MaterialLineForm from "../components/MaterialLineForm";
@@ -73,6 +74,7 @@ export default function NewIntervention() {
   const [checkedIn, setCheckedIn] = useState(null); // null=loading, true/false
   const [showCheckinWarning, setShowCheckinWarning] = useState(false);
   const [sinFichaje, setSinFichaje] = useState(false);
+  const [stockWarningConfirm, setStockWarningConfirm] = useState(null);
   const [gasBillingPreview, setGasBillingPreview] = useState(null);
 
   const [organizationTarifas, setOrganizationTarifas] = useState(null);
@@ -335,6 +337,168 @@ export default function NewIntervention() {
       )
     : [];
 
+  const processSaveIntervention = async ({ materialOnlyLinesInput, finalGasType }) => {
+    setSaving(true);
+    try {
+      const interventionNumber = `FRI-${moment().format("YYMMDD")}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+
+      let materialLinesToPersist = [...lines];
+      if (form.gas_bottle_id && form.gas_loaded_kg > 0 && finalGasType) {
+        await syncGasMaterialStock(finalGasType);
+        const gasMat = await findGasMaterialForType(finalGasType, null, legacyGasKeys);
+        const bottle = gasBottles.find((b) => b.id === form.gas_bottle_id);
+        if (gasMat && bottle && shouldAppendGasMaterialLine(materialLinesToPersist, gasMat.id, bottle.serial_number)) {
+          const qty = form.gas_loaded_kg;
+          const unit_p = gasMat.sell_price || 0;
+          const iv = gasMat.iva_percent ?? 21;
+          materialLinesToPersist.push({
+            _id: Date.now() + Math.random(),
+            material_id: gasMat.id,
+            material_name: gasMat.name,
+            material_code: gasMat.code || "",
+            quantity: qty,
+            unit: "kg",
+            unit_price: unit_p,
+            iva_percent: iv,
+            total: qty * unit_p,
+            observation: `Gas cargado desde botella SN ${bottle.serial_number}`,
+          });
+        }
+      }
+
+      const materialLinesForTotals = [...materialLinesToPersist];
+      let allLines = [...laborLines, ...materialLinesForTotals];
+
+      const cantDesp = Math.max(0, parseInt(String(form.desplazamientos_cantidad ?? 0), 10) || 0);
+      const canAssignTramo = ["admin", "superadmin", "oficina", "encargado"].includes(user?.role);
+      const tramosCfg = ensureTramoIds(parseTramosJson(user?.desplazamiento_tramos_json));
+      const tramoSel =
+        form.desplazamiento_tramo_id && canAssignTramo
+          ? findTramoById(tramosCfg, form.desplazamiento_tramo_id)
+          : null;
+
+      let desplazamiento_pendiente_tarifa = false;
+      let desplazamiento_tramo_id;
+      let desplazamiento_tramo_nombre;
+      let desplazamiento_precio_unitario;
+      let desplazamiento_total;
+
+      if (cantDesp > 0) {
+        if (canAssignTramo && tramoSel) {
+          allLines = upsertDisplacementMaterialLine(allLines, {
+            cantidad: cantDesp,
+            tramo: tramoSel,
+          });
+          desplazamiento_pendiente_tarifa = false;
+          desplazamiento_tramo_id = tramoSel.id;
+          desplazamiento_tramo_nombre = tramoSel.nombre;
+          desplazamiento_precio_unitario = tramoSel.precio;
+          desplazamiento_total = cantDesp * tramoSel.precio;
+        } else {
+          desplazamiento_pendiente_tarifa = true;
+        }
+      }
+
+      const persistTotals = computeTotalsFromLines(allLines, form.discount_percent);
+
+      const data = {
+        number: interventionNumber,
+        client_id: form.client_id,
+        client_name: form.client_name,
+        technician_email: user.email,
+        technician_name: user.full_name,
+        work_center_id: form.work_center_id || undefined,
+        work_center_name: form.work_center_name || undefined,
+        helper_email: form.helper_email || undefined,
+        helper_name: form.helper_name || undefined,
+        date: new Date(form.date).toISOString(),
+        location_lat: form.location_lat,
+        location_lng: form.location_lng,
+        location_address: form.location_address,
+        gas_type: finalGasType || undefined,
+        gas_bottle_id: form.gas_bottle_id || undefined,
+        gas_bottle_serial: gasBottles.find(b => b.id === form.gas_bottle_id)?.serial_number || undefined,
+        gas_loaded_kg: form.gas_loaded_kg,
+        gas_recovered_kg: form.gas_recovered_kg,
+        gas_leak_kg: Math.max(0, (form.gas_loaded_kg || 0) - (form.gas_recovered_kg || 0)),
+        description: form.description,
+        materials_json: JSON.stringify(allLines),
+        subtotal: persistTotals.subtotal,
+        iva_total: persistTotals.ivaTotal,
+        total: persistTotals.total,
+        discount_percent: form.discount_percent,
+        tipo_horario: form.tipo_horario || "normal",
+        tarifa_aplicada: form.tarifa_aplicada || null,
+        receptor_name: form.receptor_name || undefined,
+        receptor_dni: form.receptor_dni || undefined,
+        client_conformidad: form.client_conformidad,
+        saved_at: new Date().toISOString(),
+        incident_status: form.incident_status,
+        status: form.incident_status === "finalizado" ? "pendiente_revision" : "en_curso",
+        technician_notes: sinFichaje
+          ? `[SIN FICHAJE PREVIO] ${form.technician_notes || ""}`
+          : form.technician_notes,
+        desplazamientos_cantidad: cantDesp,
+        ...(desplazamiento_tramo_id
+          ? {
+              desplazamiento_tramo_id,
+              desplazamiento_tramo_nombre,
+              desplazamiento_precio_unitario,
+              desplazamiento_total,
+            }
+          : {}),
+        desplazamiento_pendiente_tarifa,
+      };
+
+      const created = await appApi.entities.Intervention.create(data);
+
+      // Deduct gas from selected bottle
+      if (form.gas_bottle_id && form.gas_loaded_kg > 0) {
+        const bottle = gasBottles.find(b => b.id === form.gas_bottle_id);
+        if (bottle) {
+          const newKg = Math.max(0, (bottle.carga_actual || 0) - form.gas_loaded_kg);
+          await appApi.entities.GasBottle.update(form.gas_bottle_id, {
+            carga_actual: newKg,
+            status: newKg <= 0 ? "vacia" : "activa",
+          });
+          await appApi.entities.GasTransfer.create({
+            from_bottle_id: bottle.id,
+            from_bottle_serial: bottle.serial_number,
+            to_bottle_id: bottle.id,
+            to_bottle_serial: bottle.serial_number,
+            gas_type: bottle.gas_type,
+            kg_transferred: form.gas_loaded_kg,
+            technician_email: user.email,
+            technician_name: user.full_name,
+            timestamp: new Date().toISOString(),
+            intervention_number: interventionNumber,
+            notes: `Consumo en parte ${interventionNumber}`,
+          });
+        }
+      }
+
+      // Deduct stock after saving
+      const materialOnlyLinesPersisted = materialLinesToPersist.filter(
+        (l) => l.material_id && l.material_id !== "__free_text__"
+      );
+      await deductStockForIntervention({
+        lines: materialOnlyLinesPersisted,
+        interventionId: created.id,
+        interventionNumber,
+        technicianEmail: user.email,
+        technicianName: user.full_name,
+      });
+
+      if (finalGasType && form.gas_bottle_id && form.gas_loaded_kg > 0) {
+        await syncGasMaterialStock(finalGasType);
+      }
+
+      navigate(`/interventions/${created.id}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!form.client_id) return;
 
@@ -347,174 +511,20 @@ export default function NewIntervention() {
       ? resolveCanonicalGasLabel(form.gas_other_input, legacyGasKeys)
       : resolveCanonicalGasLabel(form.gas_type, legacyGasKeys);
 
-    // Validate stock availability before saving (solo líneas introducidas manualmente; el gas se valida por botella)
     const materialOnlyLinesInput = lines.filter(
       (l) => l.material_id && l.material_id !== "__free_text__"
     );
     const warnings = await validateStockAvailability(materialOnlyLinesInput);
     if (warnings.length > 0) {
-      const proceed = window.confirm(
-        `⚠️ Stock insuficiente para:\n${warnings.map(w => `• ${w.material_name}: solicitado ${w.requested}, disponible ${w.available}`).join("\n")}\n\n¿Continuar igualmente?`
-      );
-      if (!proceed) return;
+      setStockWarningConfirm({
+        warnings,
+        materialOnlyLinesInput,
+        finalGasType,
+      });
+      return;
     }
 
-    setSaving(true);
-    const interventionNumber = `FRI-${moment().format("YYMMDD")}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-
-    let materialLinesToPersist = [...lines];
-    if (form.gas_bottle_id && form.gas_loaded_kg > 0 && finalGasType) {
-      await syncGasMaterialStock(finalGasType);
-      const gasMat = await findGasMaterialForType(finalGasType, null, legacyGasKeys);
-      const bottle = gasBottles.find((b) => b.id === form.gas_bottle_id);
-      if (gasMat && bottle && shouldAppendGasMaterialLine(materialLinesToPersist, gasMat.id, bottle.serial_number)) {
-        const qty = form.gas_loaded_kg;
-        const unit_p = gasMat.sell_price || 0;
-        const iv = gasMat.iva_percent ?? 21;
-        materialLinesToPersist.push({
-          _id: Date.now() + Math.random(),
-          material_id: gasMat.id,
-          material_name: gasMat.name,
-          material_code: gasMat.code || "",
-          quantity: qty,
-          unit: "kg",
-          unit_price: unit_p,
-          iva_percent: iv,
-          total: qty * unit_p,
-          observation: `Gas cargado desde botella SN ${bottle.serial_number}`,
-        });
-      }
-    }
-
-    const materialLinesForTotals = [...materialLinesToPersist];
-    let allLines = [...laborLines, ...materialLinesForTotals];
-
-    const cantDesp = Math.max(0, parseInt(String(form.desplazamientos_cantidad ?? 0), 10) || 0);
-    const canAssignTramo = ["admin", "superadmin", "oficina", "encargado"].includes(user?.role);
-    const tramosCfg = ensureTramoIds(parseTramosJson(user?.desplazamiento_tramos_json));
-    const tramoSel =
-      form.desplazamiento_tramo_id && canAssignTramo
-        ? findTramoById(tramosCfg, form.desplazamiento_tramo_id)
-        : null;
-
-    let desplazamiento_pendiente_tarifa = false;
-    let desplazamiento_tramo_id;
-    let desplazamiento_tramo_nombre;
-    let desplazamiento_precio_unitario;
-    let desplazamiento_total;
-
-    if (cantDesp > 0) {
-      if (canAssignTramo && tramoSel) {
-        allLines = upsertDisplacementMaterialLine(allLines, {
-          cantidad: cantDesp,
-          tramo: tramoSel,
-        });
-        desplazamiento_pendiente_tarifa = false;
-        desplazamiento_tramo_id = tramoSel.id;
-        desplazamiento_tramo_nombre = tramoSel.nombre;
-        desplazamiento_precio_unitario = tramoSel.precio;
-        desplazamiento_total = cantDesp * tramoSel.precio;
-      } else {
-        desplazamiento_pendiente_tarifa = true;
-      }
-    }
-
-    const persistTotals = computeTotalsFromLines(allLines, form.discount_percent);
-
-    const data = {
-      number: interventionNumber,
-      client_id: form.client_id,
-      client_name: form.client_name,
-      technician_email: user.email,
-      technician_name: user.full_name,
-      work_center_id: form.work_center_id || undefined,
-      work_center_name: form.work_center_name || undefined,
-      helper_email: form.helper_email || undefined,
-      helper_name: form.helper_name || undefined,
-      date: new Date(form.date).toISOString(),
-      location_lat: form.location_lat,
-      location_lng: form.location_lng,
-      location_address: form.location_address,
-      gas_type: finalGasType || undefined,
-      gas_bottle_id: form.gas_bottle_id || undefined,
-      gas_bottle_serial: gasBottles.find(b => b.id === form.gas_bottle_id)?.serial_number || undefined,
-      gas_loaded_kg: form.gas_loaded_kg,
-      gas_recovered_kg: form.gas_recovered_kg,
-      gas_leak_kg: Math.max(0, (form.gas_loaded_kg || 0) - (form.gas_recovered_kg || 0)),
-      description: form.description,
-      materials_json: JSON.stringify(allLines),
-      subtotal: persistTotals.subtotal,
-      iva_total: persistTotals.ivaTotal,
-      total: persistTotals.total,
-      discount_percent: form.discount_percent,
-      tipo_horario: form.tipo_horario || "normal",
-      tarifa_aplicada: form.tarifa_aplicada || null,
-      receptor_name: form.receptor_name || undefined,
-      receptor_dni: form.receptor_dni || undefined,
-      client_conformidad: form.client_conformidad,
-      saved_at: new Date().toISOString(),
-      incident_status: form.incident_status,
-      status: form.incident_status === "finalizado" ? "pendiente_revision" : "en_curso",
-      technician_notes: sinFichaje
-        ? `[SIN FICHAJE PREVIO] ${form.technician_notes || ""}`
-        : form.technician_notes,
-      desplazamientos_cantidad: cantDesp,
-      ...(desplazamiento_tramo_id
-        ? {
-            desplazamiento_tramo_id,
-            desplazamiento_tramo_nombre,
-            desplazamiento_precio_unitario,
-            desplazamiento_total,
-          }
-        : {}),
-      desplazamiento_pendiente_tarifa,
-    };
-
-    const created = await appApi.entities.Intervention.create(data);
-
-    // Deduct gas from selected bottle
-    if (form.gas_bottle_id && form.gas_loaded_kg > 0) {
-      const bottle = gasBottles.find(b => b.id === form.gas_bottle_id);
-      if (bottle) {
-        const newKg = Math.max(0, (bottle.carga_actual || 0) - form.gas_loaded_kg);
-        await appApi.entities.GasBottle.update(form.gas_bottle_id, {
-          carga_actual: newKg,
-          status: newKg <= 0 ? "vacia" : "activa",
-        });
-        await appApi.entities.GasTransfer.create({
-          from_bottle_id: bottle.id,
-          from_bottle_serial: bottle.serial_number,
-          to_bottle_id: bottle.id,
-          to_bottle_serial: bottle.serial_number,
-          gas_type: bottle.gas_type,
-          kg_transferred: form.gas_loaded_kg,
-          technician_email: user.email,
-          technician_name: user.full_name,
-          timestamp: new Date().toISOString(),
-          intervention_number: interventionNumber,
-          notes: `Consumo en parte ${interventionNumber}`,
-        });
-      }
-    }
-
-    // Deduct stock after saving
-    const materialOnlyLinesPersisted = materialLinesToPersist.filter(
-      (l) => l.material_id && l.material_id !== "__free_text__"
-    );
-    await deductStockForIntervention({
-      lines: materialOnlyLinesPersisted,
-      interventionId: created.id,
-      interventionNumber,
-      technicianEmail: user.email,
-      technicianName: user.full_name,
-    });
-
-    if (finalGasType && form.gas_bottle_id && form.gas_loaded_kg > 0) {
-      await syncGasMaterialStock(finalGasType);
-    }
-
-    setSaving(false);
-    navigate(`/interventions/${created.id}`);
+    await processSaveIntervention({ materialOnlyLinesInput, finalGasType });
   };
 
   if (checkedIn === null) {
@@ -922,6 +932,41 @@ export default function NewIntervention() {
             : "⏳ La incidencia permanecerá activa como tarea pendiente."}
         </p>
       </div>
+
+      <ConfirmModal
+        icon={null}
+        open={!!stockWarningConfirm}
+        onOpenChange={(open) => {
+          if (!open) setStockWarningConfirm(null);
+        }}
+        title="Stock insuficiente"
+        description={
+          <>
+            Hay materiales con stock insuficiente para este parte.
+          </>
+        }
+        note={
+          <div className="space-y-1">
+            {stockWarningConfirm?.warnings?.map((warning) => (
+              <div key={`${warning.material_id || warning.material_name}-${warning.requested}`}>
+                {warning.material_name}: solicitado {warning.requested}, disponible {warning.available}
+              </div>
+            ))}
+          </div>
+        }
+        confirmText="Guardar parte igualmente"
+        variant="warning"
+        loading={saving}
+        onConfirm={async () => {
+          if (!stockWarningConfirm) return;
+          const payload = {
+            materialOnlyLinesInput: stockWarningConfirm.materialOnlyLinesInput,
+            finalGasType: stockWarningConfirm.finalGasType,
+          };
+          setStockWarningConfirm(null);
+          await processSaveIntervention(payload);
+        }}
+      />
 
       {/* Save Button */}
       <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-card/80 backdrop-blur-xl border-t border-border p-4 pb-20 lg:pb-4">
