@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Search, Users, Edit, Trash2, Phone, Mail as MailIcon } from "lucide-react";
@@ -35,6 +36,7 @@ export default function Clients() {
   const [editingClient, setEditingClient] = useState(null);
   const [form, setForm] = useState({ ...emptyClient });
   const [expandedClient, setExpandedClient] = useState(null);
+  const [clientToDelete, setClientToDelete] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -75,10 +77,8 @@ export default function Clients() {
     loadData();
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("¿Eliminar este cliente?")) return;
-    await appApi.entities.Client.delete(id);
-    loadData();
+  const handleDelete = (client) => {
+    setClientToDelete(client);
   };
 
   const filtered = clients.filter(c => {
@@ -171,7 +171,7 @@ export default function Clients() {
                           <Button variant="outline" size="sm" onClick={() => openEdit(c)} className="rounded-xl">
                             <Edit className="h-3 w-3" />
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => handleDelete(c.id)} className="text-destructive rounded-xl">
+                          <Button variant="outline" size="sm" onClick={() => handleDelete(c)} className="text-destructive rounded-xl">
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </>
@@ -279,6 +279,29 @@ export default function Clients() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmModal
+        icon={null}
+        open={!!clientToDelete}
+        onOpenChange={(open) => {
+          if (!open) setClientToDelete(null);
+        }}
+        title="Eliminar cliente"
+        description={
+          <>
+            Vas a eliminar <strong>{clientToDelete?.name}</strong>.
+          </>
+        }
+        note="Los centros de trabajo y el historial relacionado deben revisarse antes de eliminar este cliente."
+        confirmText="Eliminar cliente"
+        variant="danger"
+        onConfirm={async () => {
+          if (!clientToDelete) return;
+          await appApi.entities.Client.delete(clientToDelete.id);
+          setClientToDelete(null);
+          await loadData();
+        }}
+      />
     </div>
   );
 }

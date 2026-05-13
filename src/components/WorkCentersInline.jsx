@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Plus, Phone, Pencil, Trash2, Building, History } from "lucide-react";
 import WorkCenterHistory from "./WorkCenterHistory";
 import MapLink from "./MapLink";
@@ -21,6 +22,7 @@ export default function WorkCentersInline({ client, readOnly = false }) {
   const [form, setForm] = useState({ ...emptyCenter });
   const [saving, setSaving] = useState(false);
   const [historyCenter, setHistoryCenter] = useState(null);
+  const [centerToDelete, setCenterToDelete] = useState(null);
 
   useEffect(() => {
     if (client?.id) loadCenters();
@@ -58,10 +60,8 @@ export default function WorkCentersInline({ client, readOnly = false }) {
     loadCenters();
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("¿Eliminar este centro de trabajo?")) return;
-    await appApi.entities.WorkCenter.delete(id);
-    loadCenters();
+  const handleDelete = (center) => {
+    setCenterToDelete(center);
   };
 
   return (
@@ -110,7 +110,7 @@ export default function WorkCentersInline({ client, readOnly = false }) {
                     <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => openEdit(c)}>
                       <Pencil className="h-3 w-3" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:text-destructive" onClick={() => handleDelete(c.id)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:text-destructive" onClick={() => handleDelete(c)}>
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </>
@@ -181,6 +181,29 @@ export default function WorkCentersInline({ client, readOnly = false }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmModal
+        icon={null}
+        open={!!centerToDelete}
+        onOpenChange={(open) => {
+          if (!open) setCenterToDelete(null);
+        }}
+        title="Eliminar centro de trabajo"
+        description={
+          <>
+            Vas a eliminar <strong>{centerToDelete?.name}</strong>.
+          </>
+        }
+        note="Esta acción elimina el centro de trabajo del cliente actual. El historial operativo debe revisarse antes de continuar."
+        confirmText="Eliminar centro de trabajo"
+        variant="danger"
+        onConfirm={async () => {
+          if (!centerToDelete) return;
+          await appApi.entities.WorkCenter.delete(centerToDelete.id);
+          setCenterToDelete(null);
+          await loadCenters();
+        }}
+      />
     </div>
   );
 }
