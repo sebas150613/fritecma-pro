@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Settings, Users, Shield, Trash2, Upload, Key, FileCheck, Loader2, Crown, Copy, Building2, Coins, Plus, ShoppingBag } from "lucide-react";
 import OrganizationBillingPanel from "@/components/OrganizationBillingPanel";
 import { parseTramosJson, ensureTramoIds } from "@/lib/displacementBilling";
@@ -30,6 +31,7 @@ export default function AppSettings() {
   const [inviting, setInviting] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [userAccessToRemove, setUserAccessToRemove] = useState(null);
   const [certFile, setCertFile] = useState(null);
   const [certPassword, setCertPassword] = useState("");
   const [emisorNif, setEmisorNif] = useState("");
@@ -232,15 +234,20 @@ export default function AppSettings() {
     }
   };
 
-  const deleteOrganizationUser = async (userId) => {
-    const confirmed = window.confirm(
-      "¿Quitar el acceso de este usuario a esta empresa? Sus registros históricos se conservarán."
+  const deleteOrganizationUser = (organizationUser) => {
+    setUserAccessToRemove(organizationUser);
+  };
+
+  const confirmDeleteOrganizationUser = async () => {
+    if (!userAccessToRemove || !user?.current_organization?.id) return;
+
+    await appApi.organizations.deleteUser(
+      user.current_organization.id,
+      userAccessToRemove.id
     );
-    if (!confirmed) {
-      return;
-    }
-    await appApi.organizations.deleteUser(user?.current_organization?.id, userId);
-    loadData();
+
+    setUserAccessToRemove(null);
+    await loadData();
   };
 
   const handleDeleteAccount = async () => {
@@ -549,7 +556,7 @@ export default function AppSettings() {
                       variant="outline"
                       className="rounded-xl text-destructive border-destructive/30 hover:bg-destructive/5"
                       disabled={isSavingThisUser}
-                      onClick={() => deleteOrganizationUser(u.id)}
+                      onClick={() => deleteOrganizationUser(u)}
                     >
                       <Trash2 className="h-3.5 w-3.5 mr-2" />
                       Eliminar
@@ -1208,6 +1215,26 @@ export default function AppSettings() {
           </a>
         </p>
       </div>
+
+      <ConfirmModal
+        icon={null}
+        open={!!userAccessToRemove}
+        onOpenChange={(open) => {
+          if (!open) setUserAccessToRemove(null);
+        }}
+        title="Quitar acceso"
+        description={
+          <>
+            Vas a quitar el acceso de{" "}
+            <strong>{userAccessToRemove?.full_name || userAccessToRemove?.email}</strong>{" "}
+            a esta empresa.
+          </>
+        }
+        note="Sus registros históricos se conservarán."
+        confirmText="Quitar acceso"
+        variant="danger"
+        onConfirm={confirmDeleteOrganizationUser}
+      />
 
       {/* Delete Account */}
       <div className="bg-card rounded-2xl border border-destructive/30 p-5 space-y-3">
