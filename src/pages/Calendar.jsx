@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, CheckCircle2, Circle, Calendar as CalendarIcon } from "lucide-react";
@@ -22,6 +23,7 @@ export default function Calendar() {
   const [currentMonth, setCurrentMonth] = useState(moment());
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     asignado_a: "",
@@ -137,14 +139,21 @@ export default function Calendar() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("¿Eliminar este evento?")) return;
+  const handleDelete = (event) => {
+    setEventToDelete(event);
+  };
+
+  const confirmDeleteEvent = async () => {
+    if (!eventToDelete) return;
+
     try {
-      await appApi.entities.CalendarEvent.delete(id);
+      await appApi.entities.CalendarEvent.delete(eventToDelete.id);
       await loadEvents();
     } catch (error) {
       console.error("Error deleting event:", error);
     }
+
+    setEventToDelete(null);
   };
 
   const handleToggleComplete = async (event) => {
@@ -219,7 +228,7 @@ export default function Calendar() {
                   </div>
                   <Badge className={`mt-1 ${PRIORITY_COLORS[event.priority]}`}>{event.priority}</Badge>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => handleDelete(event.id)} className="text-destructive hover:text-destructive rounded-lg">
+                <Button variant="ghost" size="sm" onClick={() => handleDelete(event)} className="text-destructive hover:text-destructive rounded-lg">
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
@@ -316,6 +325,25 @@ export default function Calendar() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmModal
+        icon={null}
+        open={!!eventToDelete}
+        onOpenChange={(open) => {
+          if (!open) setEventToDelete(null);
+        }}
+        title="Eliminar evento"
+        description={
+          <>
+            Vas a eliminar{" "}
+            <strong>{eventToDelete?.title || eventToDelete?.name || "este evento"}</strong>.
+          </>
+        }
+        note="Esta acción elimina el evento del calendario."
+        confirmText="Eliminar evento"
+        variant="danger"
+        onConfirm={confirmDeleteEvent}
+      />
     </div>
   );
 }
