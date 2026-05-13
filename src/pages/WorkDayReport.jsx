@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Download, Calendar, Trash2, Eye, AlertTriangle, CheckCircle2 } from "lucide-react";
 import WorkDayDetailModal from "../components/WorkDayDetailModal";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { cn } from "@/lib/utils";
 import moment from "moment";
 
@@ -46,6 +47,7 @@ export default function WorkDayReport() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [detailRecord, setDetailRecord] = useState(null);
+  const [workDayToDelete, setWorkDayToDelete] = useState(null);
 
   useEffect(() => {
     appApi.auth.me().then(me => { setUser(me); loadData(me); });
@@ -77,6 +79,13 @@ export default function WorkDayReport() {
   };
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado" || user?.role === "oficina";
+
+  const deleteWorkDay = async () => {
+    if (!workDayToDelete) return;
+    await appApi.entities.WorkDay.delete(workDayToDelete.id);
+    setRecords((prev) => prev.filter((x) => x.id !== workDayToDelete.id));
+    setWorkDayToDelete(null);
+  };
 
   const filtered = records.filter(r => {
     const matchMonth = !dateFrom && !dateTo ? r.work_date?.startsWith(selectedMonth) : true;
@@ -328,11 +337,7 @@ export default function WorkDayReport() {
                       <Eye className="h-3.5 w-3.5" /> Ver detalle
                     </Button>
                     {isAdmin && (
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 rounded-lg" onClick={async () => {
-                        if (!window.confirm(`¿Eliminar el registro del ${r.work_date} de ${r.technician_name}?`)) return;
-                        await appApi.entities.WorkDay.delete(r.id);
-                        setRecords(prev => prev.filter(x => x.id !== r.id));
-                      }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 rounded-lg" onClick={() => setWorkDayToDelete(r)}><Trash2 className="h-3.5 w-3.5" /></Button>
                     )}
                   </div>
                 </div>
@@ -374,11 +379,7 @@ export default function WorkDayReport() {
                         <td className="px-4 py-3 text-center">
                           <Button size="sm" variant="ghost"
                             className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 rounded-lg"
-                            onClick={async () => {
-                              if (!window.confirm(`¿Eliminar el registro del ${r.work_date} de ${r.technician_name}?`)) return;
-                              await appApi.entities.WorkDay.delete(r.id);
-                              setRecords(prev => prev.filter(x => x.id !== r.id));
-                            }}>
+                            onClick={() => setWorkDayToDelete(r)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </td>
@@ -397,6 +398,31 @@ export default function WorkDayReport() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <ConfirmModal
+        icon={null}
+        open={!!workDayToDelete}
+        onOpenChange={(open) => {
+          if (!open) setWorkDayToDelete(null);
+        }}
+        title="Eliminar jornada"
+        description={
+          <>
+            Vas a eliminar el registro del{" "}
+            <strong>{workDayToDelete?.work_date}</strong>
+            {workDayToDelete?.technician_name ? (
+              <>
+                {" "}de <strong>{workDayToDelete.technician_name}</strong>
+              </>
+            ) : null}
+            .
+          </>
+        }
+        note="Esta acción elimina el registro de jornada del listado actual."
+        confirmText="Eliminar jornada"
+        variant="danger"
+        onConfirm={deleteWorkDay}
+      />
 
       <WorkDayDetailModal
         record={detailRecord}
