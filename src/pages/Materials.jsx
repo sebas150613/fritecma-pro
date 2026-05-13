@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { appApi } from "@/api/app-api";
 import PullToRefresh from "../components/PullToRefresh";
 import { Button } from "@/components/ui/button";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -61,6 +62,8 @@ export default function Materials() {
   const [familyFilter, setFamilyFilter] = useState("all");
   const [gasBottles, setGasBottles] = useState([]);
   const [gasDetailMaterial, setGasDetailMaterial] = useState(null);
+  const [materialToDelete, setMaterialToDelete] = useState(null);
+  const [movementToDelete, setMovementToDelete] = useState(null);
 
   const openHistory = async (mat) => {
     setHistoryMaterial(mat);
@@ -136,10 +139,8 @@ export default function Materials() {
     loadData();
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("¿Eliminar este material?")) return;
-    await appApi.entities.Material.delete(id);
-    loadData();
+  const handleDelete = (material) => {
+    setMaterialToDelete(material);
   };
 
   const filtered = materials.filter(m => {
@@ -263,7 +264,7 @@ export default function Materials() {
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                handleDelete(m.id);
+                handleDelete(m);
               }}
               className="text-destructive rounded-xl"
             >
@@ -452,11 +453,12 @@ export default function Materials() {
                   )}
                   <span className="text-xs text-muted-foreground">{new Date(mv.created_date).toLocaleDateString("es")}</span>
                   {isAdmin && (
-                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive rounded-xl h-7 w-7 p-0" onClick={async () => {
-                      if (!confirm("¿Eliminar este movimiento del historial?")) return;
-                      await appApi.entities.StockMovement.delete(mv.id);
-                      setMovements(prev => prev.filter(x => x.id !== mv.id));
-                    }}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive rounded-xl h-7 w-7 p-0"
+                      onClick={() => setMovementToDelete(mv)}
+                    >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   )}
@@ -620,6 +622,59 @@ export default function Materials() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmModal
+        icon={null}
+        open={!!materialToDelete}
+        onOpenChange={(open) => {
+          if (!open) setMaterialToDelete(null);
+        }}
+        title="Eliminar material"
+        description={
+          <>
+            Vas a eliminar <strong>{materialToDelete?.name}</strong>.
+          </>
+        }
+        note="Esta acción elimina el material del catálogo. Revisa antes si tiene uso en stock, partes o historial."
+        confirmText="Eliminar material"
+        variant="danger"
+        onConfirm={async () => {
+          if (!materialToDelete) return;
+          await appApi.entities.Material.delete(materialToDelete.id);
+          setMaterialToDelete(null);
+          await loadData();
+        }}
+      />
+
+      <ConfirmModal
+        icon={null}
+        open={!!movementToDelete}
+        onOpenChange={(open) => {
+          if (!open) setMovementToDelete(null);
+        }}
+        title="Eliminar movimiento"
+        description={
+          <>
+            Vas a eliminar este movimiento de historial
+            {historyMaterial?.name ? (
+              <>
+                {" "}de <strong>{historyMaterial.name}</strong>
+              </>
+            ) : null}
+            .
+          </>
+        }
+        note="El movimiento se quitará del historial visible. No se modificará ningún otro material desde esta acción."
+        confirmText="Eliminar movimiento"
+        variant="danger"
+        onConfirm={async () => {
+          if (!movementToDelete) return;
+          await appApi.entities.StockMovement.delete(movementToDelete.id);
+          setMovements((prev) => prev.filter((x) => x.id !== movementToDelete.id));
+          setMovementToDelete(null);
+        }}
+      />
+
       <FamiliesManager open={familiesOpen} onClose={() => { setFamiliesOpen(false); loadData(); }} />
       <AlbaranScanner
         open={scannerOpen}
