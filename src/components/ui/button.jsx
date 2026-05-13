@@ -86,7 +86,8 @@ const Button = React.forwardRef(
       buttonVariants({ variant, size }),
       fullWidth && "w-full",
       variant === "link" && "h-auto min-w-0 w-auto p-0",
-      loading && "cursor-not-allowed !opacity-75",
+      loading &&
+        "pointer-events-none cursor-not-allowed !opacity-75",
       className
     )
 
@@ -95,8 +96,10 @@ const Button = React.forwardRef(
         <Comp
           ref={ref}
           className={mergedClassName}
-          aria-busy={loading || undefined}
           {...props}
+          aria-busy={loading || undefined}
+          aria-disabled={isDisabled || undefined}
+          data-disabled={isDisabled ? "" : undefined}
         >
           {children}
         </Comp>
