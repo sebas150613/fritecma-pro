@@ -60,6 +60,16 @@ const Input = React.forwardRef(
 
     const describedBy = showError ? errorId : showHint ? hintId : undefined
 
+    const {
+      "aria-describedby": ariaDescribedByProp,
+      "aria-invalid": ariaInvalidProp,
+      ...inputProps
+    } = props
+
+    const finalAriaDescribedBy =
+      [ariaDescribedByProp, describedBy].filter(Boolean).join(" ") ||
+      undefined
+
     const hasLeftIcon = Boolean(icon)
     const showPasswordToggle = isPassword
     const hasRightChrome = showPasswordToggle || Boolean(iconRight)
@@ -80,11 +90,11 @@ const Input = React.forwardRef(
         type={effectiveType}
         id={inputId}
         className={inputClass}
-        {...props}
+        {...inputProps}
         disabled={disabled}
         required={required}
-        aria-invalid={showError || undefined}
-        aria-describedby={describedBy}
+        aria-invalid={showError ? true : ariaInvalidProp}
+        aria-describedby={finalAriaDescribedBy}
       />
     )
 
