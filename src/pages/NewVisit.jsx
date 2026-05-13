@@ -13,6 +13,7 @@ import MaterialLineForm from "../components/MaterialLineForm";
 import LaborSection from "../components/LaborSection";
 import { buildOrganizationTariffProfile } from "@/lib/organizationTariffs";
 import { validateStockAvailability, deductStockForIntervention } from "../lib/stockUtils";
+import { ConfirmModal } from "@/components/ui/confirm-modal";
 import moment from "moment";
 
 const GAS_TYPES = ["R449A", "R134a", "R404A", "R410A", "R407C", "R22", "R32", "R290", "R600a", "R744", "otro"];
@@ -32,6 +33,7 @@ export default function NewVisit() {
   const [gasBottles, setGasBottles] = useState([]);
   const [users, setUsers] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [stockWarning, setStockWarning] = useState(null);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [lines, setLines] = useState([]);
   const [laborLines, setLaborLines] = useState([]);
@@ -109,103 +111,110 @@ export default function NewVisit() {
     return { subtotal, discountAmount, subtotalAfterDiscount, ivaTotal, total: subtotalAfterDiscount + ivaTotal };
   };
 
+  const processSaveVisit = async ({ materialOnlyLines }) => {
+    setSaving(true);
+    try {
+      const allLines = [...laborLines, ...lines];
+      const totals = calcTotals();
+      const now = new Date().toISOString();
+
+      // Get existing visits count
+      const existingVisits = await appApi.entities.Visit.filter({ intervention_id: id }, "-created_date", 100);
+      const visitNumber = existingVisits.length + 1;
+
+      const visitData = {
+        intervention_id: id,
+        intervention_number: intervention.number,
+        visit_number: visitNumber,
+        client_id: intervention.client_id,
+        client_name: intervention.client_name,
+        technician_email: user.email,
+        technician_name: user.full_name,
+        helper_email: form.helper_email || undefined,
+        helper_name: form.helper_name || undefined,
+        date: new Date(form.date).toISOString(),
+        saved_at: now,
+        location_lat: form.location_lat,
+        location_lng: form.location_lng,
+        location_address: form.location_address,
+        gas_type: form.gas_type || undefined,
+        gas_bottle_id: form.gas_bottle_id || undefined,
+        gas_bottle_serial: gasBottles.find(b => b.id === form.gas_bottle_id)?.serial_number || undefined,
+        gas_loaded_kg: form.gas_loaded_kg,
+        gas_recovered_kg: form.gas_recovered_kg,
+        gas_leak_kg: Math.max(0, (form.gas_loaded_kg || 0) - (form.gas_recovered_kg || 0)),
+        description: form.description,
+        technician_notes: form.technician_notes,
+        materials_json: JSON.stringify(allLines),
+        subtotal: totals.subtotal,
+        iva_total: totals.ivaTotal,
+        total: totals.total,
+        discount_percent: form.discount_percent,
+        receptor_name: form.receptor_name || undefined,
+        receptor_dni: form.receptor_dni || undefined,
+        client_conformidad: form.client_conformidad,
+      };
+
+      const created = await appApi.entities.Visit.create(visitData);
+
+      // Deduct gas from bottle
+      if (form.gas_bottle_id && form.gas_loaded_kg > 0) {
+        const bottle = gasBottles.find(b => b.id === form.gas_bottle_id);
+        if (bottle) {
+          const newKg = Math.max(0, (bottle.current_kg || 0) - form.gas_loaded_kg);
+          await appApi.entities.GasBottle.update(form.gas_bottle_id, {
+            current_kg: newKg,
+            status: newKg <= 0 ? "vacia" : "activa",
+          });
+          await appApi.entities.GasTransfer.create({
+            from_bottle_id: bottle.id,
+            from_bottle_serial: bottle.serial_number,
+            to_bottle_id: bottle.id,
+            to_bottle_serial: bottle.serial_number,
+            gas_type: bottle.gas_type,
+            kg_transferred: form.gas_loaded_kg,
+            technician_email: user.email,
+            technician_name: user.full_name,
+            timestamp: now,
+            intervention_number: intervention.number,
+            notes: `Visita ${visitNumber} - ${intervention.number}`,
+          });
+        }
+      }
+
+      // Deduct stock
+      await deductStockForIntervention({
+        lines: materialOnlyLines,
+        interventionId: id,
+        interventionNumber: `${intervention.number}-V${visitNumber}`,
+        technicianEmail: user.email,
+        technicianName: user.full_name,
+      });
+
+      // Update intervention incident_status
+      await appApi.entities.Intervention.update(id, {
+        incident_status: form.incident_status,
+        status: form.incident_status === "finalizado" ? "pendiente_revision" : "en_curso",
+      });
+
+      navigate(`/interventions/${id}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!intervention) return;
-    const materialOnlyLines = lines.filter(l => l.material_id);
+
+    const materialOnlyLines = lines.filter((l) => l.material_id);
     const warnings = await validateStockAvailability(materialOnlyLines);
+
     if (warnings.length > 0) {
-      const proceed = window.confirm(
-        `⚠️ Stock insuficiente para:\n${warnings.map(w => `• ${w.material_name}: solicitado ${w.requested}, disponible ${w.available}`).join("\n")}\n\n¿Continuar igualmente?`
-      );
-      if (!proceed) return;
+      setStockWarning({ warnings, materialOnlyLines });
+      return;
     }
 
-    setSaving(true);
-    const allLines = [...laborLines, ...lines];
-    const totals = calcTotals();
-    const now = new Date().toISOString();
-
-    // Get existing visits count
-    const existingVisits = await appApi.entities.Visit.filter({ intervention_id: id }, "-created_date", 100);
-    const visitNumber = existingVisits.length + 1;
-
-    const visitData = {
-      intervention_id: id,
-      intervention_number: intervention.number,
-      visit_number: visitNumber,
-      client_id: intervention.client_id,
-      client_name: intervention.client_name,
-      technician_email: user.email,
-      technician_name: user.full_name,
-      helper_email: form.helper_email || undefined,
-      helper_name: form.helper_name || undefined,
-      date: new Date(form.date).toISOString(),
-      saved_at: now,
-      location_lat: form.location_lat,
-      location_lng: form.location_lng,
-      location_address: form.location_address,
-      gas_type: form.gas_type || undefined,
-      gas_bottle_id: form.gas_bottle_id || undefined,
-      gas_bottle_serial: gasBottles.find(b => b.id === form.gas_bottle_id)?.serial_number || undefined,
-      gas_loaded_kg: form.gas_loaded_kg,
-      gas_recovered_kg: form.gas_recovered_kg,
-      gas_leak_kg: Math.max(0, (form.gas_loaded_kg || 0) - (form.gas_recovered_kg || 0)),
-      description: form.description,
-      technician_notes: form.technician_notes,
-      materials_json: JSON.stringify(allLines),
-      subtotal: totals.subtotal,
-      iva_total: totals.ivaTotal,
-      total: totals.total,
-      discount_percent: form.discount_percent,
-      receptor_name: form.receptor_name || undefined,
-      receptor_dni: form.receptor_dni || undefined,
-      client_conformidad: form.client_conformidad,
-    };
-
-    const created = await appApi.entities.Visit.create(visitData);
-
-    // Deduct gas from bottle
-    if (form.gas_bottle_id && form.gas_loaded_kg > 0) {
-      const bottle = gasBottles.find(b => b.id === form.gas_bottle_id);
-      if (bottle) {
-        const newKg = Math.max(0, (bottle.current_kg || 0) - form.gas_loaded_kg);
-        await appApi.entities.GasBottle.update(form.gas_bottle_id, {
-          current_kg: newKg,
-          status: newKg <= 0 ? "vacia" : "activa",
-        });
-        await appApi.entities.GasTransfer.create({
-          from_bottle_id: bottle.id,
-          from_bottle_serial: bottle.serial_number,
-          to_bottle_id: bottle.id,
-          to_bottle_serial: bottle.serial_number,
-          gas_type: bottle.gas_type,
-          kg_transferred: form.gas_loaded_kg,
-          technician_email: user.email,
-          technician_name: user.full_name,
-          timestamp: now,
-          intervention_number: intervention.number,
-          notes: `Visita ${visitNumber} - ${intervention.number}`,
-        });
-      }
-    }
-
-    // Deduct stock
-    await deductStockForIntervention({
-      lines: materialOnlyLines,
-      interventionId: id,
-      interventionNumber: `${intervention.number}-V${visitNumber}`,
-      technicianEmail: user.email,
-      technicianName: user.full_name,
-    });
-
-    // Update intervention incident_status
-    await appApi.entities.Intervention.update(id, {
-      incident_status: form.incident_status,
-      status: form.incident_status === "finalizado" ? "pendiente_revision" : "en_curso",
-    });
-
-    setSaving(false);
-    navigate(`/interventions/${id}`);
+    await processSaveVisit({ materialOnlyLines });
   };
 
   const totals = calcTotals();
@@ -393,6 +402,37 @@ export default function NewVisit() {
             : "⏳ La incidencia permanecerá activa como tarea pendiente."}
         </p>
       </div>
+
+      <ConfirmModal
+        icon={null}
+        open={!!stockWarning}
+        onOpenChange={(open) => {
+          if (!open) setStockWarning(null);
+        }}
+        title="Stock insuficiente"
+        description={
+          <>
+            Hay materiales con stock insuficiente para esta visita.
+          </>
+        }
+        note={
+          <div className="space-y-1">
+            {stockWarning?.warnings?.map((warning) => (
+              <div key={`${warning.material_id || warning.material_name}-${warning.requested}`}>
+                {warning.material_name}: solicitado {warning.requested}, disponible {warning.available}
+              </div>
+            ))}
+          </div>
+        }
+        confirmText="Guardar visita igualmente"
+        variant="warning"
+        onConfirm={async () => {
+          if (!stockWarning?.materialOnlyLines) return;
+          const materialOnlyLines = stockWarning.materialOnlyLines;
+          setStockWarning(null);
+          await processSaveVisit({ materialOnlyLines });
+        }}
+      />
 
       {/* Save */}
       <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-card/80 backdrop-blur-xl border-t border-border p-4">
