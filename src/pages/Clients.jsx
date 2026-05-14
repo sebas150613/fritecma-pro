@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Search, Users, Edit, Trash2, Phone, Mail as MailIcon } from "lucide-react";
 import MapLink from "../components/MapLink";
 import WorkCentersInline from "../components/WorkCentersInline";
+import { AddressAutocomplete } from "../components/AddressAutocomplete";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { validateFiscalId, normalizeFiscalId } from "@/lib/spanishFiscalId";
@@ -265,7 +266,18 @@ export default function Clients() {
             </div>
             <div>
               <Label>Dirección</Label>
-              <Input value={form.address || ""} onChange={(e) => setForm(f => ({ ...f, address: e.target.value }))} className="mt-1" />
+              <AddressAutocomplete
+                value={form.address || ""}
+                onChange={(v) => setForm(f => ({ ...f, address: v }))}
+                onPick={(s) => setForm(f => ({
+                  ...f,
+                  address: s.address_line1 || f.address,
+                  ...(s.city ? { city: s.city } : {}),
+                  ...(s.postal_code ? { postal_code: s.postal_code } : {}),
+                }))}
+                className="mt-1"
+                placeholder="Calle Mayor 1, Madrid..."
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

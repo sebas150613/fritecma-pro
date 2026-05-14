@@ -9,6 +9,7 @@ import { Plus, Phone, Pencil, Trash2, Building, History } from "lucide-react";
 import WorkCenterHistory from "./WorkCenterHistory";
 import MapLink from "./MapLink";
 import { validatePostalCode } from "@/lib/spanishPostalCodes";
+import { AddressAutocomplete } from "./AddressAutocomplete";
 
 const emptyCenter = {
   name: "", address: "", city: "", postal_code: "",
@@ -143,7 +144,18 @@ export default function WorkCentersInline({ client, readOnly = false }) {
             </div>
             <div>
               <Label>Dirección</Label>
-              <Input value={form.address || ""} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} className="mt-1 rounded-xl" />
+              <AddressAutocomplete
+                value={form.address || ""}
+                onChange={(v) => setForm(f => ({ ...f, address: v }))}
+                onPick={(s) => setForm(f => ({
+                  ...f,
+                  address: s.address_line1 || f.address,
+                  ...(s.city ? { city: s.city } : {}),
+                  ...(s.postal_code ? { postal_code: s.postal_code } : {}),
+                }))}
+                className="mt-1 rounded-xl"
+                placeholder="Calle Mayor 1, Madrid..."
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

@@ -143,6 +143,32 @@ const searchMapbox = async (q, token) => {
     .filter((x) => x.label);
 };
 
+const searchLocationIQ = async (q, token) => {
+  const url = new URL("https://us1.locationiq.com/v1/autocomplete");
+  url.searchParams.set("key", token);
+  url.searchParams.set("q", q);
+  url.searchParams.set("format", "json");
+  url.searchParams.set("limit", "5");
+  url.searchParams.set("countrycodes", DEFAULT_COUNTRY.toLowerCase());
+  url.searchParams.set("dedupe", "1");
+  url.searchParams.set("normalizecity", "1");
+
+  const res = await fetch(url.toString(), {
+    headers: { Accept: "application/json" },
+  });
+
+  if (!res.ok) {
+    return [];
+  }
+
+  const data = await res.json();
+  if (!Array.isArray(data)) {
+    return [];
+  }
+
+  return data.map(normalizeItem).filter((x) => x && x.label);
+};
+
 /**
  * @param {string} query
  * @returns {Promise<Array<{ label, address_line1, postal_code, city, region, country, country_code, provider_place_id }>>}
@@ -163,6 +189,13 @@ export const searchAddressSuggestions = async (query) => {
   }
 
   try {
+    if (provider === "locationiq") {
+      const token = String(process.env.LOCATIONIQ_TOKEN || "").trim();
+      if (!token) {
+        return [];
+      }
+      return await searchLocationIQ(q, token);
+    }
     if (provider === "mapbox") {
       if (!apiKey) {
         return [];
