@@ -11,6 +11,9 @@ import { Plus, Search, Users, Edit, Trash2, Phone, Mail as MailIcon } from "luci
 import MapLink from "../components/MapLink";
 import WorkCentersInline from "../components/WorkCentersInline";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { validateFiscalId, normalizeFiscalId } from "@/lib/spanishFiscalId";
+import { validatePostalCode } from "@/lib/spanishPostalCodes";
 
 const TIERS = { standard: "Estándar", preferente: "Preferente", especial: "Especial" };
 
@@ -68,6 +71,13 @@ export default function Clients() {
   };
 
   const handleSave = async () => {
+    if (form.cif?.trim()) {
+      const cifResult = validateFiscalId(form.cif);
+      if (!cifResult.valid) {
+        toast.error(cifResult.message || "El CIF/NIF introducido no es válido.");
+        return;
+      }
+    }
     if (editingClient) {
       await appApi.entities.Client.update(editingClient.id, form);
     } else {
@@ -216,7 +226,29 @@ export default function Clients() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>CIF/NIF</Label>
-                <Input value={form.cif || ""} onChange={(e) => setForm(f => ({ ...f, cif: e.target.value }))} placeholder="B12345678" className="mt-1" />
+                {(() => {
+                  const cifResult = validateFiscalId(form.cif);
+                  return (
+                    <>
+                      <Input
+                        value={form.cif || ""}
+                        onChange={(e) => setForm(f => ({ ...f, cif: e.target.value }))}
+                        onBlur={(e) => {
+                          const normalized = normalizeFiscalId(e.target.value);
+                          if (normalized !== e.target.value) setForm(f => ({ ...f, cif: normalized }));
+                        }}
+                        placeholder="B12345678"
+                        className="mt-1"
+                      />
+                      {cifResult.valid === true && (
+                        <p className="text-xs mt-1 text-emerald-600">{cifResult.message}</p>
+                      )}
+                      {cifResult.valid === false && (
+                        <p className="text-xs mt-1 text-destructive">{cifResult.message}</p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
               <div>
                 <Label>Teléfono</Label>
@@ -242,7 +274,24 @@ export default function Clients() {
               </div>
               <div>
                 <Label>Código Postal</Label>
-                <Input value={form.postal_code || ""} onChange={(e) => setForm(f => ({ ...f, postal_code: e.target.value }))} className="mt-1" />
+                {(() => {
+                  const cpResult = validatePostalCode(form.postal_code);
+                  return (
+                    <>
+                      <Input
+                        value={form.postal_code || ""}
+                        onChange={(e) => setForm(f => ({ ...f, postal_code: e.target.value }))}
+                        className="mt-1"
+                      />
+                      {cpResult.valid === true && (
+                        <p className="text-xs mt-1 text-muted-foreground">{cpResult.message}</p>
+                      )}
+                      {cpResult.valid === false && (
+                        <p className="text-xs mt-1 text-destructive">{cpResult.message}</p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">

@@ -8,6 +8,7 @@ import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Plus, Phone, Pencil, Trash2, Building, History } from "lucide-react";
 import WorkCenterHistory from "./WorkCenterHistory";
 import MapLink from "./MapLink";
+import { validatePostalCode } from "@/lib/spanishPostalCodes";
 
 const emptyCenter = {
   name: "", address: "", city: "", postal_code: "",
@@ -151,7 +152,20 @@ export default function WorkCentersInline({ client, readOnly = false }) {
               </div>
               <div>
                 <Label>Código Postal</Label>
-                <Input value={form.postal_code || ""} onChange={e => setForm(f => ({ ...f, postal_code: e.target.value }))} className="mt-1 rounded-xl" />
+                {(() => {
+                  const cpResult = validatePostalCode(form.postal_code);
+                  return (
+                    <>
+                      <Input value={form.postal_code || ""} onChange={e => setForm(f => ({ ...f, postal_code: e.target.value }))} className="mt-1 rounded-xl" />
+                      {cpResult.valid === true && (
+                        <p className="text-xs mt-1 text-muted-foreground">{cpResult.message}</p>
+                      )}
+                      {cpResult.valid === false && (
+                        <p className="text-xs mt-1 text-destructive">{cpResult.message}</p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </div>
             <div>
