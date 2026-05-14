@@ -32,15 +32,15 @@ function isCifValid(n) {
   if (!/^[ABCDEFGHJNPQRSUVW][0-9]{7}[0-9A-J]$/i.test(n)) return false;
 
   const digits = n.slice(1, 8).split("").map(Number);
-  let sumOdd = 0;   // posiciones 2,4,6,8 del CIF → índices 0,2,4,6 en el array
-  let sumEven = 0;  // posiciones 3,5,7 del CIF → índices 1,3,5 en el array
+  let sumOdd = 0;   // D1,D3,D5,D7 (índices 0,2,4,6): se doblan y se suman sus dígitos
+  let sumEven = 0;  // D2,D4,D6   (índices 1,3,5):   se suman directamente
 
   for (let i = 0; i < 7; i++) {
     if (i % 2 === 0) {
-      sumOdd += digits[i];
-    } else {
       const d = digits[i] * 2;
-      sumEven += d >= 10 ? d - 9 : d;
+      sumOdd += d >= 10 ? d - 9 : d;
+    } else {
+      sumEven += digits[i];
     }
   }
 

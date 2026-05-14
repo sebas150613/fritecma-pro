@@ -237,7 +237,7 @@ export default function Clients() {
                           const normalized = normalizeFiscalId(e.target.value);
                           if (normalized !== e.target.value) setForm(f => ({ ...f, cif: normalized }));
                         }}
-                        placeholder="B12345678"
+                        placeholder="B12345674"
                         className="mt-1"
                       />
                       {cifResult.valid === true && (
