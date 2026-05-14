@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import BackButton from "../components/BackButton";
 import RectificativaForm from "../components/RectificativaForm";
-import { FileText, Mail, Clock, Flame, User, Loader2, Package, CheckCircle2, Pencil, Trash2, Plus, AlertTriangle, Wrench, Lock, Receipt, RotateCcw } from "lucide-react";
+import { FileText, Mail, Clock, Flame, User, Loader2, Package, CheckCircle2, Check, Pencil, Trash2, Plus, AlertTriangle, Wrench, Lock, Receipt, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 import MapLink from "../components/MapLink";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
@@ -118,7 +119,7 @@ export default function InterventionDetail() {
       await appApi.entities.Intervention.update(id, { email_sent: true });
       setIntervention(prev => ({ ...prev, email_sent: true }));
     } catch (e) {
-      alert(`No se pudo enviar el email: ${e.message || "Error desconocido."}`);
+      toast.error(`No se pudo enviar el email: ${e.message || "Error desconocido."}`);
     }
     setSendingEmail(false);
   };
@@ -128,7 +129,7 @@ export default function InterventionDetail() {
     try {
       await generateInvoicePdf(invoice, intervention);
     } catch (e) {
-      alert("Error generando PDF: " + e.message);
+      toast.error("No se pudo generar el PDF. Inténtalo de nuevo.");
     }
     setGeneratingPdf(false);
   };
@@ -156,7 +157,7 @@ export default function InterventionDetail() {
 
   const handleValidateOption = async (mode) => {
     if (mode === "facturar" && intervention?.desplazamiento_pendiente_tarifa) {
-      alert("Pendiente asignar tramo de desplazamiento antes de facturar.");
+      toast.error("Asigna el tramo de desplazamiento antes de facturar.");
       return;
     }
     setValidating(true);
@@ -171,7 +172,7 @@ export default function InterventionDetail() {
       setValidateResult(data);
       await loadData();
     } catch (e) {
-      alert('Error al procesar: ' + e.message);
+      toast.error("No se pudo procesar la operación. Inténtalo de nuevo.");
     }
     setValidating(false);
   };
@@ -200,7 +201,7 @@ export default function InterventionDetail() {
       });
       await loadData();
     } catch (e) {
-      alert('Error al anular: ' + e.message);
+      toast.error("No se pudo anular la factura. Inténtalo de nuevo.");
     }
     setRectificando(false);
   };
@@ -240,7 +241,7 @@ export default function InterventionDetail() {
     }
 
     if (!tramo) {
-      alert("Selecciona un tramo de desplazamiento.");
+      toast.error("Selecciona un tramo de desplazamiento.");
       return;
     }
 
@@ -331,7 +332,7 @@ export default function InterventionDetail() {
                   disabled={rectificando || !rectMotivoAnular.trim()}
                   className="p-4 border-2 border-red-200 hover:border-red-400 rounded-xl text-left transition-all hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <p className="font-semibold flex items-center gap-2 text-red-700"><RotateCcw className="h-5 w-5" /> Anular completamente</p>
+                  <p className="font-semibold flex items-center gap-2 text-red-700"><RotateCcw className="h-5 w-5" /> Anular esta factura</p>
                   <p className="text-xs text-red-600 mt-1">Genera una factura rectificativa R1 en negativo con todos los valores invertidos y la envía automáticamente a AEAT.</p>
                 </button>
                 <button
@@ -339,7 +340,7 @@ export default function InterventionDetail() {
                   disabled={rectificando}
                   className="p-4 border-2 border-blue-200 hover:border-blue-400 rounded-xl text-left transition-all hover:bg-blue-50"
                 >
-                  <p className="font-semibold flex items-center gap-2 text-blue-700"><Receipt className="h-5 w-5" /> Crear rectificativa editada</p>
+                  <p className="font-semibold flex items-center gap-2 text-blue-700"><Receipt className="h-5 w-5" /> Corregir y refacturar</p>
                   <p className="text-xs text-blue-600 mt-1">Abre un formulario para editar los datos (importe, descripción, etc) y genera la R1 con los valores corregidos.</p>
                 </button>
               </div>
@@ -399,20 +400,20 @@ export default function InterventionDetail() {
               <p className="text-sm text-muted-foreground">Selecciona cómo deseas cerrar este parte:</p>
               <div className="grid grid-cols-1 gap-3">
                 <button
-                  onClick={() => handleValidateOption('guardar')}
-                  disabled={validating}
-                  className="p-4 border-2 border-border hover:border-primary rounded-xl text-left transition-all hover:bg-primary/5"
-                >
-                  <p className="font-semibold flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-blue-600" /> Guardar Parte (sin factura)</p>
-                  <p className="text-xs text-muted-foreground mt-1">Para garantías, mantenimientos incluidos en cuota o partes internos. Se archiva sin registro fiscal.</p>
-                </button>
-                <button
                   onClick={() => handleValidateOption('facturar')}
                   disabled={validating}
-                  className="p-4 border-2 border-border hover:border-accent rounded-xl text-left transition-all hover:bg-accent/5"
+                  className="p-4 border-2 border-accent bg-accent/5 hover:bg-accent/10 rounded-xl text-left transition-all"
                 >
-                  <p className="font-semibold flex items-center gap-2"><Receipt className="h-5 w-5 text-accent" /> Facturar (Protocolo Veri*factu)</p>
+                  <p className="font-semibold flex items-center gap-2"><Receipt className="h-5 w-5 text-accent" /> Facturar con Veri*factu</p>
                   <p className="text-xs text-muted-foreground mt-1">Genera factura con hash encadenado, envía a la AEAT y bloquea el parte. Cumple Ley Antifraude.</p>
+                </button>
+                <button
+                  onClick={() => handleValidateOption('guardar')}
+                  disabled={validating}
+                  className="p-4 border-2 border-border hover:border-muted-foreground rounded-xl text-left transition-all hover:bg-muted/50"
+                >
+                  <p className="font-semibold flex items-center gap-2 text-muted-foreground"><CheckCircle2 className="h-5 w-5" /> Validar sin factura</p>
+                  <p className="text-xs text-muted-foreground mt-1">Para garantías, mantenimientos incluidos en cuota o partes internos. Se archiva sin registro fiscal.</p>
                 </button>
               </div>
               {validating && (
@@ -516,6 +517,8 @@ export default function InterventionDetail() {
       {canEdit && (
         <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
           <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Acciones</h2>
+
+          {/* Grupo 1: Estado y validación */}
           <div className="flex flex-wrap gap-3">
             <Select value={intervention.status} onValueChange={updateStatus}>
               <SelectTrigger className="w-48 rounded-xl"><SelectValue /></SelectTrigger>
@@ -527,7 +530,6 @@ export default function InterventionDetail() {
                 <SelectItem value="facturado">Facturado</SelectItem>
               </SelectContent>
             </Select>
-
             {intervention.status === "pendiente_revision" && (
               <Button onClick={() => setShowValidateModal(true)} className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
                 <CheckCircle2 className="h-4 w-4" /> Validar Parte
@@ -538,43 +540,48 @@ export default function InterventionDetail() {
                 <Lock className="h-3.5 w-3.5" /> Parte bloqueado (inalterable)
               </div>
             )}
+          </div>
 
-            {(invoiceAceptada || intervention?.status === 'facturado') && invoice && (
-              <Button variant="outline" onClick={() => { setShowRectModal(true); setRectMode(null); }} className="rounded-xl gap-2 border-amber-300 text-amber-700 hover:bg-amber-50">
-                <RotateCcw className="h-4 w-4" /> Rectificativa
-              </Button>
-            )}
+          {/* Grupo 2: Documento */}
+          <div className="flex flex-wrap gap-2 pt-3 border-t border-border">
             <Button variant="outline" onClick={generatePDF} disabled={generatingPdf} className="rounded-xl">
               {generatingPdf ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileText className="h-4 w-4 mr-2" />}
               Generar PDF
             </Button>
             <Button variant="outline" onClick={sendEmail} disabled={sendingEmail || intervention.email_sent} className="rounded-xl">
               {sendingEmail ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Mail className="h-4 w-4 mr-2" />}
-              {intervention.email_sent ? "Email Enviado ✓" : "Enviar Email"}
+              {intervention.email_sent ? <><Check className="h-4 w-4 mr-1 text-emerald-600" />Email enviado</> : "Enviar Email"}
             </Button>
+            {(invoiceAceptada || intervention?.status === 'facturado') && invoice && (
+              <Button variant="outline" onClick={() => { setShowRectModal(true); setRectMode(null); }} className="rounded-xl gap-2 border-amber-300 text-amber-700 hover:bg-amber-50">
+                <RotateCcw className="h-4 w-4" /> Rectificativa
+              </Button>
+            )}
           </div>
+
           {intervention.validated_by && (
-          <p className="text-xs text-muted-foreground">✓ Validado por {intervention.validated_by} el {intervention.validated_at ? new Date(intervention.validated_at).toLocaleString("es") : ""}</p>
+            <p className="text-xs text-muted-foreground">✓ Validado por {intervention.validated_by} el {intervention.validated_at ? new Date(intervention.validated_at).toLocaleString("es") : ""}</p>
           )}
-          {/* Registro legal de rectificación */}
           {intervention.rectified_by_info && (
-            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
               <p className="text-xs font-semibold text-amber-900 flex items-center gap-2"><RotateCcw className="h-3.5 w-3.5" /> Registro de Rectificación</p>
               <p className="text-xs text-amber-800 mt-1">{intervention.rectified_by_info}</p>
             </div>
           )}
+
+          {/* Grupo 3: Edición/destrucción */}
           {!isLocked && (
-          <div className="flex gap-2 pt-2 border-t border-border">
-            <Button variant="outline" onClick={() => navigate(`/interventions/${id}/edit`)} className="rounded-xl gap-2">
-              <Pencil className="h-4 w-4" /> Editar Parte
-            </Button>
-            <Button variant="outline" onClick={() => setShowDeleteConfirm(true)} className="rounded-xl gap-2 text-destructive border-destructive/30 hover:bg-destructive/10">
-              <Trash2 className="h-4 w-4" /> Eliminar Parte
-            </Button>
-          </div>
+            <div className="flex gap-2 pt-2 border-t border-border">
+              <Button variant="outline" onClick={() => navigate(`/interventions/${id}/edit`)} className="rounded-xl gap-2">
+                <Pencil className="h-4 w-4" /> Editar Parte
+              </Button>
+              <Button variant="outline" onClick={() => setShowDeleteConfirm(true)} className="rounded-xl gap-2 text-destructive border-destructive/30 hover:bg-destructive/10">
+                <Trash2 className="h-4 w-4" /> Eliminar Parte
+              </Button>
+            </div>
           )}
-          </div>
-          )}
+        </div>
+      )}
 
       {intervention.desplazamiento_pendiente_tarifa &&
         (intervention.desplazamientos_cantidad ?? 0) > 0 && (
@@ -630,7 +637,7 @@ export default function InterventionDetail() {
             className="rounded-xl"
           >
             {depSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Actualizar desplazamiento y totales
+            Recalcular totales
           </Button>
         </div>
       )}

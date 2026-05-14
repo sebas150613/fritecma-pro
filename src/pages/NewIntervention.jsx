@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Plus, MapPin, Loader2, Save, LogIn, AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 import BackButton from "../components/BackButton";
 import MaterialLineForm from "../components/MaterialLineForm";
 import LaborSection from "../components/LaborSection";
@@ -503,7 +504,7 @@ export default function NewIntervention() {
     if (!form.client_id) return;
 
     if (form.gas_other_ui && !String(form.gas_other_input || "").trim()) {
-      alert(GAS_OTHER_REQUIRED_MESSAGE);
+      toast.error(GAS_OTHER_REQUIRED_MESSAGE);
       return;
     }
 
@@ -561,12 +562,12 @@ export default function NewIntervention() {
             <p className="text-sm text-muted-foreground">No has registrado tu entrada hoy. Se recomienda fichar antes de crear un parte de trabajo.</p>
             <p className="text-sm text-muted-foreground">Si continúas, el parte quedará marcado como <strong className="text-amber-600">"Sin fichaje previo"</strong> para revisión de administración.</p>
             <div className="flex flex-col gap-2 pt-1">
-              <Button onClick={() => { 
+              <Button onClick={() => {
                 const today = new Date().toISOString().slice(0, 10);
                 localStorage.setItem("clockInWarningDate", today);
-                navigate("/"); 
+                navigate("/");
               }} className="w-full rounded-xl">
-                <LogIn className="h-4 w-4 mr-2" /> Ir a Fichar Entrada
+                <LogIn className="h-4 w-4 mr-2" /> Ir a registrar mi entrada
               </Button>
               <Button variant="outline" onClick={() => { 
                 const today = new Date().toISOString().slice(0, 10);
@@ -643,7 +644,7 @@ export default function NewIntervention() {
               <Input
                 value={form.location_address}
                 onChange={(e) => setForm(f => ({ ...f, location_address: e.target.value }))}
-                placeholder="Obteniendo ubicación..."
+                placeholder={gettingLocation ? "Obteniendo ubicación..." : "Pulsa el icono para detectar ubicación"}
                 className="rounded-xl"
               />
               <Button variant="outline" size="icon" onClick={getLocation} disabled={gettingLocation} className="rounded-xl">
@@ -795,7 +796,7 @@ export default function NewIntervention() {
         </div>
         {canAssignTramoUi && (
           <div>
-            <Label>Tramo de desplazamiento (opcional al crear)</Label>
+            <Label>Tramo de desplazamiento</Label>
             <Select
               value={form.desplazamiento_tramo_id || "__none__"}
               onValueChange={(v) =>
@@ -817,6 +818,11 @@ export default function NewIntervention() {
                 ))}
               </SelectContent>
             </Select>
+            {tramosOptions.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Opcional. Si lo dejas en blanco, la oficina lo asignará al revisar el parte.
+              </p>
+            )}
             {!tramosOptions.length && (
               <p className="text-xs text-amber-700 mt-1.5">
                 No hay tramos configurados. Añádelos en Configuración → Tarifas → Tramos de desplazamiento.

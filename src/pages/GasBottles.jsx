@@ -10,6 +10,7 @@ import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "react-router-dom";
 import { Plus, ArrowRightLeft, FlaskConical, History, AlertTriangle, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import moment from "moment";
 import GasTypeCombobox from "@/components/GasTypeCombobox";
@@ -158,7 +159,7 @@ export default function GasBottles() {
       let finalGas = bottleForm.gas_type;
       if (bottleForm.gas_other_ui) {
         if (!String(bottleForm.gas_other_input || "").trim()) {
-          alert(GAS_OTHER_REQUIRED_MESSAGE);
+          toast.error(GAS_OTHER_REQUIRED_MESSAGE);
           setSaving(false);
           return;
         }
@@ -167,7 +168,7 @@ export default function GasBottles() {
         finalGas = resolveCanonicalGasLabel(bottleForm.gas_type || "", leg);
       }
       if (!finalGas) {
-        alert(GAS_OTHER_REQUIRED_MESSAGE);
+        toast.error(GAS_OTHER_REQUIRED_MESSAGE);
         setSaving(false);
         return;
       }
@@ -520,7 +521,7 @@ export default function GasBottles() {
                 <Input type="number" min="0" step="0.01" value={bottleForm.carga_actual} onChange={e => setBottleForm(f => ({ ...f, carga_actual: e.target.value }))} className="mt-1 rounded-xl" />
               </div>
               <div>
-                <Label>Propietario Gas</Label>
+                <Label>Propietario del gas</Label>
                 <Select value={bottleForm.owner_type} onValueChange={v => setBottleForm(f => ({ ...f, owner_type: v }))}>
                   <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -530,7 +531,7 @@ export default function GasBottles() {
                 </Select>
               </div>
               <div>
-                <Label>Propiedad del Casco (Proveedor)</Label>
+                <Label>Proveedor del recipiente</Label>
                 <Select
                   value={bottleForm.supplier_id || "__fritecma__"}
                   onValueChange={v => {
@@ -587,7 +588,7 @@ export default function GasBottles() {
             <div className="flex gap-3 pt-2">
               <Button variant="outline" onClick={() => setBottleModal(false)} className="flex-1 rounded-xl">Cancelar</Button>
               <Button onClick={saveBottle} disabled={saving || !bottleForm.serial_number} className="flex-1 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground">
-                {saving ? "Guardando..." : "Guardar"}
+                {saving ? "Guardando..." : editingBottle ? "Actualizar botella" : "Guardar botella"}
               </Button>
             </div>
           </div>
@@ -693,7 +694,7 @@ export default function GasBottles() {
             <div className="flex gap-3 pt-2">
               <Button variant="outline" onClick={() => setTransferModal(false)} className="flex-1 rounded-xl">Cancelar</Button>
               <Button onClick={confirmTransfer} disabled={saving} className="flex-1 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground">
-                {saving ? "Procesando..." : "Confirmar Traspaso"}
+                {saving ? "Procesando..." : "Registrar traspaso"}
               </Button>
             </div>
           </div>

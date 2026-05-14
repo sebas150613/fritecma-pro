@@ -154,13 +154,13 @@ export default function AbsenceManagement() {
 
             <div>
               <Label>Observaciones</Label>
-              <Input value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notas adicionales..." className="mt-1 rounded-xl" />
+              <Input value={form.notes} onChange={(e) => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Motivo, nº de baja, observaciones relevantes..." className="mt-1 rounded-xl" />
             </div>
 
             <div className="flex gap-3 pt-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1 rounded-xl">Cancelar</Button>
               <Button onClick={handleSave} disabled={saving || !form.user_email || !form.start_date || !form.end_date} className="flex-1 rounded-xl bg-accent hover:bg-accent/90">
-                {saving ? "Guardando..." : "Guardar"}
+                {saving ? "Registrando..." : "Registrar ausencia"}
               </Button>
             </div>
           </div>
@@ -169,7 +169,13 @@ export default function AbsenceManagement() {
 
       <div className="space-y-3">
         {absences.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8">Sin ausencias registradas.</p>
+          <div className="bg-card rounded-2xl border border-border p-12 text-center space-y-3">
+            <Calendar className="h-10 w-10 text-muted-foreground/30 mx-auto" />
+            <p className="text-muted-foreground">Sin ausencias registradas.</p>
+            <Button variant="outline" onClick={() => setDialogOpen(true)} className="rounded-xl">
+              <Plus className="h-4 w-4 mr-2" /> Registrar primera ausencia
+            </Button>
+          </div>
         ) : (
           absences.map(a => (
             <div key={a.id} className="bg-card rounded-xl border border-border p-4 flex items-start justify-between gap-4">

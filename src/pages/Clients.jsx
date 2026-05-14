@@ -110,9 +110,25 @@ export default function Clients() {
       </div>
 
       {filtered.length === 0 ? (
-        <div className="bg-card rounded-2xl border border-border p-12 text-center">
-          <Users className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
-          <p className="text-muted-foreground">No se encontraron clientes</p>
+        <div className="bg-card rounded-2xl border border-border p-12 text-center space-y-3">
+          <Users className="h-12 w-12 text-muted-foreground/30 mx-auto" />
+          {search ? (
+            <>
+              <p className="text-muted-foreground">Sin resultados para «{search}»</p>
+              <Button variant="outline" onClick={() => setSearch("")} className="rounded-xl">
+                Limpiar búsqueda
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-muted-foreground">No hay clientes registrados</p>
+              {!isTecnico && (
+                <Button variant="outline" onClick={openNew} className="rounded-xl">
+                  <Plus className="h-4 w-4 mr-2" /> Crear primer cliente
+                </Button>
+              )}
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-2">
@@ -164,7 +180,7 @@ export default function Clients() {
 
                     <div className="flex gap-2 pt-3 border-t border-border">
                       <Button variant="outline" size="sm" onClick={() => setExpandedClient(null)} className="flex-1 rounded-xl text-xs">
-                        🏢 Ver centros
+                        Ver centros de trabajo
                       </Button>
                       {!isTecnico && (
                         <>
@@ -200,11 +216,11 @@ export default function Clients() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>CIF/NIF</Label>
-                <Input value={form.cif || ""} onChange={(e) => setForm(f => ({ ...f, cif: e.target.value }))} className="mt-1" />
+                <Input value={form.cif || ""} onChange={(e) => setForm(f => ({ ...f, cif: e.target.value }))} placeholder="B12345678" className="mt-1" />
               </div>
               <div>
                 <Label>Teléfono</Label>
-                <Input value={form.phone || ""} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} className="mt-1" />
+                <Input value={form.phone || ""} onChange={(e) => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+34 612 345 678" className="mt-1" />
               </div>
             </div>
             <div>
@@ -213,7 +229,7 @@ export default function Clients() {
             </div>
             <div>
               <Label>Persona de Contacto</Label>
-              <Input value={form.contact_person || ""} onChange={(e) => setForm(f => ({ ...f, contact_person: e.target.value }))} className="mt-1" />
+              <Input value={form.contact_person || ""} onChange={(e) => setForm(f => ({ ...f, contact_person: e.target.value }))} placeholder="Nombre del responsable" className="mt-1" />
             </div>
             <div>
               <Label>Dirección</Label>
@@ -273,8 +289,8 @@ export default function Clients() {
               </div>
             </div>
 
-            <Button onClick={handleSave} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl">
-              {editingClient ? "Actualizar" : "Crear Cliente"}
+            <Button onClick={handleSave} disabled={!form.name?.trim()} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl">
+              {editingClient ? "Guardar cambios" : "Crear cliente"}
             </Button>
           </div>
         </DialogContent>
