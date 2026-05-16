@@ -651,3 +651,144 @@ export const consumeInviteActivationNonce = async (args) => {
 
   return true;
 };
+
+// ─── Registro público con verificación OTP ────────────────────────────────────
+
+const SIGNUP_OTP_TTL_MS = 10 * 60 * 1000; // 10 minutos
+const SIGNUP_OTP_MAX_ATTEMPTS = 3;
+
+const signupOtpStore = createJsonFileStore("auth-signup-otps.json", []);
+
+const writeSignupOtps = async (items) => {
+  const arr = Array.isArray(items) ? items : [];
+  await signupOtpStore.write(arr.slice(-400));
+};
+
+const pruneSignupOtps = (list) =>
+  (Array.isArray(list) ? list : []).filter(
+    (row) => row?.expires_at && new Date(row.expires_at) > new Date()
+  );
+
+/**
+ * Genera y almacena un OTP para el registro público.
+ * Invalida OTPs anteriores no consumidos para el mismo email.
+ * @returns {{ plainCode: string, pendingId: string }}
+ */
+export const createSignupOtp = async ({ email, organizationName, fullName }) => {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) throw new HttpError(400, "Email requerido.");
+
+  const current = pruneSignupOtps(await signupOtpStore.read());
+  const withoutPending = current.filter(
+    (row) => row?.email !== normalizedEmail || row?.consumed_at
+  );
+
+  const salt = randomBytes(16).toString("hex");
+  const plainCode = generateSixDigitCode();
+  const otp_hash = hashInviteOtpCode(salt, plainCode);
+
+  const record = {
+    id: randomUUID(),
+    email: normalizedEmail,
+    organization_name: String(organizationName || "").trim(),
+    full_name: String(fullName || "").trim(),
+    salt,
+    otp_hash,
+    attempts: 0,
+    consumed_at: null,
+    created_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + SIGNUP_OTP_TTL_MS).toISOString(),
+  };
+
+  withoutPending.push(record);
+  await writeSignupOtps(withoutPending);
+
+  return { plainCode, pendingId: record.id };
+};
+
+/**
+ * Verifica el OTP de registro. Devuelve los datos pendientes si es correcto.
+ * @returns {{ email: string, organization_name: string, full_name: string }}
+ */
+export const verifySignupOtp = async ({ pendingId, otp }) => {
+  const id = String(pendingId || "").trim();
+  const code = String(otp || "").trim();
+
+  if (!id || !/^\d{6}$/.test(code)) {
+    throw new HttpError(422, "Introduce un código de 6 dígitos.");
+  }
+
+  const current = pruneSignupOtps(await signupOtpStore.read());
+  const record = current.find(
+    (row) => row?.id === id && !row?.consumed_at
+  );
+
+  if (!record) {
+    throw new HttpError(422, "El código ha expirado o ya fue usado. Solicita uno nuevo.");
+  }
+
+  if (record.attempts >= SIGNUP_OTP_MAX_ATTEMPTS) {
+    throw new HttpError(422, "Número de intentos agotado. Solicita un nuevo código.", {
+      code_exhausted: true,
+      attempts_remaining: 0,
+    });
+  }
+
+  const expected = Buffer.from(String(record.otp_hash || ""), "hex");
+  const actual = Buffer.from(hashInviteOtpCode(record.salt, code), "hex");
+
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+    record.attempts += 1;
+    await writeSignupOtps(current);
+    const remaining = SIGNUP_OTP_MAX_ATTEMPTS - record.attempts;
+    if (remaining <= 0) {
+      throw new HttpError(422, "Código incorrecto. No quedan más intentos.", {
+        code_exhausted: true,
+        attempts_remaining: 0,
+      });
+    }
+    throw new HttpError(422, `Código incorrecto. Quedan ${remaining} intento${remaining !== 1 ? "s" : ""}.`, {
+      code_exhausted: false,
+      attempts_remaining: remaining,
+    });
+  }
+
+  record.consumed_at = new Date().toISOString();
+  await writeSignupOtps(current);
+
+  return {
+    email: record.email,
+    organization_name: record.organization_name,
+    full_name: record.full_name,
+  };
+};
+
+export const sendSignupOtpEmail = async ({ to, organizationName, code }) => {
+  const org = String(organizationName || "").trim() || "FRIGEST";
+  const safeCode = escapeHtml(String(code || "").trim());
+
+  const html = buildPremiumEmailDocument({
+    preheader: `Tu código de verificación FRIGEST es ${String(code).trim()}. Caduca en 10 minutos.`,
+    title: "Verifica tu email",
+    paragraphs: [
+      `Para completar el registro de <strong>${escapeHtml(org)}</strong> en FRIGEST, introduce el siguiente código:`,
+      `<span style="display:inline-block;margin:8px 0 0;padding:14px 22px;border-radius:12px;background:#f0fdfa;border:1px solid #99f6e4;font-size:28px;font-weight:800;letter-spacing:0.18em;color:#0f766e;">${safeCode}</span>`,
+      "El código caduca en 10 minutos y solo admite 3 intentos. Si no lo introduces a tiempo, tendrás que solicitar uno nuevo.",
+    ],
+    secondaryNote:
+      "Si no estás creando una cuenta en FRIGEST, ignora este mensaje. No es necesaria ninguna acción.",
+  });
+
+  return sendEmail({
+    to,
+    subject: `Tu código de verificación FRIGEST: ${String(code).trim()}`,
+    text: [
+      `Código de verificación para completar el registro en FRIGEST: ${String(code).trim()}`,
+      "",
+      "El código caduca en 10 minutos.",
+      "",
+      "Si no solicitaste este código, ignora este correo.",
+    ].join("\n"),
+    html,
+  });
+};

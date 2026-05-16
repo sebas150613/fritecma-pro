@@ -94,6 +94,15 @@ export default function LoginPage() {
             </PremiumSubmitButton>
 
             <p className="text-center text-xs text-muted-foreground">
+              ¿Aún no tienes cuenta?{" "}
+              <Link
+                to="/register"
+                className="underline-offset-4 hover:text-foreground hover:underline"
+              >
+                Crear cuenta gratis
+              </Link>
+            </p>
+            <p className="text-center text-xs text-muted-foreground">
               <Link
                 to="/private-login"
                 className="underline-offset-4 hover:text-foreground hover:underline"

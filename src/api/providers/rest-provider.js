@@ -370,6 +370,60 @@ export const createRestProvider = () => {
 
       return parsedBody;
     },
+    signupRequestOtp: async ({ organizationName, fullName, email }) => {
+      const baseUrl = buildBaseUrl();
+      if (!baseUrl) throw new Error("API base URL is not configured.");
+
+      const response = await fetch(joinUrl(baseUrl, "/api/auth/signup/request"), {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...(runtimeConfig.appId ? { "X-App-Id": runtimeConfig.appId } : {}),
+        },
+        body: JSON.stringify({
+          organization_name: organizationName,
+          full_name: fullName,
+          email,
+        }),
+      });
+
+      const parsedBody = await parseResponseBody(response);
+      if (!response.ok) {
+        const error = new Error(parsedBody?.message || `Request failed (${response.status})`);
+        error.status = response.status;
+        error.data = parsedBody;
+        throw error;
+      }
+      return parsedBody; // { pending_id }
+    },
+    signupVerifyOtp: async ({ pendingId, otp, password }) => {
+      const baseUrl = buildBaseUrl();
+      if (!baseUrl) throw new Error("API base URL is not configured.");
+
+      const response = await fetch(joinUrl(baseUrl, "/api/auth/signup/verify"), {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          ...(runtimeConfig.appId ? { "X-App-Id": runtimeConfig.appId } : {}),
+        },
+        body: JSON.stringify({ pending_id: pendingId, otp, password }),
+      });
+
+      const parsedBody = await parseResponseBody(response);
+      if (!response.ok) {
+        const error = new Error(parsedBody?.message || `Verification failed (${response.status})`);
+        error.status = response.status;
+        error.data = parsedBody;
+        throw error;
+      }
+
+      if (parsedBody?.access_token) {
+        setRuntimeAccessToken(parsedBody.access_token);
+      }
+      return parsedBody;
+    },
     redirectToLogin: () => {
       if (typeof window === "undefined") {
         return;

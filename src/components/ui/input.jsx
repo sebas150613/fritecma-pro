@@ -134,7 +134,7 @@ const Input = React.forwardRef(
           {showPasswordToggle ? (
             <button
               type="button"
-              className="absolute right-3 top-1/2 flex -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:pointer-events-none [&_svg]:h-4 [&_svg]:w-4"
+              className="absolute right-3 inset-y-0 flex items-center text-gray-400 hover:text-gray-600 disabled:pointer-events-none [&_svg]:h-4 [&_svg]:w-4"
               aria-label={reveal ? "Ocultar contraseña" : "Mostrar contraseña"}
               disabled={disabled}
               onClick={() => setReveal((v) => !v)}

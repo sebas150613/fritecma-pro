@@ -43,6 +43,9 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail,
   verifyInviteActivationOtp,
+  createSignupOtp,
+  verifySignupOtp,
+  sendSignupOtpEmail,
 } from "../services/account-security-service.js";
 import { serverConfig } from "../config.js";
 import {
@@ -1316,6 +1319,107 @@ router.post(
         mode: userId ? "login" : "login",
       });
     }
+  })
+);
+
+const signupRequestOtpRateLimiter = createRateLimiter({
+  namespace: "signup-otp-request",
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  keyGenerator(req) {
+    const ip = getClientIp(req);
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    return `${ip}:${email || "no-email"}`;
+  },
+});
+
+const signupVerifyOtpRateLimiter = createRateLimiter({
+  namespace: "signup-otp-verify",
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyGenerator(req) {
+    const ip = getClientIp(req);
+    const pendingId = String(req.body?.pending_id || "").slice(0, 36);
+    return `${ip}:${pendingId || "no-id"}`;
+  },
+});
+
+// Paso 1: valida datos, envía OTP al email sin crear la cuenta todavía
+router.post(
+  "/signup/request",
+  express.json(),
+  signupRequestOtpRateLimiter,
+  asyncHandler(async (req, res) => {
+    if (!serverConfig.publicSignupEnabled) {
+      throw new HttpError(403, "El registro público está desactivado.");
+    }
+
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const organizationName = String(req.body?.organization_name || "").trim();
+    const fullName = String(req.body?.full_name || "").trim();
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new HttpError(422, "Email no válido.");
+    }
+    if (organizationName.length < 2) {
+      throw new HttpError(422, "El nombre de la empresa es obligatorio (mínimo 2 caracteres).");
+    }
+    if (fullName.length < 2) {
+      throw new HttpError(422, "El nombre completo es obligatorio (mínimo 2 caracteres).");
+    }
+
+    const existing = await findUserByEmail(email);
+    if (existing) {
+      throw new HttpError(422, "Este email ya está registrado. Inicia sesión o usa otro email.");
+    }
+
+    const { plainCode, pendingId } = await createSignupOtp({ email, organizationName, fullName });
+    await sendSignupOtpEmail({ to: email, organizationName, code: plainCode });
+
+    return res.status(200).json({ pending_id: pendingId });
+  })
+);
+
+// Paso 2: verifica el OTP y crea la cuenta + organización
+router.post(
+  "/signup/verify",
+  express.json(),
+  signupVerifyOtpRateLimiter,
+  asyncHandler(async (req, res) => {
+    if (!serverConfig.publicSignupEnabled) {
+      throw new HttpError(403, "El registro público está desactivado.");
+    }
+
+    const pendingId = String(req.body?.pending_id || "").trim();
+    const otp = String(req.body?.otp || "").trim();
+    const password = String(req.body?.password || "");
+
+    if (!pendingId || !otp) {
+      throw new HttpError(422, "Datos incompletos.");
+    }
+    if (password.length < 8) {
+      throw new HttpError(422, "La contraseña debe tener al menos 8 caracteres.");
+    }
+
+    const pendingData = await verifySignupOtp({ pendingId, otp });
+
+    const existing = await findUserByEmail(pendingData.email);
+    if (existing) {
+      throw new HttpError(422, "Este email ya está registrado. Inicia sesión.");
+    }
+
+    const session = await createOrganizationSignup({
+      organizationName: pendingData.organization_name,
+      fullName: pendingData.full_name,
+      email: pendingData.email,
+      password,
+    });
+
+    return res.status(201).json({
+      access_token: session.token,
+      user: session.user,
+      organization: session.organization,
+    });
   })
 );
 
