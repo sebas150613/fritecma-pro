@@ -70,6 +70,9 @@ export default function Interventions() {
   // All filtered for tecnico
   const allFiltered = interventions.filter(matchesSearch);
 
+  // Pending interventions assigned to current tecnico (avoids duplicate filter in JSX)
+  const myPending = pending.filter(i => i.technician_email === user?.email || i.helper_email === user?.email);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -161,29 +164,40 @@ export default function Interventions() {
           <TabsList className="rounded-xl">
             <TabsTrigger value="pending" className="rounded-xl gap-2">
               <AlertTriangle className="h-4 w-4" /> Pendientes
-              {pending.filter(i => i.technician_email === user?.email || i.helper_email === user?.email).length > 0 && (
+              {myPending.length > 0 && (
                 <span className="ml-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                  {pending.filter(i => i.technician_email === user?.email || i.helper_email === user?.email).length}
+                  {myPending.length}
                 </span>
               )}
             </TabsTrigger>
             <TabsTrigger value="all" className="rounded-xl">Todas</TabsTrigger>
           </TabsList>
           <TabsContent value="pending" className="mt-4">
-            {pending.filter(i => i.technician_email === user?.email || i.helper_email === user?.email).length === 0 ? (
+            {myPending.length === 0 ? (
               <div className="bg-card rounded-2xl border border-border p-12 text-center">
                 <p className="text-muted-foreground">No tienes tareas pendientes</p>
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {pending.filter(i => i.technician_email === user?.email || i.helper_email === user?.email).map(i => <InterventionCard key={i.id} intervention={i} isAdmin={false} />)}
+                {myPending.map(i => <InterventionCard key={i.id} intervention={i} isAdmin={false} />)}
               </div>
             )}
           </TabsContent>
           <TabsContent value="all" className="mt-4">
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {allFiltered.map(i => <InterventionCard key={i.id} intervention={i} isAdmin={false} />)}
-            </div>
+            {allFiltered.length === 0 ? (
+              <div className="bg-card rounded-2xl border border-border p-12 text-center space-y-3">
+                <p className="text-muted-foreground">No se encontraron intervenciones</p>
+                <Link to="/interventions/new">
+                  <Button variant="outline" className="rounded-xl">
+                    <Plus className="h-4 w-4 mr-2" /> Crear nuevo parte
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {allFiltered.map(i => <InterventionCard key={i.id} intervention={i} isAdmin={false} />)}
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       )}

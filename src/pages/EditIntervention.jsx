@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { appApi } from "@/api/app-api";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -131,7 +132,7 @@ export default function EditIntervention() {
 
   const handleSave = async () => {
     if (form.gas_other_ui && !String(form.gas_other_input || "").trim()) {
-      alert(GAS_OTHER_REQUIRED_MESSAGE);
+      toast.error(GAS_OTHER_REQUIRED_MESSAGE);
       return;
     }
     const finalGas = form.gas_other_ui

@@ -116,11 +116,11 @@ export default function NewIntervention() {
   useEffect(() => {
     loadInitialData();
     getLocation();
-    // Refresh gas bottles every 5 seconds to catch recent stock changes
+    // Refresh gas bottles every 30 seconds to catch recent stock changes
     const interval = setInterval(async () => {
       const bottles = await appApi.entities.GasBottle.list("-created_date", 200).catch(() => []);
       setGasBottles(bottles || []);
-    }, 5000);
+    }, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -147,8 +147,9 @@ export default function NewIntervention() {
         const today_date = new Date().toISOString().slice(0, 10);
         const hasSeenTodayWarning = storedWarning === today_date;
 
-        // Show warning only if: not checked in AND haven't seen warning today
-        if (!isCheckedIn && !hasSeenTodayWarning) {
+        // Show warning only if: no fichaje at all today (entrada OR entrada+salida = no message)
+        const hasAnyRecordToday = records.length > 0;
+        if (!hasAnyRecordToday && !hasSeenTodayWarning) {
           setShowCheckinWarning(true);
         }
       } else {
@@ -647,7 +648,7 @@ export default function NewIntervention() {
                 placeholder={gettingLocation ? "Obteniendo ubicación..." : "Pulsa el icono para detectar ubicación"}
                 className="rounded-xl"
               />
-              <Button variant="outline" size="icon" onClick={getLocation} disabled={gettingLocation} className="rounded-xl">
+              <Button variant="outline" size="icon" aria-label="Detectar ubicación GPS" onClick={getLocation} disabled={gettingLocation} className="rounded-xl">
                 {gettingLocation ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
               </Button>
             </div>

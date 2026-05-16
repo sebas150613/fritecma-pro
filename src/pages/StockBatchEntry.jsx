@@ -20,9 +20,9 @@ export default function StockBatchEntry() {
   const [openDropdown, setOpenDropdown] = useState(null);
 
   useEffect(() => {
-    appApi.auth.me().then(setUser).catch(() => {});
-    appApi.entities.Material.filter({ is_active: true }).then(setMaterials).catch(() => {});
-    appApi.entities.Supplier.filter({ is_active: true }).then(setSuppliers).catch(() => {});
+    appApi.auth.me().then(setUser).catch(() => toast.error("Error al cargar tu perfil"));
+    appApi.entities.Material.filter({ is_active: true }).then(setMaterials).catch(() => toast.error("Error al cargar materiales"));
+    appApi.entities.Supplier.filter({ is_active: true }).then(setSuppliers).catch(() => toast.error("Error al cargar proveedores"));
   }, []);
 
   const isTecnico = user?.role === "user" || user?.role === "tecnico";
@@ -280,7 +280,7 @@ export default function StockBatchEntry() {
 
                 {/* Remove */}
                 <div className="md:col-span-1 flex justify-end md:justify-center">
-                  <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive h-8 w-8"
+                  <Button variant="ghost" size="icon" aria-label="Eliminar línea" className="text-muted-foreground hover:text-destructive h-8 w-8"
                     onClick={() => lines.length > 1 && removeLine(line.id)} disabled={lines.length === 1}>
                     <Trash2 className="h-4 w-4" />
                   </Button>

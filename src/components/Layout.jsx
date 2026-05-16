@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { useSessionGuard } from "../hooks/useSessionGuard";
 import { appApi } from "@/api/app-api";
+import { toast } from "sonner";
 import { useAuth } from "@/lib/app-auth";
 import AppLogo from "@/components/AppLogo";
 import {
@@ -126,7 +127,7 @@ export default function Layout() {
   });
 
   useEffect(() => {
-    appApi.auth.me().then(setUser).catch(() => {});
+    appApi.auth.me().then(setUser).catch(() => toast.error("Error al cargar tu sesión. Recarga la página."));
   }, []);
 
   useEffect(() => {

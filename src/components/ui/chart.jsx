@@ -46,11 +46,16 @@ const ChartContainer = React.forwardRef(({ id, className, children, config, ...p
 })
 ChartContainer.displayName = "Chart"
 
+const SAFE_CSS_KEY = /^[\w-]+$/;
+const SAFE_CSS_COLOR = /^(#[0-9a-fA-F]{3,8}|rgba?\([^)]{0,80}\)|hsla?\([^)]{0,80}\)|[a-zA-Z]{1,30}|var\(--[\w-]{1,60}\))$/;
+
 const ChartStyle = ({
   id,
   config
 }) => {
-  const colorConfig = Object.entries(config).filter(([, config]) => config.theme || config.color)
+  const colorConfig = Object.entries(config).filter(([key, cfg]) =>
+    SAFE_CSS_KEY.test(key) && (cfg.theme || cfg.color)
+  )
 
   if (!colorConfig.length) {
     return null
@@ -64,11 +69,10 @@ const ChartStyle = ({
 ${prefix} [data-chart=${id}] {
 ${colorConfig
 .map(([key, itemConfig]) => {
-const color =
-  itemConfig.theme?.[theme] ||
-  itemConfig.color
-return color ? `  --color-${key}: ${color};` : null
+const color = (itemConfig.theme?.[theme] || itemConfig.color || "").trim()
+return color && SAFE_CSS_COLOR.test(color) ? `  --color-${key}: ${color};` : null
 })
+.filter(Boolean)
 .join("\n")}
 }
 `)

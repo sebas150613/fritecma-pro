@@ -279,7 +279,7 @@ export default function NewVisit() {
             <Label>Ubicación GPS</Label>
             <div className="flex gap-2 mt-1">
               <Input value={form.location_address} onChange={(e) => setForm(f => ({ ...f, location_address: e.target.value }))} placeholder="Obteniendo ubicación..." className="rounded-xl" />
-              <Button variant="outline" size="icon" onClick={getLocation} disabled={gettingLocation} className="rounded-xl">
+              <Button variant="outline" size="icon" aria-label="Detectar ubicación GPS" onClick={getLocation} disabled={gettingLocation} className="rounded-xl">
                 {gettingLocation ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
               </Button>
             </div>

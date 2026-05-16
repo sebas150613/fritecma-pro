@@ -13,7 +13,7 @@ export default function PendingStockPanel({ user }) {
 
   const load = () => {
     appApi.entities.StockEntry.filter({ status: "pendiente" }, "-created_date", 20)
-      .then(setEntries).catch(() => {});
+      .then(setEntries).catch(() => toast.error("Error al cargar entradas de stock pendientes"));
   };
 
   useEffect(() => { load(); }, []);

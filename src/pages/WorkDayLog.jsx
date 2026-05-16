@@ -210,7 +210,7 @@ export default function WorkDayLog() {
                 <p className="text-base font-semibold text-primary">{minutesToHHMM(calcMinutes(seg.start, seg.end))}</p>
               </div>
               {!saved && segments.length > 1 && (
-                <Button variant="ghost" size="icon" onClick={() => setSegments(segments.filter((_, j) => j !== i))}
+                <Button variant="ghost" size="icon" aria-label="Eliminar segmento" onClick={() => setSegments(segments.filter((_, j) => j !== i))}
                   className="h-10 w-10 text-muted-foreground hover:text-destructive mb-1">
                   <Trash2 className="h-4 w-4" />
                 </Button>

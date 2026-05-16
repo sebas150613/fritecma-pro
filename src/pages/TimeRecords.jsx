@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { appApi } from "@/api/app-api";
 import PullToRefresh from "../components/PullToRefresh";
 import { Button } from "@/components/ui/button";
@@ -92,7 +92,7 @@ export default function TimeRecords() {
     }).sort((a, b) => a.date.localeCompare(b.date));
   };
 
-  const summary = computeSummary();
+  const summary = useMemo(() => computeSummary(), [filteredRecords]);
 
   const downloadCSV = () => {
     const rows = [

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, RotateCcw, Receipt } from "lucide-react";
+import { toast } from "sonner";
 
 export default function RectificativaForm({ invoice, intervention, onComplete, onCancel }) {
   const [formData, setFormData] = useState({
@@ -36,10 +37,10 @@ export default function RectificativaForm({ invoice, intervention, onComplete, o
       if (res.data.success) {
         onComplete(res.data);
       } else {
-        alert("Error: " + res.data.error);
+        toast.error("Error: " + res.data.error);
       }
     } catch (e) {
-      alert("Error al generar rectificativa: " + e.message);
+      toast.error("Error al generar rectificativa: " + e.message);
     } finally {
       setSubmitting(false);
     }
@@ -132,7 +133,7 @@ export default function RectificativaForm({ invoice, intervention, onComplete, o
         <Button
           type="submit"
           disabled={submitting || !formData.motivo.trim()}
-          className="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white"
+          className="flex-1 rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
         >
           {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RotateCcw className="h-4 w-4 mr-2" />}
           Generar Rectificativa
