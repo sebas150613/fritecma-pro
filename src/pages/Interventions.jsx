@@ -117,8 +117,13 @@ export default function Interventions() {
 
           <TabsContent value="pending" className="mt-4">
             {pending.length === 0 ? (
-              <div className="bg-card rounded-2xl border border-border p-12 text-center">
+              <div className="bg-card rounded-2xl border border-border p-12 text-center space-y-3">
                 <p className="text-muted-foreground">No hay partes en curso</p>
+                <Link to="/interventions/new">
+                  <Button variant="outline" className="rounded-xl">
+                    <Plus className="h-4 w-4 mr-2" /> Crear nuevo parte
+                  </Button>
+                </Link>
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -214,7 +214,14 @@ export default function Calendar() {
       {/* Eventos del mes */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {monthEvents.length === 0 ? (
-          <p className="col-span-3 text-center text-muted-foreground py-8">Sin eventos en este mes.</p>
+          <div className="col-span-3 text-center py-12 space-y-3">
+            <p className="text-muted-foreground">Sin eventos en este mes.</p>
+            {isEncargado && (
+              <Button variant="outline" onClick={() => setDialogOpen(true)} className="rounded-xl">
+                <Plus className="h-4 w-4 mr-2" /> Añadir evento
+              </Button>
+            )}
+          </div>
         ) : (
           monthEvents.map(event => (
             <div key={event.id} className="bg-card rounded-xl border border-border p-4 space-y-3" style={{ borderLeftColor: event.color, borderLeftWidth: "4px" }}>

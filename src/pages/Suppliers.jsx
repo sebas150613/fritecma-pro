@@ -134,9 +134,14 @@ export default function Suppliers() {
         {/* PROVEEDORES TAB */}
         <TabsContent value="proveedores" className="mt-4">
           {suppliers.length === 0 ? (
-            <div className="bg-card rounded-2xl border border-border p-12 text-center">
+            <div className="bg-card rounded-2xl border border-border p-12 text-center space-y-3">
               <Truck className="h-12 w-12 text-muted-foreground/30 mx-auto mb-4" />
               <p className="text-muted-foreground">No hay proveedores registrados</p>
+              {isAdmin && (
+                <Button variant="outline" onClick={openNew} className="rounded-xl">
+                  <Plus className="h-4 w-4 mr-2" /> Añadir primer proveedor
+                </Button>
+              )}
             </div>
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
