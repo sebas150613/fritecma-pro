@@ -292,16 +292,13 @@ export default function NewBreakdown() {
     }));
   };
 
-  // ── validation ────────────────────────────────────────────────────────────
-  const mode       = newClient ? "new_client" : "existing";
-  const clientReady = mode === "new_client" ? !!newClient?.name : !!form.client_id;
-  const canSubmit   = clientReady && !!form.description.trim();
+  const mode = newClient ? "new_client" : "existing";
 
   // ── save ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (!form.description.trim()) { toast.error("La descripción es obligatoria"); return; }
-    if (mode === "new_client" && !newClient?.name?.trim()) { toast.error("El cliente es obligatorio"); return; }
-    if (mode === "existing" && !form.client_id)            { toast.error("El cliente es obligatorio"); return; }
+    if (mode === "existing" && !form.client_id)          { toast.error("Selecciona un cliente"); return; }
+    if (mode === "new_client" && !newClient?.name?.trim()) { toast.error("El nombre del cliente es obligatorio"); return; }
+    if (!form.description.trim())                         { toast.error("La descripción de la avería es obligatoria"); return; }
 
     setSaving(true);
     try {
@@ -516,7 +513,7 @@ export default function NewBreakdown() {
         <div className="flex justify-end">
           <Button
             onClick={handleSave}
-            disabled={saving || !canSubmit}
+            disabled={saving}
             className="w-full sm:w-auto bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-8 h-12 text-base shadow-lg shadow-accent/25"
           >
             {saving ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Save className="h-5 w-5 mr-2" />}
