@@ -6,13 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save, Plus, X, UserPlus, AlertTriangle, Building2, ChevronDown, ChevronUp } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Loader2, Save, UserPlus, AlertTriangle, Building2, ChevronDown, ChevronUp, Pencil, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import BackButton from "../components/BackButton";
 import ClientSelector from "../components/ClientSelector";
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// ─── constants ────────────────────────────────────────────────────────────────
 
 const EMPTY_NEW_CLIENT = {
   name: "", cif: "", phone: "", email: "",
@@ -24,18 +25,19 @@ const EMPTY_NEW_CENTER = {
   address: "", city: "", postal_code: "", email: "", notes: "",
 };
 
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
 function normalize(str) {
   return (str || "").trim().toLowerCase();
 }
 
 function findDuplicates(clients, nc) {
-  const name = normalize(nc.name);
-  const cif  = normalize(nc.cif);
+  const name  = normalize(nc.name);
+  const cif   = normalize(nc.cif);
   const email = normalize(nc.email);
   const phone = normalize(nc.phone);
-
   return clients.filter((c) => {
-    if (cif  && normalize(c.cif)   === cif)   return true;
+    if (cif   && normalize(c.cif)   === cif)   return true;
     if (email && normalize(c.email) === email)  return true;
     if (phone && normalize(c.phone) === phone)  return true;
     if (name.length >= 3 && normalize(c.name).includes(name)) return true;
@@ -43,13 +45,9 @@ function findDuplicates(clients, nc) {
   });
 }
 
-// ─── sub-forms ────────────────────────────────────────────────────────────────
+// ─── small form components ────────────────────────────────────────────────────
 
-function FieldRow({ children }) {
-  return <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{children}</div>;
-}
-
-function FormField({ label, children, optional = false }) {
+function FormField({ label, optional = false, children }) {
   return (
     <div>
       <Label className="text-xs">
@@ -61,110 +59,103 @@ function FormField({ label, children, optional = false }) {
   );
 }
 
-function inputCls() {
-  return "rounded-xl text-sm h-9";
+function Row2({ children }) {
+  return <div className="grid grid-cols-2 gap-3">{children}</div>;
 }
 
+const iCls = "rounded-xl text-sm h-9";
+
 function NewClientForm({ data, onChange }) {
-  const set = (field) => (e) => onChange({ ...data, [field]: e.target.value });
+  const set = (f) => (e) => onChange({ ...data, [f]: e.target.value });
   return (
     <div className="space-y-3">
       <FormField label="Nombre del cliente *">
-        <Input value={data.name} onChange={set("name")} placeholder="Empresa S.L." className={inputCls()} autoFocus />
+        <Input value={data.name} onChange={set("name")} placeholder="Empresa S.L." className={iCls} autoFocus />
       </FormField>
-
-      <FieldRow>
+      <Row2>
         <FormField label="CIF/NIF" optional>
-          <Input value={data.cif} onChange={set("cif")} placeholder="B12345678" className={inputCls()} />
+          <Input value={data.cif} onChange={set("cif")} placeholder="B12345678" className={iCls} />
         </FormField>
         <FormField label="Teléfono">
-          <Input value={data.phone} onChange={set("phone")} placeholder="600 000 000" className={inputCls()} />
+          <Input value={data.phone} onChange={set("phone")} placeholder="600 000 000" className={iCls} />
         </FormField>
-      </FieldRow>
-
-      <FieldRow>
+      </Row2>
+      <Row2>
         <FormField label="Email" optional>
-          <Input value={data.email} onChange={set("email")} type="email" placeholder="info@empresa.com" className={inputCls()} />
+          <Input value={data.email} onChange={set("email")} type="email" placeholder="info@empresa.com" className={iCls} />
         </FormField>
         <FormField label="Persona de contacto" optional>
-          <Input value={data.contact_person} onChange={set("contact_person")} placeholder="Nombre Apellido" className={inputCls()} />
+          <Input value={data.contact_person} onChange={set("contact_person")} placeholder="Nombre Apellido" className={iCls} />
         </FormField>
-      </FieldRow>
-
+      </Row2>
       <FormField label="Dirección" optional>
-        <Input value={data.address} onChange={set("address")} placeholder="Calle Mayor 1" className={inputCls()} />
+        <Input value={data.address} onChange={set("address")} placeholder="Calle Mayor 1" className={iCls} />
       </FormField>
-
-      <FieldRow>
+      <Row2>
         <FormField label="Ciudad" optional>
-          <Input value={data.city} onChange={set("city")} placeholder="Barcelona" className={inputCls()} />
+          <Input value={data.city} onChange={set("city")} placeholder="Barcelona" className={iCls} />
         </FormField>
         <FormField label="Código postal" optional>
-          <Input value={data.postal_code} onChange={set("postal_code")} placeholder="08001" className={inputCls()} />
+          <Input value={data.postal_code} onChange={set("postal_code")} placeholder="08001" className={iCls} />
         </FormField>
-      </FieldRow>
-
+      </Row2>
       <FormField label="Notas" optional>
-        <Textarea value={data.notes} onChange={set("notes")} placeholder="Notas internas del cliente" rows={2} className="rounded-xl text-sm" />
+        <Textarea value={data.notes} onChange={set("notes")} placeholder="Notas internas" rows={2} className="rounded-xl text-sm" />
       </FormField>
     </div>
   );
 }
 
 function NewCenterForm({ data, onChange }) {
-  const set = (field) => (e) => onChange({ ...data, [field]: e.target.value });
+  const set = (f) => (e) => onChange({ ...data, [f]: e.target.value });
   return (
     <div className="space-y-3">
       <FormField label="Nombre del centro *">
-        <Input value={data.name} onChange={set("name")} placeholder="Sede central / Planta A" className={inputCls()} />
+        <Input value={data.name} onChange={set("name")} placeholder="Sede central / Planta A" className={iCls} />
       </FormField>
-
-      <FieldRow>
+      <Row2>
         <FormField label="Teléfono" optional>
-          <Input value={data.phone} onChange={set("phone")} placeholder="600 000 000" className={inputCls()} />
+          <Input value={data.phone} onChange={set("phone")} placeholder="600 000 000" className={iCls} />
         </FormField>
         <FormField label="Persona de contacto" optional>
-          <Input value={data.contact_person} onChange={set("contact_person")} placeholder="Nombre Apellido" className={inputCls()} />
+          <Input value={data.contact_person} onChange={set("contact_person")} placeholder="Nombre Apellido" className={iCls} />
         </FormField>
-      </FieldRow>
-
+      </Row2>
       <FormField label="Dirección" optional>
-        <Input value={data.address} onChange={set("address")} placeholder="Calle Mayor 1" className={inputCls()} />
+        <Input value={data.address} onChange={set("address")} placeholder="Calle Mayor 1" className={iCls} />
       </FormField>
-
-      <FieldRow>
+      <Row2>
         <FormField label="Ciudad" optional>
-          <Input value={data.city} onChange={set("city")} placeholder="Barcelona" className={inputCls()} />
+          <Input value={data.city} onChange={set("city")} placeholder="Barcelona" className={iCls} />
         </FormField>
         <FormField label="Código postal" optional>
-          <Input value={data.postal_code} onChange={set("postal_code")} placeholder="08001" className={inputCls()} />
+          <Input value={data.postal_code} onChange={set("postal_code")} placeholder="08001" className={iCls} />
         </FormField>
-      </FieldRow>
-
-      <FieldRow>
+      </Row2>
+      <Row2>
         <FormField label="Email" optional>
-          <Input value={data.email} onChange={set("email")} type="email" placeholder="centro@empresa.com" className={inputCls()} />
+          <Input value={data.email} onChange={set("email")} type="email" placeholder="centro@empresa.com" className={iCls} />
         </FormField>
         <FormField label="Notas" optional>
-          <Input value={data.notes} onChange={set("notes")} placeholder="Notas del centro" className={inputCls()} />
+          <Input value={data.notes} onChange={set("notes")} placeholder="Notas del centro" className={iCls} />
         </FormField>
-      </FieldRow>
+      </Row2>
     </div>
   );
 }
 
-// ─── main component ───────────────────────────────────────────────────────────
+// ─── main ─────────────────────────────────────────────────────────────────────
 
 export default function NewBreakdown() {
   const navigate = useNavigate();
 
-  const [user, setUser]         = useState(null);
-  const [clients, setClients]   = useState([]);
-  const [users, setUsers]       = useState([]);
+  const [user, setUser]       = useState(null);
+  const [clients, setClients] = useState([]);
+  const [users, setUsers]     = useState([]);
   const [workCenters, setWorkCenters] = useState([]);
-  const [saving, setSaving]     = useState(false);
+  const [saving, setSaving]   = useState(false);
 
-  // Existing-client form fields
+  // shared form (description, priority, assignment, client_fault_id, contact_phone)
   const [form, setForm] = useState({
     client_id: "", client_name: "",
     work_center_id: "", work_center_name: "",
@@ -175,30 +166,32 @@ export default function NewBreakdown() {
     assigned_user_id: "", assigned_user_email: "", assigned_user_name: "",
   });
 
-  // New-client mode
-  const [mode, setMode]               = useState("existing"); // "existing" | "new_client"
-  const [newClient, setNewClient]     = useState(EMPTY_NEW_CLIENT);
-  const [addCenter, setAddCenter]     = useState(false);
-  const [newCenter, setNewCenter]     = useState(EMPTY_NEW_CENTER);
-  const [duplicates, setDuplicates]   = useState([]);
+  // new-client dialog state
+  const [dialogOpen, setDialogOpen]     = useState(false);
+  const [draftClient, setDraftClient]   = useState(EMPTY_NEW_CLIENT);
+  const [addCenter, setAddCenter]       = useState(false);
+  const [draftCenter, setDraftCenter]   = useState(EMPTY_NEW_CENTER);
+  const [duplicates, setDuplicates]     = useState([]);
   const [dupDismissed, setDupDismissed] = useState(false);
 
-  // ── load ──
+  // confirmed new-client data (null = existing client mode)
+  const [newClient, setNewClient]   = useState(null); // saved after dialog confirm
+  const [newCenter, setNewCenter]   = useState(null);
+
+  // ── load ──────────────────────────────────────────────────────────────────
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     try {
       const me = await appApi.auth.me();
       setUser(me);
-
-      const isAdmin   = me.role === "admin" || me.role === "superadmin" || me.role === "encargado";
+      const isAdmin   = ["admin", "superadmin", "encargado"].includes(me.role);
       const isOficina = me.role === "oficina";
       if (!isAdmin && !isOficina) {
         toast.error("No tienes permiso para crear averías");
         navigate("/breakdowns");
         return;
       }
-
       const [clientList, userList] = await Promise.all([
         appApi.entities.Client.list("name", 500).catch(() => []),
         appApi.entities.User.list("full_name", 100).catch(() => []),
@@ -210,39 +203,56 @@ export default function NewBreakdown() {
     }
   };
 
-  // ── duplicate detection ──
+  // ── duplicate detection (runs inside dialog) ──────────────────────────────
   useEffect(() => {
-    if (mode !== "new_client") { setDuplicates([]); return; }
-    setDuplicates(findDuplicates(clients, newClient));
+    if (!dialogOpen) return;
+    setDuplicates(findDuplicates(clients, draftClient));
     setDupDismissed(false);
-  }, [mode, newClient.name, newClient.cif, newClient.email, newClient.phone, clients]);
+  }, [dialogOpen, draftClient.name, draftClient.cif, draftClient.email, draftClient.phone, clients]);
 
-  // ── mode switch ──
-  const switchToNewClient = () => {
-    setMode("new_client");
-    setForm(f => ({ ...f, client_id: "", client_name: "", work_center_id: "", work_center_name: "", contact_phone_snapshot: "" }));
-    setWorkCenters([]);
-    setNewClient(EMPTY_NEW_CLIENT);
-    setAddCenter(false);
-    setNewCenter(EMPTY_NEW_CENTER);
+  // ── dialog open/close ─────────────────────────────────────────────────────
+  const openDialog = () => {
+    // pre-fill draft from existing confirmed data (if re-editing)
+    setDraftClient(newClient || EMPTY_NEW_CLIENT);
+    setAddCenter(!!newCenter);
+    setDraftCenter(newCenter || EMPTY_NEW_CENTER);
     setDuplicates([]);
     setDupDismissed(false);
+    setDialogOpen(true);
   };
 
-  const switchToExisting = () => {
-    setMode("existing");
-    setNewClient(EMPTY_NEW_CLIENT);
+  const closeDialog = () => setDialogOpen(false);
+
+  const confirmDialog = () => {
+    if (!draftClient.name.trim()) {
+      toast.error("El nombre del cliente es obligatorio");
+      return;
+    }
+    if (addCenter && !draftCenter.name.trim()) {
+      toast.error("El nombre del centro es obligatorio");
+      return;
+    }
+    if (duplicates.length > 0 && !dupDismissed) {
+      toast.error("Revisa los posibles duplicados antes de confirmar");
+      return;
+    }
+    setNewClient({ ...draftClient });
+    setNewCenter(addCenter ? { ...draftCenter } : null);
+    setDialogOpen(false);
+  };
+
+  const clearNewClient = () => {
+    setNewClient(null);
+    setNewCenter(null);
+    setDraftClient(EMPTY_NEW_CLIENT);
+    setDraftCenter(EMPTY_NEW_CENTER);
     setAddCenter(false);
-    setNewCenter(EMPTY_NEW_CENTER);
-    setDuplicates([]);
-    setDupDismissed(false);
   };
 
-  // ── existing client handlers ──
+  // ── existing client handlers ──────────────────────────────────────────────
   const handleClientChange = useCallback(async (clientId) => {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
-
     const centers = await appApi.entities.WorkCenter.filter({ client_id: clientId }, "name", 100).catch(() => []);
     setWorkCenters(centers || []);
     setForm(f => ({
@@ -282,38 +292,24 @@ export default function NewBreakdown() {
     }));
   };
 
-  // ── validation ──
-  const isExistingReady = mode === "existing" && !!form.client_id && !!form.description.trim();
-  const isNewClientReady = mode === "new_client" && !!newClient.name.trim() && !!form.description.trim() &&
-    (!addCenter || !!newCenter.name.trim()) &&
-    (duplicates.length === 0 || dupDismissed);
-  const canSubmit = isExistingReady || isNewClientReady;
+  // ── validation ────────────────────────────────────────────────────────────
+  const mode       = newClient ? "new_client" : "existing";
+  const clientReady = mode === "new_client" ? !!newClient?.name : !!form.client_id;
+  const canSubmit   = clientReady && !!form.description.trim();
 
-  // ── save ──
+  // ── save ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!form.description.trim()) { toast.error("La descripción es obligatoria"); return; }
-
-    if (mode === "new_client") {
-      if (!newClient.name.trim()) { toast.error("El nombre del cliente es obligatorio"); return; }
-      if (addCenter && !newCenter.name.trim()) { toast.error("El nombre del centro es obligatorio"); return; }
-      if (duplicates.length > 0 && !dupDismissed) {
-        toast.error("Revisa los posibles duplicados antes de continuar");
-        return;
-      }
-    } else {
-      if (!form.client_id) { toast.error("El cliente es obligatorio"); return; }
-    }
+    if (mode === "new_client" && !newClient?.name?.trim()) { toast.error("El cliente es obligatorio"); return; }
+    if (mode === "existing" && !form.client_id)            { toast.error("El cliente es obligatorio"); return; }
 
     setSaving(true);
     try {
       if (mode === "new_client") {
-        const contactPhone = addCenter
-          ? (newCenter.phone || newClient.phone || "")
-          : (newClient.phone || "");
-
+        const contactPhone = newCenter?.phone || newClient.phone || "";
         const result = await appApi.breakdowns.createWithClient({
           new_client: { ...newClient },
-          new_work_center: addCenter ? { ...newCenter } : null,
+          new_work_center: newCenter || null,
           breakdown: {
             description: form.description.trim(),
             priority: form.priority,
@@ -328,7 +324,7 @@ export default function NewBreakdown() {
         toast.success(`Avería ${result.breakdown.number} creada`);
         navigate(`/breakdowns/${result.breakdown.id}`);
       } else {
-        const payload = {
+        const created = await appApi.breakdowns.create({
           client_id: form.client_id,
           client_name: form.client_name,
           work_center_id: form.work_center_id || undefined,
@@ -341,8 +337,7 @@ export default function NewBreakdown() {
           assigned_user_email: form.assigned_user_email || undefined,
           assigned_user_name: form.assigned_user_name || undefined,
           status: "abierta",
-        };
-        const created = await appApi.breakdowns.create(payload);
+        });
         toast.success(`Avería ${created.number} creada`);
         navigate(`/breakdowns/${created.id}`);
       }
@@ -353,110 +348,208 @@ export default function NewBreakdown() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-4 lg:p-8 max-w-2xl mx-auto space-y-6 pb-32">
-      <div className="flex items-center gap-3">
-        <BackButton label="Averías" />
-        <h1 className="text-2xl font-bold tracking-tight">Nueva Avería</h1>
-      </div>
+    <>
+      <div className="p-4 lg:p-8 max-w-2xl mx-auto space-y-6 pb-32">
+        <div className="flex items-center gap-3">
+          <BackButton label="Averías" />
+          <h1 className="text-2xl font-bold tracking-tight">Nueva Avería</h1>
+        </div>
 
-      {/* ── Cliente ── */}
-      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
-        <div className="flex items-center justify-between">
+        {/* ── Cliente ── */}
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
           <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Cliente</h2>
-          {mode === "existing" ? (
+
+          {/* Caso: cliente nuevo confirmado → chip resumen */}
+          {mode === "new_client" && newClient && (
+            <div className="flex items-start gap-3 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3">
+              <UserPlus className="h-4 w-4 text-accent shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{newClient.name}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Cliente nuevo
+                  {newCenter && <span> · Centro: <span className="font-medium">{newCenter.name}</span></span>}
+                  {newClient.phone && <span> · {newClient.phone}</span>}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={openDialog}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  title="Editar datos del cliente"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={clearNewClient}
+                  className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  title="Quitar cliente nuevo"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Caso: cliente existente */}
+          {mode === "existing" && (
+            <>
+              <div>
+                <Label>Cliente *</Label>
+                <div className="mt-1">
+                  <ClientSelector clients={clients} selectedId={form.client_id} onChange={handleClientChange} />
+                </div>
+              </div>
+
+              {form.client_id && (
+                <div>
+                  <Label>Centro de Trabajo</Label>
+                  {workCenters.length === 0 ? (
+                    <p className="mt-1 text-xs text-muted-foreground px-3 py-2 rounded-xl border border-dashed border-border">
+                      Este cliente no tiene centros registrados.
+                    </p>
+                  ) : (
+                    <select
+                      value={form.work_center_id}
+                      onChange={e => handleWorkCenterChange(e.target.value)}
+                      className="mt-1 w-full flex h-9 rounded-xl border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="">— Sin centro específico —</option>
+                      {workCenters.map(wc => (
+                        <option key={wc.id} value={wc.id}>
+                          {wc.name}{wc.address ? ` · ${wc.address}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+
+              {form.contact_phone_snapshot && (
+                <div>
+                  <Label>Teléfono de contacto</Label>
+                  <Input
+                    value={form.contact_phone_snapshot}
+                    onChange={e => setForm(f => ({ ...f, contact_phone_snapshot: e.target.value }))}
+                    placeholder="Teléfono"
+                    className="mt-1 rounded-xl"
+                  />
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Botón crear cliente nuevo (siempre visible si no hay cliente nuevo confirmado) */}
+          {mode === "existing" && (
             <button
               type="button"
-              onClick={switchToNewClient}
-              className="flex items-center gap-1.5 text-xs text-accent hover:text-accent/80 font-medium transition-colors"
+              onClick={openDialog}
+              className="flex items-center gap-2 text-xs text-accent hover:text-accent/80 font-medium transition-colors py-1"
             >
               <UserPlus className="h-3.5 w-3.5" />
               Crear cliente nuevo
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={switchToExisting}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors"
-            >
-              <X className="h-3.5 w-3.5" />
-              Usar cliente existente
-            </button>
           )}
+
+          <div>
+            <Label>ID Avería Cliente</Label>
+            <Input
+              value={form.client_fault_id}
+              onChange={e => setForm(f => ({ ...f, client_fault_id: e.target.value }))}
+              placeholder="Referencia interna del cliente (opcional)"
+              className="mt-1 rounded-xl"
+            />
+          </div>
         </div>
 
-        {/* Modo: cliente existente */}
-        {mode === "existing" && (
-          <>
-            <div>
-              <Label>Cliente *</Label>
-              <div className="mt-1">
-                <ClientSelector clients={clients} selectedId={form.client_id} onChange={handleClientChange} />
-              </div>
-            </div>
+        {/* ── Detalle ── */}
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Detalle</h2>
+          <div>
+            <Label>Descripción *</Label>
+            <Textarea
+              value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              placeholder="Describe la avería..."
+              rows={4}
+              className="mt-1 rounded-xl"
+            />
+          </div>
+          <div>
+            <Label>Prioridad</Label>
+            <Select value={form.priority} onValueChange={v => setForm(f => ({ ...f, priority: v }))}>
+              <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="baja">Baja</SelectItem>
+                <SelectItem value="media">Media</SelectItem>
+                <SelectItem value="alta">Alta</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
-            {form.client_id && (
-              <div>
-                <Label>Centro de Trabajo</Label>
-                {workCenters.length === 0 ? (
-                  <p className="mt-1 text-xs text-muted-foreground px-3 py-2 rounded-xl border border-dashed border-border">
-                    Este cliente no tiene centros registrados.
-                  </p>
-                ) : (
-                  <select
-                    value={form.work_center_id}
-                    onChange={e => handleWorkCenterChange(e.target.value)}
-                    className="mt-1 w-full flex h-9 rounded-xl border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  >
-                    <option value="">— Sin centro específico —</option>
-                    {workCenters.map(wc => (
-                      <option key={wc.id} value={wc.id}>
-                        {wc.name}{wc.address ? ` · ${wc.address}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            )}
+        {/* ── Asignación ── */}
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Asignación</h2>
+          <div>
+            <Label>Asignar a técnico</Label>
+            <select
+              value={form.assigned_user_id || "__none__"}
+              onChange={e => handleAssignedUserChange(e.target.value)}
+              className="mt-1 w-full flex h-9 rounded-xl border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="__none__">— Sin asignar —</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.full_name || u.email}{u.role ? ` (${u.role})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-            {form.contact_phone_snapshot && (
-              <div>
-                <Label>Teléfono de contacto</Label>
-                <Input
-                  value={form.contact_phone_snapshot}
-                  onChange={e => setForm(f => ({ ...f, contact_phone_snapshot: e.target.value }))}
-                  placeholder="Teléfono"
-                  className="mt-1 rounded-xl"
-                />
-              </div>
-            )}
-          </>
-        )}
+        {/* ── Save bar ── */}
+        <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-card/80 backdrop-blur-xl border-t border-border p-4 pb-20 lg:pb-4">
+          <div className="max-w-2xl mx-auto flex justify-end">
+            <Button
+              onClick={handleSave}
+              disabled={saving || !canSubmit}
+              className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-8 h-12 text-base shadow-lg shadow-accent/25"
+            >
+              {saving ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Save className="h-5 w-5 mr-2" />}
+              Crear Avería
+            </Button>
+          </div>
+        </div>
+      </div>
 
-        {/* Modo: cliente nuevo */}
-        {mode === "new_client" && (
-          <>
-            <div className="bg-muted/40 rounded-xl p-4 border border-border/60">
-              <div className="flex items-center gap-2 mb-3">
-                <UserPlus className="h-4 w-4 text-accent" />
-                <span className="text-sm font-semibold">Datos del nuevo cliente</span>
-              </div>
-              <NewClientForm data={newClient} onChange={setNewClient} />
-            </div>
+      {/* ── Dialog: nuevo cliente ── */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg w-full max-h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <UserPlus className="h-4 w-4 text-accent" />
+              {newClient ? "Editar datos del cliente" : "Nuevo cliente"}
+            </DialogTitle>
+          </DialogHeader>
 
-            {/* Aviso de duplicados */}
+          {/* scrollable body */}
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+            <NewClientForm data={draftClient} onChange={setDraftClient} />
+
+            {/* Aviso duplicados */}
             {duplicates.length > 0 && !dupDismissed && (
               <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-700 p-4 space-y-3">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                      Posible cliente duplicado
-                    </p>
+                    <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">Posible cliente duplicado</p>
                     <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                      Ya existe{duplicates.length > 1 ? "n" : ""} {duplicates.length} cliente{duplicates.length > 1 ? "s" : ""} parecido{duplicates.length > 1 ? "s" : ""}. Revisa antes de crear uno nuevo.
+                      {duplicates.length === 1 ? "Ya existe 1 cliente parecido." : `Ya existen ${duplicates.length} clientes parecidos.`} Revisa antes de crear uno nuevo.
                     </p>
                   </div>
                 </div>
@@ -464,9 +557,8 @@ export default function NewBreakdown() {
                   {duplicates.map(c => (
                     <li key={c.id} className="text-xs text-amber-800 dark:text-amber-300">
                       <span className="font-medium">{c.name}</span>
-                      {c.cif   && <span className="text-amber-600 dark:text-amber-500"> · {c.cif}</span>}
-                      {c.phone && <span className="text-amber-600 dark:text-amber-500"> · {c.phone}</span>}
-                      {c.email && <span className="text-amber-600 dark:text-amber-500"> · {c.email}</span>}
+                      {c.cif   && <span className="opacity-70"> · {c.cif}</span>}
+                      {c.phone && <span className="opacity-70"> · {c.phone}</span>}
                     </li>
                   ))}
                 </ul>
@@ -475,14 +567,14 @@ export default function NewBreakdown() {
                   variant="outline"
                   size="sm"
                   onClick={() => setDupDismissed(true)}
-                  className="ml-6 rounded-lg text-xs h-7 border-amber-400 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                  className="ml-6 rounded-lg text-xs h-7 border-amber-400 text-amber-800 dark:text-amber-300 hover:bg-amber-100"
                 >
                   Continuar de todos modos
                 </Button>
               </div>
             )}
 
-            {/* Centro de trabajo opcional */}
+            {/* Centro de trabajo colapsable */}
             <div className="border border-border rounded-xl overflow-hidden">
               <button
                 type="button"
@@ -497,94 +589,32 @@ export default function NewBreakdown() {
                   Añadir centro de trabajo
                   <span className="text-xs text-muted-foreground font-normal">(opcional)</span>
                 </span>
-                {addCenter ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                {addCenter
+                  ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
               </button>
               {addCenter && (
                 <div className="p-4 border-t border-border bg-muted/20">
-                  <NewCenterForm data={newCenter} onChange={setNewCenter} />
+                  <NewCenterForm data={draftCenter} onChange={setDraftCenter} />
                 </div>
               )}
             </div>
-          </>
-        )}
+          </div>
 
-        {/* ID cliente — siempre visible */}
-        <div>
-          <Label>ID Avería Cliente</Label>
-          <Input
-            value={form.client_fault_id}
-            onChange={e => setForm(f => ({ ...f, client_fault_id: e.target.value }))}
-            placeholder="Referencia interna del cliente (opcional)"
-            className="mt-1 rounded-xl"
-          />
-        </div>
-      </div>
-
-      {/* ── Detalle ── */}
-      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
-        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Detalle</h2>
-
-        <div>
-          <Label>Descripción *</Label>
-          <Textarea
-            value={form.description}
-            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-            placeholder="Describe la avería..."
-            rows={4}
-            className="mt-1 rounded-xl"
-          />
-        </div>
-
-        <div>
-          <Label>Prioridad</Label>
-          <Select value={form.priority} onValueChange={v => setForm(f => ({ ...f, priority: v }))}>
-            <SelectTrigger className="mt-1 rounded-xl">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="baja">Baja</SelectItem>
-              <SelectItem value="media">Media</SelectItem>
-              <SelectItem value="alta">Alta</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* ── Asignación ── */}
-      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
-        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Asignación</h2>
-        <div>
-          <Label>Asignar a técnico</Label>
-          <select
-            value={form.assigned_user_id || "__none__"}
-            onChange={e => handleAssignedUserChange(e.target.value)}
-            className="mt-1 w-full flex h-9 rounded-xl border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            <option value="__none__">— Sin asignar —</option>
-            {users.map(u => (
-              <option key={u.id} value={u.id}>
-                {u.full_name || u.email}{u.role ? ` (${u.role})` : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      {/* ── Save bar ── */}
-      <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-card/80 backdrop-blur-xl border-t border-border p-4 pb-20 lg:pb-4">
-        <div className="max-w-2xl mx-auto flex justify-end">
-          <Button
-            onClick={handleSave}
-            disabled={saving || !canSubmit}
-            className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-8 h-12 text-base shadow-lg shadow-accent/25"
-          >
-            {saving
-              ? <Loader2 className="h-5 w-5 animate-spin mr-2" />
-              : <Save className="h-5 w-5 mr-2" />}
-            Crear Avería
-          </Button>
-        </div>
-      </div>
-    </div>
+          <DialogFooter className="px-6 py-4 border-t border-border shrink-0 flex flex-row gap-2 justify-end">
+            <Button type="button" variant="outline" onClick={closeDialog} className="rounded-xl">
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmDialog}
+              className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+            >
+              Confirmar datos
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
