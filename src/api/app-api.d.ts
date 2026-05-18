@@ -25,6 +25,8 @@ export type AppApi = {
     updateMe: (data: any) => Promise<any>;
     setAccessToken: (token: string) => Promise<any>;
     switchOrganization: (organizationId: string) => Promise<any>;
+    signupRequestOtp: (payload: { organizationName: string; fullName: string; email: string }) => Promise<{ pending_id: string }>;
+    signupVerifyOtp: (payload: { pendingId: string; otp: string; password: string }) => Promise<any>;
   };
   users: {
     invite: (...args: any[]) => Promise<any>;

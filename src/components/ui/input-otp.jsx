@@ -4,21 +4,39 @@ import { Minus } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const InputOTP = React.forwardRef(({ className, containerClassName, ...props }, ref) => (
-  <OTPInput
-    ref={ref}
-    containerClassName={cn("flex items-center gap-2 has-[:disabled]:opacity-50", containerClassName)}
-    className={cn("disabled:cursor-not-allowed", className)}
-    {...props} />
-))
+const InputOTP = React.forwardRef(
+  /**
+   * @param {import('input-otp').OTPInputProps} props
+   * @param {React.ForwardedRef<HTMLInputElement>} ref
+   */
+  ({ className, containerClassName, ...props }, ref) => (
+    <OTPInput
+      ref={ref}
+      containerClassName={cn("flex items-center gap-2 has-[:disabled]:opacity-50", containerClassName)}
+      className={cn("disabled:cursor-not-allowed", className)}
+      {...props} />
+  )
+)
 InputOTP.displayName = "InputOTP"
 
-const InputOTPGroup = React.forwardRef(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("flex items-center", className)} {...props} />
-))
+const InputOTPGroup = React.forwardRef(
+  /**
+   * @param {React.HTMLAttributes<HTMLDivElement>} props
+   * @param {React.ForwardedRef<HTMLDivElement>} ref
+   */
+  ({ className, ...props }, ref) => (
+    <div ref={ref} className={cn("flex items-center", className)} {...props} />
+  )
+)
 InputOTPGroup.displayName = "InputOTPGroup"
 
-const InputOTPSlot = React.forwardRef(({ index, className, ...props }, ref) => {
+/** @typedef {{ index: number } & React.HTMLAttributes<HTMLDivElement>} InputOTPSlotProps */
+const InputOTPSlot = React.forwardRef(
+  /**
+   * @param {InputOTPSlotProps} props
+   * @param {React.ForwardedRef<HTMLDivElement>} ref
+   */
+  ({ index, className, ...props }, ref) => {
   const inputOTPContext = React.useContext(OTPInputContext)
   const { char, hasFakeCaret, isActive } = inputOTPContext.slots[index]
 
