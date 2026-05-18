@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,14 +8,27 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Users, Edit, Trash2, Phone, Mail as MailIcon } from "lucide-react";
+import { Plus, Search, Users, Edit, Trash2, Phone, Mail as MailIcon, Wrench } from "lucide-react";
 import MapLink from "../components/MapLink";
 import WorkCentersInline from "../components/WorkCentersInline";
 import { AddressAutocomplete } from "../components/AddressAutocomplete";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { validateFiscalId, normalizeFiscalId } from "@/lib/spanishFiscalId";
 import { validatePostalCode } from "@/lib/spanishPostalCodes";
+
+const BD_STATUS_COLORS = {
+  abierta:   "bg-blue-100 text-blue-700",
+  pendiente: "bg-amber-100 text-amber-700",
+  terminada: "bg-emerald-100 text-emerald-700",
+};
+const BD_STATUS_LABELS = { abierta: "Abierta", pendiente: "Pendiente", terminada: "Terminada" };
+const BD_PRIORITY_COLORS = {
+  alta:  "bg-red-100 text-red-700",
+  media: "bg-amber-100 text-amber-700",
+  baja:  "bg-emerald-100 text-emerald-700",
+};
 
 const TIERS = { standard: "Estándar", preferente: "Preferente", especial: "Especial" };
 
@@ -41,6 +55,8 @@ export default function Clients() {
   const [form, setForm] = useState({ ...emptyClient });
   const [expandedClient, setExpandedClient] = useState(null);
   const [clientToDelete, setClientToDelete] = useState(null);
+  const [clientBreakdowns, setClientBreakdowns] = useState({});
+  const [loadingBreakdowns, setLoadingBreakdowns] = useState({});
 
   useEffect(() => {
     loadData();
@@ -90,6 +106,20 @@ export default function Clients() {
 
   const handleDelete = (client) => {
     setClientToDelete(client);
+  };
+
+  const handleToggleClient = async (clientId) => {
+    const isExpanding = expandedClient !== clientId;
+    setExpandedClient(isExpanding ? clientId : null);
+    if (isExpanding && clientBreakdowns[clientId] === undefined && !loadingBreakdowns[clientId]) {
+      setLoadingBreakdowns(prev => ({ ...prev, [clientId]: true }));
+      try {
+        const items = await appApi.breakdowns.byClient(clientId).catch(() => []);
+        setClientBreakdowns(prev => ({ ...prev, [clientId]: items || [] }));
+      } finally {
+        setLoadingBreakdowns(prev => ({ ...prev, [clientId]: false }));
+      }
+    }
   };
 
   const filtered = clients.filter(c => {
@@ -149,7 +179,7 @@ export default function Clients() {
               <div key={c.id} className="bg-card rounded-2xl border border-border overflow-hidden">
                 {/* Collapsed/Header View */}
                 <button
-                  onClick={() => setExpandedClient(isExpanded ? null : c.id)}
+                  onClick={() => handleToggleClient(c.id)}
                   className="w-full px-3 sm:px-5 py-3 flex items-center justify-between hover:bg-accent/5 transition-colors text-left"
                 >
                   <h3 className="font-semibold text-sm whitespace-normal break-words flex-1 pr-2">{c.name}</h3>
@@ -205,6 +235,57 @@ export default function Clients() {
                       )}
                     </div>
                     {<WorkCentersInline client={c} readOnly={isTecnico} />}
+
+                    {/* Averías del cliente */}
+                    <div className="border-t border-border pt-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <Wrench className="h-3.5 w-3.5" /> Averías
+                        </h4>
+                        {!isTecnico && (
+                          <Link to={`/breakdowns/new`} state={{ prefillClientId: c.id }}>
+                            <Button variant="outline" size="sm" className="h-6 px-2 text-[11px] rounded-lg">
+                              <Plus className="h-3 w-3 mr-1" /> Nueva
+                            </Button>
+                          </Link>
+                        )}
+                      </div>
+
+                      {loadingBreakdowns[c.id] ? (
+                        <p className="text-xs text-muted-foreground">Cargando averías...</p>
+                      ) : (clientBreakdowns[c.id] || []).length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic py-1">Sin averías registradas</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {(clientBreakdowns[c.id] || []).slice(0, 5).map(bd => (
+                            <Link key={bd.id} to={`/breakdowns/${bd.id}`}>
+                              <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl border border-border hover:border-accent/40 hover:bg-accent/5 transition-colors">
+                                <div className="min-w-0">
+                                  <span className="text-[11px] font-mono text-muted-foreground">{bd.number}</span>
+                                  {bd.work_center_name && (
+                                    <span className="text-[11px] text-muted-foreground ml-2">· {bd.work_center_name}</span>
+                                  )}
+                                  <p className="text-xs truncate max-w-[180px]">{bd.description}</p>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <Badge className={cn("text-[10px] px-1.5 py-0", BD_PRIORITY_COLORS[bd.priority] || "")}>
+                                    {bd.priority}
+                                  </Badge>
+                                  <Badge className={cn("text-[10px] px-1.5 py-0", BD_STATUS_COLORS[bd.status] || "")}>
+                                    {BD_STATUS_LABELS[bd.status] || bd.status}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </Link>
+                          ))}
+                          {(clientBreakdowns[c.id] || []).length > 5 && (
+                            <Link to={`/breakdowns?client=${encodeURIComponent(c.name)}`} className="text-xs text-accent hover:underline block text-center pt-1">
+                              Ver todas las averías →
+                            </Link>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

@@ -21,6 +21,8 @@ import addressAutocompleteRoutes from "./routes/address-autocomplete.js";
 import billingRoutes, { stripeWebhookHandler } from "./routes/billing.js";
 import purchaseOrderRoutes from "./routes/purchase-orders.js";
 import cspReportRoutes from "./routes/csp-report.js";
+import backupRoutes from "./routes/backups.js";
+import breakdownRoutes from "./routes/breakdowns.js";
 import { ensureSaasBootstrap } from "./lib/auth.js";
 import { initializeStoreBackend } from "./lib/json-store.js";
 import { bootstrapOrganizationSubscriptions } from "./services/billing-service.js";
@@ -178,6 +180,8 @@ app.use("/api/functions", functionRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/purchase-orders", purchaseOrderRoutes);
 app.use("/api/csp-report", cspReportRoutes);
+app.use("/api/backups", backupRoutes);
+app.use("/api/breakdowns", breakdownRoutes);
 
 app.use((error, _req, res, _next) => {
   const status =

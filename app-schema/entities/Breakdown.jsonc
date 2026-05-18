@@ -1,0 +1,102 @@
+{
+  "name": "Breakdown",
+  "type": "object",
+  "properties": {
+    "number": {
+      "type": "string",
+      "title": "Nº Avería"
+    },
+    "client_fault_id": {
+      "type": "string",
+      "title": "ID Avería Cliente"
+    },
+    "client_id": {
+      "type": "string",
+      "title": "ID Cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "title": "Nombre Cliente"
+    },
+    "work_center_id": {
+      "type": "string",
+      "title": "ID Centro de Trabajo"
+    },
+    "work_center_name": {
+      "type": "string",
+      "title": "Centro de Trabajo"
+    },
+    "contact_phone_snapshot": {
+      "type": "string",
+      "title": "Teléfono de Contacto"
+    },
+    "description": {
+      "type": "string",
+      "title": "Descripción"
+    },
+    "priority": {
+      "type": "string",
+      "title": "Prioridad",
+      "enum": ["baja", "media", "alta"],
+      "default": "media"
+    },
+    "assigned_user_id": {
+      "type": "string",
+      "title": "ID Usuario Asignado"
+    },
+    "assigned_user_email": {
+      "type": "string",
+      "title": "Email Usuario Asignado"
+    },
+    "assigned_user_name": {
+      "type": "string",
+      "title": "Nombre Usuario Asignado"
+    },
+    "status": {
+      "type": "string",
+      "title": "Estado",
+      "enum": ["abierta", "pendiente", "terminada"],
+      "default": "abierta"
+    },
+    "created_by_email": {
+      "type": "string",
+      "title": "Creado por (email)"
+    },
+    "created_by_name": {
+      "type": "string",
+      "title": "Creado por (nombre)"
+    },
+    "created_at": {
+      "type": "string",
+      "title": "Fecha de Creación",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "title": "Última Actualización",
+      "format": "date-time"
+    },
+    "closed_at": {
+      "type": "string",
+      "title": "Fecha de Cierre",
+      "format": "date-time"
+    },
+    "closed_by_email": {
+      "type": "string",
+      "title": "Cerrado por (email)"
+    },
+    "last_intervention_id": {
+      "type": "string",
+      "title": "ID Último Parte"
+    },
+    "last_intervention_number": {
+      "type": "string",
+      "title": "Nº Último Parte"
+    }
+  },
+  "required": [
+    "client_id",
+    "client_name",
+    "description"
+  ]
+}

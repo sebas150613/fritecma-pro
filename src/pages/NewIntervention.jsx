@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +63,10 @@ function shouldAppendGasMaterialLine(lines, materialId, bottleSerial) {
 
 export default function NewIntervention() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const breakdownId = searchParams.get("breakdownId") || "";
+  const breakdownResult = searchParams.get("breakdownResult") || "";
+  const [breakdown, setBreakdown] = useState(null);
   const [user, setUser] = useState(null);
   const [clients, setClients] = useState([]);
   const [materials, setMaterials] = useState([]);
@@ -166,6 +170,37 @@ export default function NewIntervention() {
       setMaterials(materialList || []);
       setGasBottles(bottleList || []);
       setUsers(userList || []);
+
+      // If coming from a breakdown, prefill form
+      if (breakdownId) {
+        try {
+          const bd = await appApi.breakdowns.get(breakdownId);
+          setBreakdown(bd);
+          const incidentStatus =
+            breakdownResult === "terminado" ? "finalizado" : "pendiente_operativa";
+          const prefixedDescription = `Avería ${bd.number}: ${bd.description || ""}`;
+
+          // Load work centers for prefilled client
+          if (bd.client_id) {
+            const centers = await appApi.entities.WorkCenter.filter(
+              { client_id: bd.client_id }, "name", 100
+            ).catch(() => []);
+            setWorkCenters(centers || []);
+          }
+
+          setForm(f => ({
+            ...f,
+            client_id: bd.client_id || "",
+            client_name: bd.client_name || "",
+            work_center_id: bd.work_center_id || "",
+            work_center_name: bd.work_center_name || "",
+            description: prefixedDescription,
+            incident_status: incidentStatus,
+          }));
+        } catch {
+          // Breakdown not found or no access — proceed normally
+        }
+      }
     } catch (error) {
       console.error("Error loading initial data:", error);
       setCheckedIn(true);
@@ -409,6 +444,12 @@ export default function NewIntervention() {
         client_name: form.client_name,
         technician_email: user.email,
         technician_name: user.full_name,
+        ...(breakdown ? {
+          breakdown_id: breakdown.id,
+          breakdown_number: breakdown.number,
+          breakdown_client_fault_id: breakdown.client_fault_id || undefined,
+          breakdown_status_result: breakdownResult === "terminado" ? "terminado" : "pendiente",
+        } : {}),
         work_center_id: form.work_center_id || undefined,
         work_center_name: form.work_center_name || undefined,
         helper_email: form.helper_email || undefined,
@@ -493,6 +534,27 @@ export default function NewIntervention() {
 
       if (finalGasType && form.gas_bottle_id && form.gas_loaded_kg > 0) {
         await syncGasMaterialStock(finalGasType);
+      }
+
+      // Update linked breakdown status after part is saved successfully
+      if (breakdown) {
+        try {
+          const now = new Date().toISOString();
+          const bdPatch = {
+            last_intervention_id: created.id,
+            last_intervention_number: interventionNumber,
+          };
+          if (breakdownResult === "terminado") {
+            bdPatch.status = "terminada";
+            bdPatch.closed_at = now;
+            bdPatch.closed_by_email = user.email;
+          } else {
+            bdPatch.status = "pendiente";
+          }
+          await appApi.breakdowns.update(breakdown.id, bdPatch);
+        } catch {
+          // Breakdown update failure is non-fatal — the part was already saved
+        }
       }
 
       navigate(`/interventions/${created.id}`);
@@ -585,9 +647,20 @@ export default function NewIntervention() {
 
       {/* Header */}
       <div className="flex items-center gap-3">
-        <BackButton label="Partes" />
+        <BackButton label={breakdown ? "Averías" : "Partes"} to={breakdown ? `/breakdowns/${breakdown.id}` : undefined} />
         <h1 className="text-2xl font-bold tracking-tight">Nuevo Parte</h1>
       </div>
+
+      {/* Breakdown context banner */}
+      {breakdown && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-2xl p-4">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+            Parte vinculado a avería <span className="font-mono">{breakdown.number}</span>
+            {breakdownResult === "terminado" ? " · Marcará la avería como Terminada" : " · Marcará la avería como Pendiente"}
+          </p>
+          <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 line-clamp-1">{breakdown.description}</p>
+        </div>
+      )}
 
       {/* Client & Date */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">

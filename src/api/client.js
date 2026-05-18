@@ -152,6 +152,11 @@ export const appApi = {
       (provider) => provider.appApi.organizations?.hardDeleteOrganization
     ),
   },
+  backups: {
+    list: withProviderMethod((provider) => provider.appApi.backups?.list),
+    create: withProviderMethod((provider) => provider.appApi.backups?.create),
+    restore: withProviderMethod((provider) => provider.appApi.backups?.restore),
+  },
   addressAutocomplete: {
     search: withProviderMethod((provider) => provider.appApi.addressAutocomplete?.search),
   },
@@ -204,6 +209,13 @@ export const appApi = {
       (provider) => provider.appApi.billing?.contactSales
     ),
     portal: withProviderMethod((provider) => provider.appApi.billing?.portal),
+  },
+  breakdowns: {
+    list: withProviderMethod((provider) => provider.appApi.breakdowns?.list),
+    get: withProviderMethod((provider) => provider.appApi.breakdowns?.get),
+    byClient: withProviderMethod((provider) => provider.appApi.breakdowns?.byClient),
+    create: withProviderMethod((provider) => provider.appApi.breakdowns?.create),
+    update: withProviderMethod((provider) => provider.appApi.breakdowns?.update),
   },
 };
 

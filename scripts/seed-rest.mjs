@@ -86,6 +86,7 @@ const main = async () => {
     StockEntry: createJsonEntityStore("StockEntry"),
     Project: createJsonEntityStore("Project"),
     ProjectMaterial: createJsonEntityStore("ProjectMaterial"),
+    Breakdown: createJsonEntityStore("Breakdown"),
     Intervention: createJsonEntityStore("Intervention"),
     Visit: createJsonEntityStore("Visit"),
     Invoice: createJsonEntityStore("Invoice"),
@@ -583,6 +584,66 @@ const main = async () => {
     },
   ];
 
+  const breakdowns = [
+    {
+      id: "bd-bahia-001",
+      organization_id: "org-frigest",
+      number: "AV-260101-DEMO1",
+      client_id: "cli-bahia",
+      client_name: "Hotel Bahia Frio",
+      work_center_id: "wc-bahia-cocina",
+      work_center_name: "Cocina principal",
+      contact_phone_snapshot: "971000111",
+      description: "Compresor de cámara frigorífica no arranca. Alarma térmica activa.",
+      priority: "alta",
+      status: "abierta",
+      assigned_user_id: "local-tech",
+      assigned_user_email: "tecnico@local.test",
+      assigned_user_name: "Tecnico Local",
+      created_by_email: "admin@local.test",
+      created_by_name: "Administrador Local",
+      created_at: yesterday + "T09:00:00.000Z",
+      updated_at: yesterday + "T09:00:00.000Z",
+    },
+    {
+      id: "bd-mercat-001",
+      organization_id: "org-frigest",
+      number: "AV-260101-DEMO2",
+      client_id: "cli-mercat",
+      client_name: "Mercat Central",
+      work_center_id: "wc-mercat-camaras",
+      work_center_name: "Camara de congelado",
+      contact_phone_snapshot: "971000222",
+      client_fault_id: "OT-2024-887",
+      description: "Pérdida de gas en evaporador. Temperatura de cámara en +8°C cuando debe ser -18°C.",
+      priority: "alta",
+      status: "terminada",
+      created_by_email: "oficina@local.test",
+      created_by_name: "Oficina Local",
+      created_at: yesterday + "T08:00:00.000Z",
+      updated_at: today + "T11:00:00.000Z",
+      closed_at: today + "T11:00:00.000Z",
+      closed_by_email: "tecnico@local.test",
+      last_intervention_id: "int-001",
+      last_intervention_number: "FRI-260518-DEMO1",
+    },
+    {
+      id: "bd-bahia-002",
+      organization_id: "org-frigest",
+      number: "AV-260101-DEMO3",
+      client_id: "cli-bahia",
+      client_name: "Hotel Bahia Frio",
+      contact_phone_snapshot: "971000111",
+      description: "Ruido anormal en unidad condensadora de suite 302. Posible rodamiento.",
+      priority: "media",
+      status: "abierta",
+      created_by_email: "admin@local.test",
+      created_by_name: "Administrador Local",
+      created_at: today + "T07:30:00.000Z",
+      updated_at: today + "T07:30:00.000Z",
+    },
+  ];
+
   const auditLogs = [
     {
       id: "audit-seed-001",
@@ -613,6 +674,7 @@ const main = async () => {
   for (const record of projects) await upsertById(stores.Project, record);
   for (const record of projectMaterials)
     await upsertById(stores.ProjectMaterial, record);
+  for (const record of breakdowns) await upsertById(stores.Breakdown, record);
   for (const record of interventions)
     await upsertById(stores.Intervention, record);
   for (const record of visits) await upsertById(stores.Visit, record);
@@ -631,6 +693,7 @@ const main = async () => {
     clients: clients.length,
     materials: materials.length,
     gas_bottles: gasBottles.length,
+    breakdowns: breakdowns.length,
     interventions: interventions.length,
     invoices: invoices.length,
     calendar_events: calendarEvents.length,

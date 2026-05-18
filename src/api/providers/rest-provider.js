@@ -541,6 +541,17 @@ export const createRestProvider = () => {
           { method: "DELETE" }
         ),
     },
+    backups: {
+      list: (orgId) =>
+        http.request(`/api/backups/${encodeURIComponent(orgId)}`),
+      create: (orgId) =>
+        http.request(`/api/backups/${encodeURIComponent(orgId)}`, { method: "POST", body: {} }),
+      restore: (orgId, filename) =>
+        http.request(
+          `/api/backups/${encodeURIComponent(orgId)}/restore/${encodeURIComponent(filename)}`,
+          { method: "POST", body: {} }
+        ),
+    },
     addressAutocomplete: {
       search: (q) =>
         http.request(
@@ -641,6 +652,21 @@ export const createRestProvider = () => {
       portal: (payload = {}) =>
         http.request("/api/billing/portal", {
           method: "POST",
+          body: payload,
+        }),
+    },
+    breakdowns: {
+      list: (params = {}) =>
+        http.request(withQuery("/api/breakdowns", params)),
+      get: (id) =>
+        http.request(`/api/breakdowns/${encodeURIComponent(id)}`),
+      byClient: (clientId) =>
+        http.request(`/api/breakdowns/by-client/${encodeURIComponent(clientId)}`),
+      create: (payload) =>
+        http.request("/api/breakdowns", { method: "POST", body: payload }),
+      update: (id, payload) =>
+        http.request(`/api/breakdowns/${encodeURIComponent(id)}`, {
+          method: "PATCH",
           body: payload,
         }),
     },

@@ -242,6 +242,23 @@
       "type": "boolean",
       "title": "Desplazamiento pendiente de tramo",
       "default": false
+    },
+    "breakdown_id": {
+      "type": "string",
+      "title": "ID Avería Vinculada"
+    },
+    "breakdown_number": {
+      "type": "string",
+      "title": "Nº Avería Vinculada"
+    },
+    "breakdown_client_fault_id": {
+      "type": "string",
+      "title": "ID Avería Cliente"
+    },
+    "breakdown_status_result": {
+      "type": "string",
+      "title": "Resultado sobre Avería",
+      "enum": ["pendiente", "terminado"]
     }
   },
   "required": [

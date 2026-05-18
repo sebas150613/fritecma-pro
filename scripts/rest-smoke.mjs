@@ -1722,6 +1722,149 @@ const runSmoke = async () => {
       throw new Error(`Expected PurchaseOrder DELETE to be 403, got ${poDeleteDenied.status}`);
     }
 
+    // --- Averías RBAC smoke tests ---
+    // Setup: create a client in org A for breakdown tests
+    const bdClient = await request("/api/entities/Client", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({ name: "Cliente Averías Smoke", phone: "600111222" }),
+    });
+    if (!bdClient?.id) throw new Error("breakdown smoke: client create failed");
+
+    // Helper user for breakdown tests (tech in org A)
+    const bdHelperLogin = await loginViaRedirect({
+      pathname: "/api/auth/login",
+      formFields: {
+        email: "helper-license@local.test",
+        password: "TempPass123!",
+        redirect_uri: `${BASE_URL}/`,
+      },
+    });
+    if (!bdHelperLogin.token) {
+      throw new Error("breakdown smoke: helper login failed after license activate");
+    }
+    const bdHelperHeaders = {
+      Authorization: `Bearer ${bdHelperLogin.token}`,
+      "X-App-Id": "local-app",
+      "Content-Type": "application/json",
+      "X-Organization-Id": orgAId,
+    };
+
+    // 1. Admin can create a breakdown
+    const bdCreated = await request("/api/breakdowns", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        client_id: bdClient.id,
+        client_name: bdClient.name,
+        description: "Compresor no arranca, alarma térmica activa",
+        priority: "alta",
+      }),
+    });
+    if (!bdCreated?.id || !bdCreated?.number?.startsWith("AV-")) {
+      throw new Error(`breakdown smoke: admin create failed. got=${JSON.stringify(bdCreated)}`);
+    }
+
+    // 2. Admin can list breakdowns
+    const bdList = await request("/api/breakdowns", { headers: adminHeaders });
+    if (!Array.isArray(bdList) || !bdList.some((b) => b.id === bdCreated.id)) {
+      throw new Error("breakdown smoke: admin list should include created breakdown");
+    }
+
+    // 3. Tecnico CANNOT create a breakdown
+    const bdTechCreateDenied = await requestExpectFailure("/api/breakdowns", {
+      method: "POST",
+      headers: techPoHeaders,
+      body: JSON.stringify({
+        client_id: bdClient.id,
+        client_name: bdClient.name,
+        description: "Intento tecnico",
+        priority: "media",
+      }),
+    });
+    if (bdTechCreateDenied.status !== 403) {
+      throw new Error(
+        `breakdown smoke: expected tecnico create to be 403, got ${bdTechCreateDenied.status}`
+      );
+    }
+
+    // 4. Breakdown without assignment — tecnico can see it
+    const bdTechList = await request("/api/breakdowns", { headers: techPoHeaders });
+    if (!Array.isArray(bdTechList) || !bdTechList.some((b) => b.id === bdCreated.id)) {
+      throw new Error("breakdown smoke: tecnico should see unassigned breakdown");
+    }
+
+    // 5. Breakdown assigned to other user — tecnico can NOT see it via GET /:id
+    const bdAssignedOther = await request("/api/breakdowns", {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        client_id: bdClient.id,
+        client_name: bdClient.name,
+        description: "Avería asignada a otro técnico",
+        priority: "baja",
+        assigned_user_email: "helper-license@local.test",
+        assigned_user_name: "Helper License",
+      }),
+    });
+    const bdTechGetDenied = await requestExpectFailure(
+      `/api/breakdowns/${encodeURIComponent(bdAssignedOther.id)}`,
+      { method: "GET", headers: techPoHeaders }
+    );
+    if (bdTechGetDenied.status !== 403) {
+      throw new Error(
+        `breakdown smoke: expected tecnico to get 403 on other's breakdown, got ${bdTechGetDenied.status}`
+      );
+    }
+
+    // 6. Helper (assigned user) CAN get that breakdown
+    const bdHelperGet = await request(
+      `/api/breakdowns/${encodeURIComponent(bdAssignedOther.id)}`,
+      { method: "GET", headers: bdHelperHeaders }
+    );
+    if (!bdHelperGet?.id) {
+      throw new Error("breakdown smoke: helper should access their assigned breakdown");
+    }
+
+    // 7. Owner cannot access breakdowns
+    const bdOwnerDenied = await requestExpectFailure("/api/breakdowns", {
+      method: "GET",
+      headers: ownerHeaders,
+    });
+    if (bdOwnerDenied.status !== 403) {
+      throw new Error(
+        `breakdown smoke: expected owner to get 403 on breakdowns list, got ${bdOwnerDenied.status}`
+      );
+    }
+
+    // 8. Admin can update breakdown status
+    const bdUpdated = await request(`/api/breakdowns/${encodeURIComponent(bdCreated.id)}`, {
+      method: "PATCH",
+      headers: adminHeaders,
+      body: JSON.stringify({ status: "terminada", closed_by_email: "user-a@local.test" }),
+    });
+    if (bdUpdated?.status !== "terminada") {
+      throw new Error(`breakdown smoke: admin PATCH status failed. got=${JSON.stringify(bdUpdated)}`);
+    }
+
+    // 9. GET /by-client works for admin but 403 for tecnico
+    const bdByClient = await request(
+      `/api/breakdowns/by-client/${encodeURIComponent(bdClient.id)}`,
+      { headers: adminHeaders }
+    );
+    if (!Array.isArray(bdByClient)) {
+      throw new Error("breakdown smoke: by-client should return array");
+    }
+    const bdByClientTechDenied = await requestExpectFailure(
+      `/api/breakdowns/by-client/${encodeURIComponent(bdClient.id)}`,
+      { method: "GET", headers: techPoHeaders }
+    );
+    if (bdByClientTechDenied.status !== 403) {
+      throw new Error(
+        `breakdown smoke: expected tecnico by-client to be 403, got ${bdByClientTechDenied.status}`
+      );
+    }
+
     // --- Seed idempotency check (demo memberships must not recreate if disabled) ---
     const membershipRecords = await readJsonArray(tempMembershipsFile);
     const removedMembership = membershipRecords.find(

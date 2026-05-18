@@ -40,6 +40,9 @@ import AbsenceManagement from './pages/AbsenceManagement';
 import Calendar from './pages/Calendar';
 import OwnerClients from './pages/OwnerClients';
 import PurchaseOrders from './pages/PurchaseOrders';
+import Breakdowns from './pages/Breakdowns';
+import NewBreakdown from './pages/NewBreakdown';
+import BreakdownDetail from './pages/BreakdownDetail';
 const normalizeRole = (value) =>
   String(value || "")
     .trim()
@@ -147,6 +150,9 @@ const AuthenticatedApp = () => {
           <Route path="/absences" element={<AbsenceManagement />} />
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/owner/clients" element={<OwnerClients />} />
+          <Route path="/breakdowns" element={<Breakdowns />} />
+          <Route path="/breakdowns/new" element={<NewBreakdown />} />
+          <Route path="/breakdowns/:id" element={<BreakdownDetail />} />
           <Route path="*" element={<PageNotFound />} />
         </Route>
       </Route>

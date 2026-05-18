@@ -80,6 +80,18 @@ export type AppApi = {
     contactSales: (payload: any) => Promise<any>;
     portal: (payload?: any) => Promise<any>;
   };
+  backups: {
+    list: (orgId: string) => Promise<any>;
+    create: (orgId: string) => Promise<any>;
+    restore: (orgId: string, filename: string) => Promise<any>;
+  };
+  breakdowns: {
+    list: (params?: Record<string, any>) => Promise<any[]>;
+    get: (id: string) => Promise<any>;
+    byClient: (clientId: string) => Promise<any[]>;
+    create: (payload: any) => Promise<any>;
+    update: (id: string, payload: any) => Promise<any>;
+  };
 };
 
 export const appApi: AppApi;

@@ -23,7 +23,8 @@ import {
   Fingerprint,
   Truck,
   ShoppingCart,
-  ShoppingBag
+  ShoppingBag,
+  Wrench
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ import { cn } from "@/lib/utils";
 const adminLinks = [
   { to: "/", label: "Panel", icon: LayoutDashboard },
   { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
+  { to: "/breakdowns", label: "Averías", icon: Wrench },
   { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
   { to: "/materials", label: "Stock / Materiales", icon: Package },
   { to: "/clients", label: "Clientes", icon: Users },
@@ -48,6 +50,7 @@ const adminLinks = [
 const oficinaLinks = [
   { to: "/", label: "Panel", icon: LayoutDashboard },
   { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
+  { to: "/breakdowns", label: "Averías", icon: Wrench },
   { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
   { to: "/materials", label: "Stock / Materiales", icon: Package },
   { to: "/clients", label: "Clientes", icon: Users },
@@ -63,6 +66,7 @@ const oficinaLinks = [
 const techLinks = [
   { to: "/", label: "Mis Partes", icon: LayoutDashboard },
   { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
+  { to: "/breakdowns", label: "Averías", icon: Wrench },
   { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
   { to: "/workday", label: "Mi Jornada", icon: CalendarDays },
   { to: "/calendar", label: "Calendario", icon: CalendarDays },
@@ -79,6 +83,7 @@ const techLinks = [
 const ayudanteLinks = [
   { to: "/", label: "Panel", icon: LayoutDashboard },
   { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
+  { to: "/breakdowns", label: "Averías", icon: Wrench },
   { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
   { to: "/workday", label: "Mi Jornada", icon: CalendarDays },
   { to: "/calendar", label: "Calendario", icon: CalendarDays },
