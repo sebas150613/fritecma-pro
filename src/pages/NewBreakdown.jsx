@@ -352,7 +352,7 @@ export default function NewBreakdown() {
 
   return (
     <>
-      <div className="p-4 lg:p-8 max-w-2xl mx-auto space-y-6 pb-32">
+      <div className="p-4 lg:p-8 max-w-2xl mx-auto space-y-6 pb-28 lg:pb-10">
         <div className="flex items-center gap-3">
           <BackButton label="Averías" />
           <h1 className="text-2xl font-bold tracking-tight">Nueva Avería</h1>
@@ -512,18 +512,16 @@ export default function NewBreakdown() {
           </div>
         </div>
 
-        {/* ── Save bar ── */}
-        <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-card/80 backdrop-blur-xl border-t border-border p-4 pb-20 lg:pb-4">
-          <div className="max-w-2xl mx-auto flex justify-end">
-            <Button
-              onClick={handleSave}
-              disabled={saving || !canSubmit}
-              className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-8 h-12 text-base shadow-lg shadow-accent/25"
-            >
-              {saving ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Save className="h-5 w-5 mr-2" />}
-              Crear Avería
-            </Button>
-          </div>
+        {/* ── Botón de acción — en el flujo, sin fixed ── */}
+        <div className="flex justify-end">
+          <Button
+            onClick={handleSave}
+            disabled={saving || !canSubmit}
+            className="w-full sm:w-auto bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-8 h-12 text-base shadow-lg shadow-accent/25"
+          >
+            {saving ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Save className="h-5 w-5 mr-2" />}
+            Crear Avería
+          </Button>
         </div>
       </div>
 
