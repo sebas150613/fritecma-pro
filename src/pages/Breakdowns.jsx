@@ -97,12 +97,12 @@ export default function Breakdowns() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [me, items] = await Promise.all([
-        appApi.auth.me(),
-        appApi.breakdowns.list({ sort: "-created_at", limit: 200 }),
-      ]);
+      const me = await appApi.auth.me();
       setUser(me);
+      const items = await appApi.breakdowns.list({ sort: "-created_at", limit: 200 });
       setBreakdowns(items || []);
+    } catch (err) {
+      console.error("Error loading breakdowns:", err);
     } finally {
       setLoading(false);
     }
