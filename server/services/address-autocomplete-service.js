@@ -154,7 +154,7 @@ const searchLocationIQ = async (q, token) => {
   url.searchParams.set("normalizecity", "1");
 
   const res = await fetch(url.toString(), {
-    headers: { Accept: "application/json" },
+    headers: { Accept: "application/json", Referer: "https://app.frigest.es" },
   });
 
   if (!res.ok) {
