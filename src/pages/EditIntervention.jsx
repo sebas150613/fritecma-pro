@@ -34,7 +34,6 @@ const STATUS_OPTIONS = [
   { value: "pendiente_revision", label: "Pendiente Revisión" },
   { value: "validado", label: "Validado" },
   { value: "completado", label: "Completado" },
-  { value: "facturado", label: "Facturado" },
 ];
 
 export default function EditIntervention() {
@@ -65,9 +64,14 @@ export default function EditIntervention() {
     technician_notes: "",
     discount_percent: 0,
     status: "pendiente_revision",
+    receptor_name: "",
+    receptor_dni: "",
+    client_conformidad: false,
+    incident_status: "",
   });
 
   const [lines, setLines] = useState([]);
+  const [originalLines, setOriginalLines] = useState([]);
   const [depCantidad, setDepCantidad] = useState(0);
   const [depTramoId, setDepTramoId] = useState("");
 
@@ -76,6 +80,7 @@ export default function EditIntervention() {
   }, [id]);
 
   const loadData = async () => {
+    try {
     const [me, interventions, materialList, clientList, bottleList] = await Promise.all([
       appApi.auth.me(),
       appApi.entities.Intervention.filter({ id }, "-created_date", 1),
@@ -117,12 +122,23 @@ export default function EditIntervention() {
         technician_notes: inv.technician_notes || "",
         discount_percent: inv.discount_percent || 0,
         status: inv.status || "pendiente_revision",
+        receptor_name: inv.receptor_name || "",
+        receptor_dni: inv.receptor_dni || "",
+        client_conformidad: inv.client_conformidad || false,
+        incident_status: inv.incident_status || "",
       });
-      setLines(inv.materials_json ? JSON.parse(inv.materials_json) : []);
+      const parsedLines = inv.materials_json ? JSON.parse(inv.materials_json) : [];
+      setLines(parsedLines);
+      setOriginalLines(parsedLines);
       setDepCantidad(inv.desplazamientos_cantidad ?? 0);
       setDepTramoId(inv.desplazamiento_tramo_id || "");
     }
+    } catch (err) {
+      console.error("[EditIntervention] Error loading data:", err);
+      toast.error("Error al cargar los datos del parte.");
+    } finally {
     setLoading(false);
+    }
   };
 
   const calcTotals = (linesArg) => {
@@ -205,12 +221,72 @@ export default function EditIntervention() {
       technician_notes: form.technician_notes,
       discount_percent: form.discount_percent,
       status: form.status,
+      receptor_name: form.receptor_name || undefined,
+      receptor_dni: form.receptor_dni || undefined,
+      client_conformidad: form.client_conformidad,
+      incident_status: form.incident_status || undefined,
       materials_json: JSON.stringify(outLines),
       subtotal: totals.subtotal,
       iva_total: totals.ivaTotal,
       total: totals.total,
       ...dispPatch,
     });
+
+    // Adjust stock for changed material quantities
+    try {
+      const origById = new Map(originalLines.filter(l => l.material_id && l.material_id !== "__free_text__").map(l => [l.material_id, l]));
+      for (const line of outLines) {
+        if (!line.material_id || line.material_id === "__free_text__" || line._isLabor || line._isDisplacementLine) continue;
+        const orig = origById.get(line.material_id);
+        const origQty = orig?.quantity || 0;
+        const newQty = line.quantity || 0;
+        const delta = newQty - origQty;
+        if (delta !== 0) {
+          const mat = await appApi.entities.Material.get(line.material_id).catch(() => null);
+          if (mat && mat.stock !== undefined) {
+            const newStock = (mat.stock || 0) - delta;
+            await appApi.entities.Material.update(line.material_id, { stock: newStock });
+            await appApi.entities.StockMovement.create({
+              material_id: line.material_id,
+              material_name: line.material_name || mat.name,
+              movement_type: delta > 0 ? "salida_parte" : "entrada_ajuste",
+              quantity: Math.abs(delta),
+              stock_before: mat.stock || 0,
+              stock_after: newStock,
+              intervention_number: original.number,
+              notes: `Ajuste por edición de parte ${original.number}`,
+              timestamp: new Date().toISOString(),
+            }).catch(() => {});
+          }
+        }
+      }
+      // Handle removed materials
+      const newById = new Map(outLines.map(l => [l.material_id, l]));
+      for (const orig of originalLines) {
+        if (!orig.material_id || orig.material_id === "__free_text__" || orig._isLabor || orig._isDisplacementLine) continue;
+        if (!newById.has(orig.material_id)) {
+          const mat = await appApi.entities.Material.get(orig.material_id).catch(() => null);
+          if (mat && mat.stock !== undefined) {
+            const restoreQty = orig.quantity || 0;
+            await appApi.entities.Material.update(orig.material_id, { stock: (mat.stock || 0) + restoreQty });
+            await appApi.entities.StockMovement.create({
+              material_id: orig.material_id,
+              material_name: orig.material_name || mat.name,
+              movement_type: "entrada_ajuste",
+              quantity: restoreQty,
+              stock_before: mat.stock || 0,
+              stock_after: (mat.stock || 0) + restoreQty,
+              intervention_number: original.number,
+              notes: `Reposición por edición de parte ${original.number} (línea eliminada)`,
+              timestamp: new Date().toISOString(),
+            }).catch(() => {});
+          }
+        }
+      }
+    } catch (stockErr) {
+      console.error("[EditIntervention] Error adjusting stock:", stockErr);
+      toast.error("Parte guardado pero hubo un error al ajustar el stock. Revisa el inventario.", { duration: 8000 });
+    }
 
     await appApi.entities.AuditLog.create({
       action: "modificacion",
@@ -222,6 +298,19 @@ export default function EditIntervention() {
       changes_summary: changes.length > 0 ? changes.join(", ") : "Sin cambios detectados",
       timestamp: new Date().toISOString(),
     });
+
+    // Update linked breakdown if intervention is connected to one
+    if (original.breakdown_id) {
+      try {
+        const bdPatch = {
+          last_intervention_id: id,
+          last_intervention_number: original.number,
+        };
+        await appApi.breakdowns.update(original.breakdown_id, bdPatch);
+      } catch (e) {
+        console.error("[EditIntervention] Error updating breakdown after edit:", e);
+      }
+    }
 
     setSaving(false);
     navigate(`/interventions/${id}`);
@@ -258,8 +347,8 @@ export default function EditIntervention() {
     );
   }
 
-  // Bloqueo legal: parte facturado es inalterable (Ley Antifraude)
-  if (original?.status === 'facturado') {
+  // Bloqueo legal: parte facturado, completado o con invoice aceptada es inalterable (Ley Antifraude)
+  if (original?.status === 'facturado' || original?.status === 'completado' || original?.status === 'anulado') {
     return (
       <div className="p-8 flex flex-col items-center justify-center gap-4 text-center max-w-md mx-auto">
         <div className="h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center">
@@ -278,7 +367,7 @@ export default function EditIntervention() {
   return (
     <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6 pb-32">
       <div className="flex items-center gap-3">
-        <BackButton label="Parte" />
+        <BackButton label="Parte" to={`/interventions/${id}`} />
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Editar Parte</h1>
           <p className="text-sm text-muted-foreground">{original?.number}</p>
@@ -382,6 +471,38 @@ export default function EditIntervention() {
         <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Descripción</h2>
         <Textarea placeholder="Descripción del trabajo..." value={form.description} onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))} rows={3} className="rounded-xl" />
         <Textarea placeholder="Notas técnicas..." value={form.technician_notes} onChange={(e) => setForm(f => ({ ...f, technician_notes: e.target.value }))} rows={2} className="rounded-xl" />
+      </div>
+
+      {/* Estado de la Incidencia */}
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Estado de la Incidencia</h2>
+        <Select value={form.incident_status || ""} onValueChange={(v) => setForm(f => ({ ...f, incident_status: v }))}>
+          <SelectTrigger className="rounded-xl"><SelectValue placeholder="Seleccionar estado..." /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="finalizado">Finalizado</SelectItem>
+            <SelectItem value="pendiente_operativa">Pendiente (Maquina Operativa)</SelectItem>
+            <SelectItem value="pendiente_parada">Pendiente (Maquina Parada)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Conformidad del Cliente */}
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Conformidad del Cliente</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <Label>Nombre Receptor *</Label>
+            <Input value={form.receptor_name} onChange={(e) => setForm(f => ({ ...f, receptor_name: e.target.value }))} placeholder="Nombre y apellidos" className="mt-1 rounded-xl" />
+          </div>
+          <div>
+            <Label>DNI / Código Trabajador *</Label>
+            <Input value={form.receptor_dni} onChange={(e) => setForm(f => ({ ...f, receptor_dni: e.target.value }))} placeholder="DNI o código" className="mt-1 rounded-xl" />
+          </div>
+        </div>
+        <div className="flex items-center gap-3 pt-2">
+          <input type="checkbox" id="edit-conformidad" checked={form.client_conformidad} onChange={(e) => setForm(f => ({ ...f, client_conformidad: e.target.checked }))} className="h-4 w-4 rounded border-input" />
+          <Label htmlFor="edit-conformidad" className="text-sm">El cliente da su conformidad al trabajo realizado</Label>
+        </div>
       </div>
 
       {canManageDep && (

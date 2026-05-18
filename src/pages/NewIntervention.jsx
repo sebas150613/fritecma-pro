@@ -105,7 +105,7 @@ export default function NewIntervention() {
     receptor_name: "",
     receptor_dni: "",
     client_conformidad: false,
-    incident_status: "finalizado",
+    incident_status: "pendiente_operativa",
     helper_email: "",
     helper_name: "",
     tipo_horario: "",
@@ -495,45 +495,50 @@ export default function NewIntervention() {
 
       const created = await appApi.entities.Intervention.create(data);
 
-      // Deduct gas from selected bottle
-      if (form.gas_bottle_id && form.gas_loaded_kg > 0) {
-        const bottle = gasBottles.find(b => b.id === form.gas_bottle_id);
-        if (bottle) {
-          const newKg = Math.max(0, (bottle.carga_actual || 0) - form.gas_loaded_kg);
-          await appApi.entities.GasBottle.update(form.gas_bottle_id, {
-            carga_actual: newKg,
-            status: newKg <= 0 ? "vacia" : "activa",
-          });
-          await appApi.entities.GasTransfer.create({
-            from_bottle_id: bottle.id,
-            from_bottle_serial: bottle.serial_number,
-            to_bottle_id: bottle.id,
-            to_bottle_serial: bottle.serial_number,
-            gas_type: bottle.gas_type,
-            kg_transferred: form.gas_loaded_kg,
-            technician_email: user.email,
-            technician_name: user.full_name,
-            timestamp: new Date().toISOString(),
-            intervention_number: interventionNumber,
-            notes: `Consumo en parte ${interventionNumber}`,
-          });
+      try {
+        // Deduct gas from selected bottle
+        if (form.gas_bottle_id && form.gas_loaded_kg > 0) {
+          const bottle = gasBottles.find(b => b.id === form.gas_bottle_id);
+          if (bottle) {
+            const newKg = Math.max(0, (bottle.carga_actual || 0) - form.gas_loaded_kg);
+            await appApi.entities.GasBottle.update(form.gas_bottle_id, {
+              carga_actual: newKg,
+              status: newKg <= 0 ? "vacia" : "activa",
+            });
+            await appApi.entities.GasTransfer.create({
+              from_bottle_id: bottle.id,
+              from_bottle_serial: bottle.serial_number,
+              to_bottle_id: bottle.id,
+              to_bottle_serial: bottle.serial_number,
+              gas_type: bottle.gas_type,
+              kg_transferred: form.gas_loaded_kg,
+              technician_email: user.email,
+              technician_name: user.full_name,
+              timestamp: new Date().toISOString(),
+              intervention_number: interventionNumber,
+              notes: `Consumo en parte ${interventionNumber}`,
+            });
+          }
         }
-      }
 
-      // Deduct stock after saving
-      const materialOnlyLinesPersisted = materialLinesToPersist.filter(
-        (l) => l.material_id && l.material_id !== "__free_text__"
-      );
-      await deductStockForIntervention({
-        lines: materialOnlyLinesPersisted,
-        interventionId: created.id,
-        interventionNumber,
-        technicianEmail: user.email,
-        technicianName: user.full_name,
-      });
+        // Deduct stock after saving
+        const materialOnlyLinesPersisted = materialLinesToPersist.filter(
+          (l) => l.material_id && l.material_id !== "__free_text__"
+        );
+        await deductStockForIntervention({
+          lines: materialOnlyLinesPersisted,
+          interventionId: created.id,
+          interventionNumber,
+          technicianEmail: user.email,
+          technicianName: user.full_name,
+        });
 
-      if (finalGasType && form.gas_bottle_id && form.gas_loaded_kg > 0) {
-        await syncGasMaterialStock(finalGasType);
+        if (finalGasType && form.gas_bottle_id && form.gas_loaded_kg > 0) {
+          await syncGasMaterialStock(finalGasType);
+        }
+      } catch (postErr) {
+        console.error("[NewIntervention] Error post-save (stock/gas):", postErr);
+        toast.error("Parte guardado pero hubo un error al actualizar el stock. Revisa el inventario manualmente.", { duration: 8000 });
       }
 
       // Update linked breakdown status after part is saved successfully
@@ -557,7 +562,7 @@ export default function NewIntervention() {
         }
       }
 
-      navigate(`/interventions/${created.id}`);
+      navigate(`/interventions/${created.id}`, { replace: true });
     } finally {
       setSaving(false);
     }
@@ -565,6 +570,11 @@ export default function NewIntervention() {
 
   const handleSave = async () => {
     if (!form.client_id) return;
+
+    if (!form.description?.trim()) {
+      toast.error("La descripción del trabajo realizado es obligatoria.");
+      return;
+    }
 
     if (form.gas_other_ui && !String(form.gas_other_input || "").trim()) {
       toast.error(GAS_OTHER_REQUIRED_MESSAGE);
@@ -647,7 +657,7 @@ export default function NewIntervention() {
 
       {/* Header */}
       <div className="flex items-center gap-3">
-        <BackButton label={breakdown ? "Averías" : "Partes"} to={breakdown ? `/breakdowns/${breakdown.id}` : undefined} />
+        <BackButton label={breakdown ? "Averías" : "Partes"} to={breakdown ? `/breakdowns/${breakdown.id}` : "/interventions"} />
         <h1 className="text-2xl font-bold tracking-tight">Nuevo Parte</h1>
       </div>
 
@@ -837,6 +847,9 @@ export default function NewIntervention() {
               tarifa_aplicada: lines[0].unit_price,
             }));
           }
+        }}
+        onHelperSelect={({ email, name }) => {
+          setForm(f => ({ ...f, helper_email: email, helper_name: name }));
         }}
         currentUser={user}
         allUsers={users}

@@ -30,6 +30,7 @@ export default function LaborSection({
   materials,
   isAdmin: _isAdmin = false,
   onLaborLines,
+  onHelperSelect,
   currentUser,
   allUsers = [],
   organizationTarifas = null,
@@ -73,6 +74,13 @@ export default function LaborSection({
       return next.slice(0, additional);
     });
   }, [customCount]);
+
+  useEffect(() => {
+    if (onHelperSelect) {
+      const name = mode === "oficial_ayudante" && helperEmail ? getUserName(helperEmail) : "";
+      onHelperSelect({ email: helperEmail || "", name });
+    }
+  }, [helperEmail, mode]);
 
   const hours = calcHours(startTime, endTime);
   const principalName = currentUser?.full_name || "Técnico Principal";

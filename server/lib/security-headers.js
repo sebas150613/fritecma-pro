@@ -1,10 +1,10 @@
 /**
  * Centralized HTTP security headers for the REST server.
- * CSP is Report-Only until violations are reviewed (see README).
+ * CSP is enforced; violations are reported to /api/csp-report.
  */
 
 /** @type {string} */
-export const CONTENT_SECURITY_POLICY_REPORT_ONLY = [
+export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "base-uri 'self'",
   "object-src 'none'",
@@ -32,8 +32,8 @@ export function applySecurityHeaders(res, { isProduction }) {
     "geolocation=(self), microphone=(), camera=(self)"
   );
   res.setHeader(
-    "Content-Security-Policy-Report-Only",
-    CONTENT_SECURITY_POLICY_REPORT_ONLY
+    "Content-Security-Policy",
+    CONTENT_SECURITY_POLICY
   );
   if (isProduction) {
     res.setHeader(

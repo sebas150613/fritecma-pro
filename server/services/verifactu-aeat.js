@@ -13,6 +13,15 @@ export const VERIFACTU_PRODUCTION_ENDPOINT =
   process.env.APP_VERIFACTU_PRODUCTION_ENDPOINT ||
   "https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP";
 
+// Endpoints de validación QR (Orden HAC/1177/2024, Anexo IV)
+export const VERIFACTU_QR_PRODUCTION_ENDPOINT =
+  process.env.APP_VERIFACTU_QR_PRODUCTION_ENDPOINT ||
+  "https://www2.aeat.es/wlpl/TIKE-CONT/ValidarQR";
+
+export const VERIFACTU_QR_SANDBOX_ENDPOINT =
+  process.env.APP_VERIFACTU_QR_SANDBOX_ENDPOINT ||
+  "https://prewww2.aeat.es/wlpl/TIKE-CONT/ValidarQR";
+
 const NS_SUM =
   "https://www2.agenciatributaria.gob.es/static_files/common/internet/dep/aplicaciones/es/aeat/tike/cont/ws/SuministroLR.xsd";
 const NS_INFO =
@@ -122,6 +131,20 @@ const buildBreakdownXml = ({ subtotal, ivaTotal }) => {
   )}</sum1:BaseImponibleOimporteNoSujeto><sum1:CuotaRepercutida>${moneyText(
     tax
   )}</sum1:CuotaRepercutida></sum1:DetalleDesglose></sum1:Desglose>`;
+};
+
+// Construye la URL de verificación QR según Orden HAC/1177/2024, Anexo IV.
+// Solo se genera en producción: en sandbox no existe registro real en la AEAT.
+// Parámetros: nif (obligado), numserie (número-serie), fecha (DD-MM-YYYY), importe (2 decimales).
+export const buildVerifactuQrUrl = (invoice, isProduction) => {
+  if (!isProduction) return "";
+  const params = new URLSearchParams({
+    nif: safe(invoice.issuer_nif),
+    numserie: safe(invoice.invoice_number),
+    fecha: formatAeatDate(invoice.issue_date),
+    importe: `${money(invoice.total)}`,
+  });
+  return `${VERIFACTU_QR_PRODUCTION_ENDPOINT}?${params.toString()}`;
 };
 
 export const buildVerifactuSoapEnvelope = ({

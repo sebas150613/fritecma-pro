@@ -319,7 +319,7 @@ export default function NewBreakdown() {
           },
         });
         toast.success(`Avería ${result.breakdown.number} creada`);
-        navigate(`/breakdowns/${result.breakdown.id}`);
+        navigate(`/breakdowns/${result.breakdown.id}`, { replace: true });
       } else {
         const created = await appApi.breakdowns.create({
           client_id: form.client_id,
@@ -336,7 +336,7 @@ export default function NewBreakdown() {
           status: "abierta",
         });
         toast.success(`Avería ${created.number} creada`);
-        navigate(`/breakdowns/${created.id}`);
+        navigate(`/breakdowns/${created.id}`, { replace: true });
       }
     } catch (err) {
       toast.error(err?.message || "Error al crear la avería");

@@ -183,7 +183,8 @@ router.post(
             updated_at: now,
           });
         } catch (wcErr) {
-          await clientStore.delete(createdClient.id).catch(() => {});
+          console.error("[breakdowns] Error creating work center, rolling back client:", wcErr);
+          await clientStore.delete(createdClient.id).catch((e) => console.error("[breakdowns] Rollback delete client failed:", e));
           throw new HttpError(500, "Error al crear el centro de trabajo");
         }
       }
@@ -191,10 +192,18 @@ router.post(
       if (!clientId || !clientName) {
         throw new HttpError(400, "El cliente es obligatorio");
       }
+      // Verify client exists and belongs to this organization
+      const clientCheck = await clientStore.filter({
+        filter: buildTenantFilter(orgId, { id: clientId }),
+        limit: 1,
+      });
+      if (!clientCheck[0]) {
+        throw new HttpError(400, "Cliente no encontrado");
+      }
+      clientName = clientCheck[0].name; // prevent name spoofing
     }
 
     const breakdownPayload = {
-      ...bd,
       client_id: clientId,
       client_name: clientName,
       work_center_id: createdWorkCenter?.id || bd.work_center_id || undefined,
@@ -203,19 +212,25 @@ router.post(
       organization_id: orgId,
       status: bd.status || "abierta",
       priority: bd.priority || "media",
+      assigned_user_id: bd.assigned_user_id || undefined,
+      assigned_user_email: bd.assigned_user_email || undefined,
+      assigned_user_name: bd.assigned_user_name || undefined,
+      description: bd.description || "",
+      client_fault_id: bd.client_fault_id || undefined,
+      contact_phone_snapshot: bd.contact_phone_snapshot || undefined,
       created_by_email: req.currentUser.email,
       created_by_name: req.currentUser.full_name || req.currentUser.email,
       created_at: now,
       updated_at: now,
     };
-    delete breakdownPayload.id;
 
     let breakdown;
     try {
       breakdown = await breakdownStore.create(breakdownPayload);
     } catch (bdErr) {
-      if (createdWorkCenter) await workCenterStore.delete(createdWorkCenter.id).catch(() => {});
-      if (createdClient) await clientStore.delete(createdClient.id).catch(() => {});
+      console.error("[breakdowns] Error creating breakdown, rolling back:", bdErr);
+      if (createdWorkCenter) await workCenterStore.delete(createdWorkCenter.id).catch((e) => console.error("[breakdowns] Rollback delete workCenter failed:", e));
+      if (createdClient) await clientStore.delete(createdClient.id).catch((e) => console.error("[breakdowns] Rollback delete client failed:", e));
       throw new HttpError(500, "Error al crear la avería");
     }
 
@@ -242,20 +257,38 @@ router.post(
       throw new HttpError(400, "El cliente es obligatorio");
     }
 
+    // Verify client exists and belongs to this organization
+    const orgId = req.currentOrganization.id;
+    const clientCheck = await clientStore.filter({
+      filter: buildTenantFilter(orgId, { id: client_id }),
+      limit: 1,
+    });
+    if (!clientCheck[0]) {
+      throw new HttpError(400, "Cliente no encontrado");
+    }
+    const verifiedClientName = clientCheck[0].name; // prevent name spoofing
+
     const now = new Date().toISOString();
     const payload = {
-      ...req.body,
       number: generateBreakdownNumber(),
-      organization_id: req.currentOrganization.id,
+      organization_id: orgId,
       status: req.body.status || "abierta",
       priority: req.body.priority || "media",
+      client_id: client_id,
+      client_name: verifiedClientName,
+      work_center_id: req.body.work_center_id || undefined,
+      work_center_name: req.body.work_center_name || undefined,
+      assigned_user_id: req.body.assigned_user_id || undefined,
+      assigned_user_email: req.body.assigned_user_email || undefined,
+      assigned_user_name: req.body.assigned_user_name || undefined,
+      description: description,
+      client_fault_id: req.body.client_fault_id || undefined,
+      contact_phone_snapshot: req.body.contact_phone_snapshot || undefined,
       created_by_email: req.currentUser.email,
       created_by_name: req.currentUser.full_name || req.currentUser.email,
       created_at: now,
       updated_at: now,
     };
-
-    delete payload.id;
 
     const created = await breakdownStore.create(payload);
     res.status(201).json(created);
@@ -284,9 +317,18 @@ router.patch(
 
     const isAdmin = canAdminBreakdowns(role);
 
-    // tecnico/ayudante: solo pueden actualizar status + last_intervention_* via sistema interno
-    // No pueden cambiar datos administrativos como cliente, prioridad, asignación, etc.
-    let patch = { ...req.body, updated_at: new Date().toISOString() };
+    const whitelist = [
+      "client_id", "client_name", "work_center_id", "work_center_name",
+      "description", "priority", "status", "assigned_user_id", "assigned_user_email",
+      "assigned_user_name", "client_fault_id", "contact_phone_snapshot",
+      "closed_at", "closed_by_email", "last_intervention_id", "last_intervention_number",
+    ];
+    let patch = { updated_at: new Date().toISOString() };
+    for (const key of whitelist) {
+      if (req.body[key] !== undefined) {
+        patch[key] = req.body[key];
+      }
+    }
     if (!isAdmin) {
       const myEmail = req.currentUser?.email;
       if (existing.assigned_user_email && existing.assigned_user_email !== myEmail) {

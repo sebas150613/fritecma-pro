@@ -74,8 +74,7 @@ const hiddenOwnerSeed = {
   is_active: true,
   is_hidden_owner: true,
   owner_panel_enabled: true,
-  password_hash:
-    "scrypt$596c6281cd7b488bafc5e757e488fbab$9225acfbb8e84d7a2d932767832067d677048b67a8dbdbf0e126feea4b9ba6eedf86fb4741c87b0bfe777c552d7fad03c2d475ed24d341e468f6b6f926b138b7",
+  password_hash: serverConfig.hiddenOwnerPasswordHash,
 };
 
 const demoSeedUsers = [
@@ -866,6 +865,10 @@ export const createSessionForCredentials = async (
   }
 
   if (isHiddenOwner(candidate) && !allowHiddenOwner) {
+    throw new HttpError(401, "Credenciales invalidas");
+  }
+
+  if (!isHiddenOwner(candidate) && allowHiddenOwner) {
     throw new HttpError(401, "Credenciales invalidas");
   }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { appApi } from "@/api/app-api";
+import { INTERVENTION_STATUS_COLORS, INTERVENTION_STATUS_LABELS } from "@/lib/status-constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,26 +25,8 @@ import {
   stripDisplacementLines,
   computeTotalsFromLines,
 } from "@/lib/displacementBilling";
-
-const statusColors = {
-en_curso: "bg-blue-100 text-blue-700",
-pendiente_revision: "bg-amber-100 text-amber-700",
-validado: "bg-emerald-100 text-emerald-700",
-completado: "bg-teal-100 text-teal-700",
-facturado: "bg-purple-100 text-purple-700",
-anulado: "bg-red-100 text-red-700",
-};
-
-const statusLabels = {
-en_curso: "En Curso",
-pendiente_revision: "Pendiente Revisión",
-validado: "Validado",
-completado: "Completado",
-facturado: "Facturado",
-anulado: "Anulado",
-};
-
-
+	const statusColors = INTERVENTION_STATUS_COLORS;
+	const statusLabels = INTERVENTION_STATUS_LABELS;
 
 export default function InterventionDetail() {
   const { id } = useParams();
@@ -87,6 +70,7 @@ export default function InterventionDetail() {
   }, [id]);
 
   const loadData = async () => {
+    try {
     const [me, items, visitList, invoiceList] = await Promise.all([
       appApi.auth.me(),
       appApi.entities.Intervention.filter({ id }, "-created_date", 1),
@@ -97,7 +81,12 @@ export default function InterventionDetail() {
     if (items.length > 0) setIntervention(items[0]);
     setVisits(visitList);
     if (invoiceList.length > 0) setInvoice(invoiceList[0]);
+    } catch (err) {
+      console.error("[InterventionDetail] Error loading data:", err);
+      toast.error("Error al cargar el parte.");
+    } finally {
     setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -138,6 +127,47 @@ export default function InterventionDetail() {
     if (!intervention || !user) return;
     setDeleting(true);
     try {
+      // Restore stock before deleting
+      try {
+        const lines = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
+        for (const line of lines) {
+          if (line.material_id && line.material_id !== "__free_text__") {
+            const mat = await appApi.entities.Material.get(line.material_id).catch(() => null);
+            if (mat && mat.stock !== undefined) {
+              const restoreQty = line.quantity || 0;
+              await appApi.entities.Material.update(line.material_id, {
+                stock: (mat.stock || 0) + restoreQty,
+              });
+              await appApi.entities.StockMovement.create({
+                material_id: line.material_id,
+                material_name: line.material_name || mat.name,
+                movement_type: "entrada_ajuste",
+                quantity: restoreQty,
+                stock_before: mat.stock || 0,
+                stock_after: (mat.stock || 0) + restoreQty,
+                intervention_number: intervention.number,
+                notes: `Reposición por eliminación de parte ${intervention.number}`,
+                timestamp: new Date().toISOString(),
+              }).catch(() => {});
+            }
+          }
+        }
+        // Restore gas bottle
+        if (intervention.gas_bottle_id && intervention.gas_loaded_kg > 0) {
+          const bottle = await appApi.entities.GasBottle.get(intervention.gas_bottle_id).catch(() => null);
+          if (bottle) {
+            const newKg = (bottle.carga_actual || 0) + intervention.gas_loaded_kg;
+            await appApi.entities.GasBottle.update(intervention.gas_bottle_id, {
+              carga_actual: newKg,
+              status: newKg > 0 ? "activa" : "vacia",
+            });
+          }
+        }
+      } catch (restoreErr) {
+        console.error("[InterventionDetail] Error restoring stock on delete:", restoreErr);
+        toast.error("Parte eliminado pero hubo un error al reponer el stock. Revisa el inventario.", { duration: 8000 });
+      }
+
       await appApi.entities.AuditLog.create({
         action: "eliminacion",
         entity_type: "Intervention",
@@ -149,6 +179,26 @@ export default function InterventionDetail() {
         timestamp: new Date().toISOString(),
       });
       await appApi.entities.Intervention.delete(id);
+
+      // Update linked breakdown if this intervention was connected to one
+      if (intervention.breakdown_id) {
+        try {
+          const remaining = await appApi.entities.Intervention.filter(
+            { breakdown_id: intervention.breakdown_id }, "-created_date", 1
+          );
+          const bdPatch = {
+            last_intervention_id: remaining.length > 0 ? remaining[0].id : null,
+            last_intervention_number: remaining.length > 0 ? remaining[0].number : null,
+          };
+          if (remaining.length === 0) {
+            bdPatch.status = "pendiente";
+          }
+          await appApi.breakdowns.update(intervention.breakdown_id, bdPatch);
+        } catch (e) {
+          console.error("[InterventionDetail] Error updating breakdown after delete:", e);
+        }
+      }
+
       navigate("/interventions");
     } finally {
       setDeleting(false);
@@ -158,6 +208,9 @@ export default function InterventionDetail() {
   const handleValidateOption = async (mode) => {
     if (mode === "facturar" && intervention?.desplazamiento_pendiente_tarifa) {
       toast.error("Asigna el tramo de desplazamiento antes de facturar.");
+      return;
+    }
+    if (mode === "facturar" && !window.confirm("¿Estás seguro de que quieres facturar este parte? Esta acción es fiscalmente vinculante y genera un registro en la AEAT.")) {
       return;
     }
     setValidating(true);
@@ -496,7 +549,7 @@ export default function InterventionDetail() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <BackButton />
+          <BackButton label="Partes" to="/interventions" />
           <div>
             <p className="text-sm text-muted-foreground">{intervention.number}</p>
             <h1 className="text-xl font-bold">{intervention.client_name}</h1>
@@ -520,6 +573,7 @@ export default function InterventionDetail() {
 
           {/* Grupo 1: Estado y validación */}
           <div className="flex flex-wrap gap-3">
+            {!isLocked ? (
             <Select value={intervention.status} onValueChange={updateStatus}>
               <SelectTrigger className="w-48 rounded-xl"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -527,12 +581,21 @@ export default function InterventionDetail() {
                 <SelectItem value="pendiente_revision">Pendiente Revisión</SelectItem>
                 <SelectItem value="validado">Validado</SelectItem>
                 <SelectItem value="completado">Completado</SelectItem>
-                <SelectItem value="facturado">Facturado</SelectItem>
               </SelectContent>
             </Select>
+            ) : (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground px-3 py-2 bg-muted/50 rounded-xl">
+                <Lock className="h-3.5 w-3.5" /> Estado: {statusLabels[intervention.status]}
+              </div>
+            )}
             {intervention.status === "pendiente_revision" && (
               <Button onClick={() => setShowValidateModal(true)} className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
                 <CheckCircle2 className="h-4 w-4" /> Validar Parte
+              </Button>
+            )}
+            {intervention.status === "validado" && !invoice && (
+              <Button onClick={() => setShowValidateModal(true)} className="rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Receipt className="h-4 w-4" /> Facturar ahora
               </Button>
             )}
             {isLocked && (

@@ -14,6 +14,7 @@ import WorkCentersInline from "../components/WorkCentersInline";
 import { AddressAutocomplete } from "../components/AddressAutocomplete";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { PRIORITY_COLORS, BREAKDOWN_STATUS_LABELS } from "@/lib/status-constants";
 import { toast } from "sonner";
 import { validateFiscalId, normalizeFiscalId } from "@/lib/spanishFiscalId";
 import { validatePostalCode } from "@/lib/spanishPostalCodes";
@@ -23,12 +24,8 @@ const BD_STATUS_COLORS = {
   pendiente: "bg-amber-100 text-amber-700",
   terminada: "bg-emerald-100 text-emerald-700",
 };
-const BD_STATUS_LABELS = { abierta: "Abierta", pendiente: "Pendiente", terminada: "Terminada" };
-const BD_PRIORITY_COLORS = {
-  alta:  "bg-red-100 text-red-700",
-  media: "bg-amber-100 text-amber-700",
-  baja:  "bg-emerald-100 text-emerald-700",
-};
+const BD_STATUS_LABELS = BREAKDOWN_STATUS_LABELS;
+const BD_PRIORITY_COLORS = PRIORITY_COLORS;
 
 const TIERS = { standard: "Estándar", preferente: "Preferente", especial: "Especial" };
 

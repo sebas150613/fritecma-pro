@@ -8,21 +8,10 @@ import { Loader2, Phone, ClipboardList, User, Calendar, CheckCircle2, Clock } fr
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import BackButton from "../components/BackButton";
+import { PRIORITY_COLORS, PRIORITY_LABELS, BREAKDOWN_STATUS_COLORS, BREAKDOWN_STATUS_LABELS } from "@/lib/status-constants";
 
-const PRIORITY_COLORS = {
-  alta:  "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  media: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  baja:  "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-};
-
-const STATUS_COLORS = {
-  abierta:   "bg-blue-100 text-blue-700",
-  pendiente: "bg-amber-100 text-amber-700",
-  terminada: "bg-emerald-100 text-emerald-700",
-};
-
-const STATUS_LABELS = { abierta: "Abierta", pendiente: "Pendiente", terminada: "Terminada" };
-const PRIORITY_LABELS = { alta: "Alta", media: "Media", baja: "Baja" };
+const STATUS_COLORS = BREAKDOWN_STATUS_COLORS;
+const STATUS_LABELS = BREAKDOWN_STATUS_LABELS;
 
 function formatDate(iso) {
   if (!iso) return "—";

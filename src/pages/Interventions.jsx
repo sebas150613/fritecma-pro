@@ -21,6 +21,7 @@ export default function Interventions() {
   }, []);
 
   const loadData = async () => {
+    try {
     const me = await appApi.auth.me();
     setUser(me);
     const isAdmin = me.role === "admin" || me.role === "superadmin" || me.role === "encargado";
@@ -28,23 +29,22 @@ export default function Interventions() {
     let items;
     if (isAdmin) {
       items = await appApi.entities.Intervention.list("-created_date", 200);
-    } else if (me.role === "ayudante") {
-      // Ayudante can see interventions where they are the helper
+    } else {
+      // Both technician and helper roles see parts where they are technician OR helper
       const [asTech, asHelper] = await Promise.all([
         appApi.entities.Intervention.filter({ technician_email: me.email }, "-created_date", 200),
         appApi.entities.Intervention.filter({ helper_email: me.email }, "-created_date", 200),
       ]);
       const ids = new Set(asTech.map(i => i.id));
       items = [...asTech, ...asHelper.filter(i => !ids.has(i.id))];
-    } else {
-      items = await appApi.entities.Intervention.filter(
-        { technician_email: me.email },
-        "-created_date",
-        200
-      );
     }
     setInterventions(items);
+    } catch (err) {
+      console.error("[Interventions] Error loading data:", err);
+      toast.error("Error al cargar los partes. Revisa tu conexión.");
+    } finally {
     setLoading(false);
+    }
   };
 
   const matchesSearch = (i) => !search ||

@@ -98,6 +98,12 @@ if (isProduction && allowedOrigins.length === 0) {
   );
 }
 
+if (isProduction && !process.env.APP_HIDDEN_OWNER_PASSWORD_HASH) {
+  throw new Error(
+    "Unsafe production configuration: APP_HIDDEN_OWNER_PASSWORD_HASH must be set when NODE_ENV=production."
+  );
+}
+
 export const serverConfig = {
   environment,
   isProduction,
@@ -125,11 +131,11 @@ export const serverConfig = {
     ""
   ),
   aiApiKey: process.env.OPENAI_API_KEY || "",
-  aiModel: process.env.APP_AI_MODEL || "gpt-5-mini",
+  aiModel: process.env.APP_AI_MODEL || "gpt-4o-mini",
   aiVisionModel:
     process.env.APP_AI_VISION_MODEL ||
     process.env.APP_AI_MODEL ||
-    "gpt-5-mini",
+    "gpt-4o-mini",
   aiTimeoutMs: Number(process.env.APP_AI_TIMEOUT_MS || 90000),
   smtpHost: process.env.APP_SMTP_HOST || "",
   smtpPort: Number(process.env.APP_SMTP_PORT || 587),
@@ -148,4 +154,7 @@ export const serverConfig = {
   sessionTtlMs:
     parsePositiveNumberEnv(process.env.APP_SESSION_TTL_DAYS, 30) *
     24 * 60 * 60 * 1000,
+  backupDir: String(process.env.APP_BACKUP_DIR || "/var/backups/frigest").trim(),
+  backupSecret: String(process.env.APP_BACKUP_SECRET || "").trim(),
+  hiddenOwnerPasswordHash: process.env.APP_HIDDEN_OWNER_PASSWORD_HASH || "",
 };

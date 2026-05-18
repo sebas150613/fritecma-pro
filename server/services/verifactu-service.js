@@ -3,6 +3,7 @@ import { HttpError } from "../lib/http-error.js";
 import {
   VERIFACTU_PRODUCTION_ENDPOINT,
   VERIFACTU_SANDBOX_ENDPOINT,
+  buildVerifactuQrUrl,
   buildVerifactuSoapEnvelope,
   computeAeatInvoiceFingerprint,
   parseVerifactuSubmissionResponse,
@@ -190,7 +191,7 @@ const submitInvoiceToAeat = async ({
   };
 };
 
-const mapAeatResultToInvoiceUpdate = (result) => ({
+const mapAeatResultToInvoiceUpdate = (result, { invoice, isProduction } = {}) => ({
   pending_submission: false,
   verifactu_status: result.status,
   verifactu_csv: result.csv || "",
@@ -201,7 +202,9 @@ const mapAeatResultToInvoiceUpdate = (result) => ({
   verifactu_diagnostico: result.responseType,
   codigo_error_aeat: result.errorCode || "",
   descripcion_error_aeat: result.errorDescription || "",
-  qr_url: "",
+  qr_url: result.accepted && isProduction && invoice
+    ? buildVerifactuQrUrl(invoice, true)
+    : "",
 });
 
 const shouldQueueAeatRetry = (error, httpStatus) => {
@@ -417,7 +420,10 @@ export const processVerifactu = async ({ payload = {}, currentUser }) => {
       });
       const updateData = {
         xml_payload: submission.soapEnvelope,
-        ...mapAeatResultToInvoiceUpdate(submission.parsed),
+        ...mapAeatResultToInvoiceUpdate(submission.parsed, {
+          invoice: productionInvoice,
+          isProduction: isProductionMode,
+        }),
       };
 
       await invoiceStore.update(invoiceRecord.id, updateData);
@@ -591,7 +597,10 @@ export const processVerifactuRetry = async ({ payload = {}, currentUser }) => {
     timeoutMs: Number(payload.timeout_ms || 20000),
   });
   const parsed = parseVerifactuSubmissionResponse(response.body, response.httpStatus);
-  const updateData = mapAeatResultToInvoiceUpdate(parsed);
+  const updateData = mapAeatResultToInvoiceUpdate(parsed, {
+    invoice,
+    isProduction: submissionUser?.verifactu_produccion === true,
+  });
 
   await invoiceStore.update(invoice.id, updateData);
 
@@ -607,7 +616,7 @@ export const processVerifactuRetry = async ({ payload = {}, currentUser }) => {
     verifactu_csv: parsed.csv,
     verifactu_idregistro: parsed.duplicateId || "",
     verifactu_timestamp: parsed.timestamp || new Date().toISOString(),
-    qr_url: "",
+    qr_url: updateData.qr_url,
     error: null,
   };
 };
