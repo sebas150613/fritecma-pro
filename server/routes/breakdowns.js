@@ -11,6 +11,8 @@ import { canAccessHiddenUsers } from "../lib/auth.js";
 const router = express.Router();
 const breakdownStore = createJsonEntityStore("Breakdown");
 const interventionStore = createJsonEntityStore("Intervention");
+const clientStore = createJsonEntityStore("Client");
+const workCenterStore = createJsonEntityStore("WorkCenter");
 
 router.use(requireAuth);
 
@@ -118,6 +120,106 @@ router.get(
     });
 
     res.json(items);
+  })
+);
+
+// POST /api/breakdowns/create-with-client — atomic create (new or existing client + optional center + breakdown)
+// If new_client is provided: creates Client, optionally WorkCenter, then Breakdown in sequence.
+// Rolls back any created records if a later step fails.
+router.post(
+  "/create-with-client",
+  asyncHandler(async (req, res) => {
+    assertNotOwner(req);
+    assertLicenseAllowsWrite(req);
+    const role = req.currentUser?.role;
+    if (!canAdminBreakdowns(role)) {
+      throw new HttpError(403, "Solo admin y oficina pueden crear averías");
+    }
+
+    const { new_client, new_work_center, breakdown: bd } = req.body || {};
+
+    if (!bd?.description?.trim()) {
+      throw new HttpError(400, "La descripción es obligatoria");
+    }
+
+    const orgId = req.currentOrganization.id;
+    const now = new Date().toISOString();
+    let clientId = bd.client_id;
+    let clientName = bd.client_name;
+    let createdClient = null;
+    let createdWorkCenter = null;
+
+    if (new_client) {
+      if (!new_client.name?.trim()) {
+        throw new HttpError(400, "El nombre del cliente es obligatorio");
+      }
+
+      createdClient = await clientStore.create({
+        ...new_client,
+        name: new_client.name.trim(),
+        organization_id: orgId,
+        discount_percent: new_client.discount_percent ?? 0,
+        price_tier: new_client.price_tier || "standard",
+        tarifa_normal: new_client.tarifa_normal ?? 45,
+        tarifa_extra: new_client.tarifa_extra ?? 60,
+        tarifa_nocturna: new_client.tarifa_nocturna ?? 70,
+        tarifa_festiva: new_client.tarifa_festiva ?? 80,
+        created_at: now,
+        updated_at: now,
+      });
+      clientId = createdClient.id;
+      clientName = createdClient.name;
+
+      if (new_work_center?.name?.trim()) {
+        try {
+          createdWorkCenter = await workCenterStore.create({
+            ...new_work_center,
+            name: new_work_center.name.trim(),
+            client_id: clientId,
+            client_name: clientName,
+            organization_id: orgId,
+            is_active: true,
+            created_at: now,
+            updated_at: now,
+          });
+        } catch (wcErr) {
+          await clientStore.delete(createdClient.id).catch(() => {});
+          throw new HttpError(500, "Error al crear el centro de trabajo");
+        }
+      }
+    } else {
+      if (!clientId || !clientName) {
+        throw new HttpError(400, "El cliente es obligatorio");
+      }
+    }
+
+    const breakdownPayload = {
+      ...bd,
+      client_id: clientId,
+      client_name: clientName,
+      work_center_id: createdWorkCenter?.id || bd.work_center_id || undefined,
+      work_center_name: createdWorkCenter?.name || bd.work_center_name || undefined,
+      number: generateBreakdownNumber(),
+      organization_id: orgId,
+      status: bd.status || "abierta",
+      priority: bd.priority || "media",
+      created_by_email: req.currentUser.email,
+      created_by_name: req.currentUser.full_name || req.currentUser.email,
+      created_at: now,
+      updated_at: now,
+    };
+    delete breakdownPayload.id;
+
+    let breakdown;
+    try {
+      breakdown = await breakdownStore.create(breakdownPayload);
+    } catch (bdErr) {
+      if (createdWorkCenter) await workCenterStore.delete(createdWorkCenter.id).catch(() => {});
+      if (createdClient) await clientStore.delete(createdClient.id).catch(() => {});
+      throw new HttpError(500, "Error al crear la avería");
+    }
+
+    res.status(201).json({ breakdown, client: createdClient, work_center: createdWorkCenter });
   })
 );
 

@@ -215,6 +215,7 @@ export const appApi = {
     get: withProviderMethod((provider) => provider.appApi.breakdowns?.get),
     byClient: withProviderMethod((provider) => provider.appApi.breakdowns?.byClient),
     create: withProviderMethod((provider) => provider.appApi.breakdowns?.create),
+    createWithClient: withProviderMethod((provider) => provider.appApi.breakdowns?.createWithClient),
     update: withProviderMethod((provider) => provider.appApi.breakdowns?.update),
   },
 };

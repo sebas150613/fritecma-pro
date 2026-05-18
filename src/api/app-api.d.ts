@@ -92,6 +92,7 @@ export type AppApi = {
     get: (id: string) => Promise<any>;
     byClient: (clientId: string) => Promise<any[]>;
     create: (payload: any) => Promise<any>;
+    createWithClient: (payload: { new_client?: any; new_work_center?: any; breakdown: any }) => Promise<{ breakdown: any; client: any; work_center: any }>;
     update: (id: string, payload: any) => Promise<any>;
   };
 };

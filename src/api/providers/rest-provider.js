@@ -664,6 +664,8 @@ export const createRestProvider = () => {
         http.request(`/api/breakdowns/by-client/${encodeURIComponent(clientId)}`),
       create: (payload) =>
         http.request("/api/breakdowns", { method: "POST", body: payload }),
+      createWithClient: (payload) =>
+        http.request("/api/breakdowns/create-with-client", { method: "POST", body: payload }),
       update: (id, payload) =>
         http.request(`/api/breakdowns/${encodeURIComponent(id)}`, {
           method: "PATCH",
