@@ -505,6 +505,11 @@ export const ensureSaasBootstrap = async () => {
 };
 
 const extractToken = (req) => {
+  // Cookie HttpOnly tiene prioridad (sistema nuevo)
+  if (req.cookies?.frigest_session) {
+    return String(req.cookies.frigest_session).trim() || null;
+  }
+  // Bearer token como fallback durante el período de transición
   const authHeader = req.headers.authorization || "";
   if (authHeader.toLowerCase().startsWith("bearer ")) {
     return authHeader.slice(7).trim();
@@ -681,14 +686,20 @@ const resolveAuthenticatedBaseUser = async (req) => {
   const session = token ? sessions[token] : null;
 
   if (session?.userId) {
-    const user = users.find((item) => item.id === session.userId);
-
-    if (user && user.is_active !== false) {
-      return {
-        user,
-        sessionToken: token,
-        session,
-      };
+    // Limpieza lazy de sesiones expiradas
+    if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
+      const expiredSessions = await readSessions();
+      delete expiredSessions[token];
+      await writeSessions(expiredSessions);
+    } else {
+      const user = users.find((item) => item.id === session.userId);
+      if (user && user.is_active !== false) {
+        return {
+          user,
+          sessionToken: token,
+          session,
+        };
+      }
     }
   }
 
@@ -794,10 +805,12 @@ export const createSessionForUser = async (
 
     const token = randomUUID();
     const sessions = await readSessions();
+    const now = Date.now();
     sessions[token] = {
       userId: user.id,
       organizationId: DEFAULT_ORGANIZATION_ID,
-      createdAt: new Date().toISOString(),
+      createdAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + serverConfig.sessionTtlMs).toISOString(),
     };
     await writeSessions(sessions);
 
@@ -822,10 +835,12 @@ export const createSessionForUser = async (
 
   const token = randomUUID();
   const sessions = await readSessions();
+  const now = Date.now();
   sessions[token] = {
     userId: user.id,
     organizationId: selectedMembership.organization_id,
-    createdAt: new Date().toISOString(),
+    createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + serverConfig.sessionTtlMs).toISOString(),
   };
   await writeSessions(sessions);
 

@@ -145,4 +145,7 @@ export const serverConfig = {
   stripeSecretKey: process.env.STRIPE_SECRET_KEY || "",
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
   stripePublishableKey: process.env.VITE_STRIPE_PUBLISHABLE_KEY || "",
+  sessionTtlMs:
+    parsePositiveNumberEnv(process.env.APP_SESSION_TTL_DAYS, 30) *
+    24 * 60 * 60 * 1000,
 };

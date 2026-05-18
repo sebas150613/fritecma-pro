@@ -95,5 +95,6 @@
   input, textarea, select {
     -webkit-user-select: text;
     user-select: text;
+    font-size: 1rem;
   }
 }

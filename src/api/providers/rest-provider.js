@@ -88,6 +88,7 @@ const createHttpClient = () => {
     const response = await fetch(joinUrl(baseUrl, path), {
       method,
       headers: finalHeaders,
+      credentials: "include",
       body:
         body === undefined || isMultipartBody
           ? body
@@ -298,6 +299,7 @@ export const createRestProvider = () => {
 
       const response = await fetch(joinUrl(baseUrl, "/api/auth/login"), {
         method: "POST",
+        credentials: "include",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -341,6 +343,7 @@ export const createRestProvider = () => {
 
       const response = await fetch(joinUrl(baseUrl, "/api/auth/private-login"), {
         method: "POST",
+        credentials: "include",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -376,6 +379,7 @@ export const createRestProvider = () => {
 
       const response = await fetch(joinUrl(baseUrl, "/api/auth/signup/request"), {
         method: "POST",
+        credentials: "include",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -403,6 +407,7 @@ export const createRestProvider = () => {
 
       const response = await fetch(joinUrl(baseUrl, "/api/auth/signup/verify"), {
         method: "POST",
+        credentials: "include",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",

@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, URL } from "node:url";
@@ -19,6 +20,7 @@ import organizationRoutes from "./routes/organizations.js";
 import addressAutocompleteRoutes from "./routes/address-autocomplete.js";
 import billingRoutes, { stripeWebhookHandler } from "./routes/billing.js";
 import purchaseOrderRoutes from "./routes/purchase-orders.js";
+import cspReportRoutes from "./routes/csp-report.js";
 import { ensureSaasBootstrap } from "./lib/auth.js";
 import { initializeStoreBackend } from "./lib/json-store.js";
 import { bootstrapOrganizationSubscriptions } from "./services/billing-service.js";
@@ -102,6 +104,7 @@ const sendProductionOriginRejected = (req, res) => {
 if (serverConfig.isProduction) {
   app.use((req, res, next) => {
     cors({
+      credentials: true,
       origin(origin, callback) {
         if (productionOriginIsAllowed(req, origin)) {
           callback(null, true);
@@ -112,8 +115,10 @@ if (serverConfig.isProduction) {
     })(req, res, next);
   });
 } else {
-  app.use(cors());
+  app.use(cors({ credentials: true, origin: true }));
 }
+
+app.use(cookieParser());
 
 app.use((req, res, next) => {
   if (!serverConfig.isProduction) {
@@ -172,6 +177,7 @@ app.use("/api/business", businessNotificationRoutes);
 app.use("/api/functions", functionRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/purchase-orders", purchaseOrderRoutes);
+app.use("/api/csp-report", cspReportRoutes);
 
 app.use((error, _req, res, _next) => {
   const status =

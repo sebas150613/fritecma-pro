@@ -55,6 +55,22 @@
       "purpose": "maskable"
     }
   ],
+  "screenshots": [
+    {
+      "src": "/screenshots/splash-540x720.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "FRIGEST en móvil"
+    },
+    {
+      "src": "/screenshots/splash-1280x720.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "FRIGEST en escritorio"
+    }
+  ],
   "shortcuts": [
     {
       "name": "Nuevo Parte",

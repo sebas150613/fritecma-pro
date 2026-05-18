@@ -16,6 +16,7 @@ export const CONTENT_SECURITY_POLICY_REPORT_ONLY = [
   "connect-src 'self' https: wss:",
   "form-action 'self'",
   "upgrade-insecure-requests",
+  "report-uri /api/csp-report",
 ].join("; ");
 
 /**
@@ -28,7 +29,7 @@ export function applySecurityHeaders(res, { isProduction }) {
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader(
     "Permissions-Policy",
-    "geolocation=(), microphone=(), camera=()"
+    "geolocation=(self), microphone=(), camera=(self)"
   );
   res.setHeader(
     "Content-Security-Policy-Report-Only",

@@ -57,6 +57,27 @@ import { createRateLimiter, getClientIp } from "../lib/rate-limit.js";
 
 const router = express.Router();
 
+const SESSION_COOKIE_NAME = "frigest_session";
+
+const setSessionCookie = (res, token) => {
+  res.cookie(SESSION_COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: serverConfig.isProduction,
+    sameSite: "strict",
+    maxAge: serverConfig.sessionTtlMs,
+    path: "/",
+  });
+};
+
+const clearSessionCookie = (res) => {
+  res.clearCookie(SESSION_COOKIE_NAME, {
+    httpOnly: true,
+    secure: serverConfig.isProduction,
+    sameSite: "strict",
+    path: "/",
+  });
+};
+
 const authLoginRateLimiter = createRateLimiter({
   namespace: "auth-login",
   windowMs: 15 * 60 * 1000,
@@ -158,6 +179,8 @@ const isBrowserFormRequest = (req) => {
 };
 
 const sendAuthSuccessResponse = (req, res, session, redirectUri, status = 200) => {
+  setSessionCookie(res, session.token);
+
   if (isBrowserFormRequest(req)) {
     return res.redirect(buildRedirectWithToken(redirectUri, session.token));
   }
@@ -1415,6 +1438,7 @@ router.post(
       password,
     });
 
+    setSessionCookie(res, session.token);
     return res.status(201).json({
       access_token: session.token,
       user: session.user,
@@ -1608,6 +1632,7 @@ router.post(
         return sendAuthSuccessResponse(req, res, session, redirectUri);
       }
 
+      setSessionCookie(res, session.token);
       return res.json({
         access_token: session.token,
         user: session.user,
@@ -1714,6 +1739,7 @@ router.post(
         return sendAuthSuccessResponse(req, res, session, redirectUri);
       }
 
+      setSessionCookie(res, session.token);
       return res.json({
         access_token: session.token,
         user: session.user,
@@ -1865,6 +1891,7 @@ router.post(
         allowHiddenOwner: req.currentUser?.is_hidden_owner === true,
       });
 
+      setSessionCookie(res, session.token);
       return res.json({
         ...session.user,
         access_token: session.token,
@@ -1876,6 +1903,8 @@ router.post(
       organizationId
     );
 
+    // Refresca el TTL de la cookie sin cambiar el token
+    setSessionCookie(res, req.authSessionToken);
     res.json(context.currentUser);
   })
 );
@@ -1883,11 +1912,15 @@ router.post(
 router.post(
   "/logout",
   asyncHandler(async (req, res) => {
+    // Acepta cookie (nuevo) o Bearer (legacy)
+    const cookieToken = req.cookies?.[SESSION_COOKIE_NAME] || null;
     const authHeader = req.headers.authorization || "";
-    const token = authHeader.toLowerCase().startsWith("bearer ")
+    const bearerToken = authHeader.toLowerCase().startsWith("bearer ")
       ? authHeader.slice(7).trim()
       : null;
+    const token = cookieToken || bearerToken;
 
+    clearSessionCookie(res);
     await invalidateSessionToken(token);
     res.json({ success: true });
   })
