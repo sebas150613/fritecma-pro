@@ -6,6 +6,7 @@ import {
   buildVerifactuQrUrl,
   buildVerifactuSoapEnvelope,
   computeAeatInvoiceFingerprint,
+  escapeXml,
   parseVerifactuSubmissionResponse,
   postSoapRequest,
   resolveCertificateFile,
@@ -45,15 +46,28 @@ const getIssuerInfo = (user) => {
   };
 };
 
+// Serial mutex for counter store: prevents duplicate invoice numbers under concurrency
+let counterLock = Promise.resolve();
+
 const getNextInvoiceNumber = async (series = "F") => {
-  const counters = await counterStore.read();
-  const current = Number(counters[series] || 0) + 1;
-  counters[series] = current;
-  await counterStore.write(counters);
-  return {
-    number: `${series}-${String(current).padStart(6, "0")}`,
-    index: current,
-  };
+  // Queue behind the previous counter operation
+  const prev = counterLock;
+  let release;
+  counterLock = new Promise((resolve) => { release = resolve; });
+  await prev;
+
+  try {
+    const counters = await counterStore.read();
+    const current = Number(counters[series] || 0) + 1;
+    counters[series] = current;
+    await counterStore.write(counters);
+    return {
+      number: `${series}-${String(current).padStart(6, "0")}`,
+      index: current,
+    };
+  } finally {
+    release();
+  }
 };
 
 const getRetentionUntil = () => {
@@ -73,8 +87,13 @@ const findById = async (store, id, label) => {
   return item;
 };
 
-const getLastInvoice = async () => {
-  const items = await invoiceStore.list({ sort: "-created_date", limit: 1 });
+const getLastInvoice = async ({ isProduction = false } = {}) => {
+  // Fetch more items so we can skip sandbox invoices in production mode
+  const limit = isProduction ? 50 : 1;
+  const items = await invoiceStore.list({ sort: "-created_date", limit });
+  if (isProduction) {
+    return items.find((i) => i.verifactu_status !== "validado_sandbox") || null;
+  }
   return items[0] || null;
 };
 
@@ -113,12 +132,12 @@ const createMockXmlPayload = ({
   tipoFactura,
 }) => `<?xml version="1.0" encoding="UTF-8"?>
 <verifactu-simulado>
-  <emisor nif="${issuerNif}">${issuerName}</emisor>
-  <factura numero="${invoiceNumber}" tipo="${tipoFactura}" fecha="${formatIsoDate(issueDate)}">
-    <cliente>${clientName || "CLIENTE"}</cliente>
+  <emisor nif="${escapeXml(issuerNif)}">${escapeXml(issuerName)}</emisor>
+  <factura numero="${escapeXml(invoiceNumber)}" tipo="${escapeXml(tipoFactura)}" fecha="${escapeXml(formatIsoDate(issueDate))}">
+    <cliente>${escapeXml(clientName || "CLIENTE")}</cliente>
     <importe_total>${clampMoney(total).toFixed(2)}</importe_total>
     <cuota_iva>${clampMoney(ivaTotal).toFixed(2)}</cuota_iva>
-    <hash_anterior>${previousHash || ""}</hash_anterior>
+    <hash_anterior>${escapeXml(previousHash || "")}</hash_anterior>
     <huella>${hashHuella}</huella>
   </factura>
 </verifactu-simulado>`;
@@ -230,6 +249,12 @@ export const processVerifactu = async ({ payload = {}, currentUser }) => {
   const intervention = await findById(interventionStore, interventionId, "Intervention");
   const now = new Date().toISOString();
 
+  // Prevent double invoicing: intervention already finalised
+  const NON_INVOICEABLE_STATUSES = ["facturado", "completado", "anulado"];
+  if (NON_INVOICEABLE_STATUSES.includes(intervention.status)) {
+    throw new HttpError(409, `Este parte ya está ${intervention.status} y no puede facturarse de nuevo.`);
+  }
+
   if (mode === "guardar") {
     await interventionStore.update(intervention.id, {
       status: "completado",
@@ -253,12 +278,36 @@ export const processVerifactu = async ({ payload = {}, currentUser }) => {
       : null;
 
   const isRectificativa = mode === "rectificar" || mode === "rectificar_corregida";
+
+  if (isRectificativa && originalInvoice) {
+    // Validate original invoice is in a rectifiable state (accepted/duplicated by AEAT)
+    const VALID_ORIGINAL_STATUSES = ["aceptado", "aceptado_con_errores", "duplicado"];
+    if (!VALID_ORIGINAL_STATUSES.includes(originalInvoice.verifactu_status)) {
+      throw new HttpError(400,
+        `La factura original no ha sido aceptada por AEAT (estado: ${originalInvoice.verifactu_status}). Solo se pueden rectificar facturas aceptadas.`
+      );
+    }
+    // Validate the original invoice belongs to the same intervention
+    if (originalInvoice.intervention_id !== interventionId) {
+      throw new HttpError(400, "La factura original no pertenece a este parte.");
+    }
+    // Check the original invoice hasn't already been rectified
+    const existingRect = await invoiceStore.filter({
+      filter: { factura_rectificada_id: originalInvoice.id },
+      limit: 1,
+    });
+    if (existingRect.length > 0) {
+      throw new HttpError(409,
+        `Esta factura ya fue rectificada por ${existingRect[0].invoice_number}. No se puede rectificar dos veces.`
+      );
+    }
+  }
   const isProductionMode = currentUser?.verifactu_produccion === true;
   const shouldQueueSubmission =
     payload.force_pending_submission === true ||
     payload.pending_submission === true;
   const { issuerNif, issuerName } = getIssuerInfo(currentUser);
-  const previousInvoice = await getLastInvoice();
+  const previousInvoice = await getLastInvoice({ isProduction: isProductionMode });
   const previousHash = previousInvoice?.hash_huella || "";
   const { number: invoiceNumber } = await getNextInvoiceNumber(isRectificativa ? "R" : "F");
   const chainIndex = Number(previousInvoice?.invoice_chain_index || 0) + 1;
@@ -698,6 +747,10 @@ export const retryVerifactuSubmissions = async ({ payload = {}, currentUser } = 
           codigo_error_aeat: "MAX_RETRIES_REACHED",
           descripcion_error_aeat: error.message,
         });
+        console.error(
+          `[VERIFACTU] FACTURA ABANDONADA: ${queueItem.invoice_id} (${queueItem.invoice_number}) tras ${nextRetryCount} reintentos. ` +
+          `Último error: ${error.message}. Intervención manual requerida.`
+        );
       }
 
       failureCount += 1;
@@ -861,7 +914,7 @@ export const sendClockInNotifications = async ({ payload = {}, sendEmail }) => {
 export const verifyInvoiceHashes = async ({ sendEmail }) => {
   const invoices = await invoiceStore.list({ sort: "-issue_date", limit: 500 });
   const fiscalInvoices = invoices.filter((invoice) =>
-    ["aceptado", "validado_sandbox", "sandbox_ok", "duplicado"].includes(
+    ["aceptado", "validado_sandbox", "duplicado"].includes(
       invoice.verifactu_status
     )
   );
@@ -1000,5 +1053,24 @@ export const testVerifactuSandbox = async ({ payload = {}, currentUser }) => {
           ? "Timeout: Sandbox AEAT no respondio en el tiempo esperado."
           : `Error conectando con el sandbox: ${error.message}`,
     };
+  }
+};
+
+// Auto-scheduler: periodically retry pending AEAT submissions
+let retrySchedulerInterval = null;
+
+export const startVerifactuRetryScheduler = () => {
+  if (retrySchedulerInterval) return; // already running
+  retrySchedulerInterval = setInterval(() => {
+    retryVerifactuSubmissions().catch((err) =>
+      console.error("[verifactu] Retry scheduler error:", err.message)
+    );
+  }, 60000);
+};
+
+export const stopVerifactuRetryScheduler = () => {
+  if (retrySchedulerInterval) {
+    clearInterval(retrySchedulerInterval);
+    retrySchedulerInterval = null;
   }
 };

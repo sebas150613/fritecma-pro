@@ -26,6 +26,7 @@ import breakdownRoutes from "./routes/breakdowns.js";
 import { ensureSaasBootstrap } from "./lib/auth.js";
 import { initializeStoreBackend } from "./lib/json-store.js";
 import { bootstrapOrganizationSubscriptions } from "./services/billing-service.js";
+import { startVerifactuRetryScheduler } from "./services/verifactu-service.js";
 import { createRateLimiter } from "./lib/rate-limit.js";
 import { createSecurityHeadersMiddleware } from "./lib/security-headers.js";
 
@@ -213,4 +214,9 @@ app.listen(serverConfig.port, serverConfig.host, () => {
   console.log(
     `[server] REST scaffold running at http://${serverConfig.host}:${serverConfig.port}`
   );
+  // Start Verifactu retry scheduler in production (retries pending AEAT submissions every 60s)
+  if (serverConfig.isProduction) {
+    startVerifactuRetryScheduler();
+    console.log("[verifactu] Retry scheduler started (interval: 60s)");
+  }
 });
