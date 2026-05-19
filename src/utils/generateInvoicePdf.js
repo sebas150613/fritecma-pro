@@ -91,7 +91,7 @@ export async function generateInvoicePdf(invoice, intervention) {
 async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
   const { isRectificativa, isOriginalRef, rectificativaNumber, rectificativaInvoice } = opts;
   const lines      = (() => { try { return JSON.parse(inv.lines_json || "[]"); } catch { return []; } })();
-  const isAceptado = inv.verifactu_status === "aceptado";
+  const isAceptado = ["aceptado", "aceptado_con_errores", "duplicado"].includes(inv.verifactu_status);
 
   // ── BANDA SUPERIOR ────────────────────────────────────────────────────────
   const bandColor = isOriginalRef ? [50, 50, 50] : BLUE;

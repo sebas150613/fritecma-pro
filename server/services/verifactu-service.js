@@ -49,6 +49,18 @@ const getIssuerInfo = (user) => {
 // Serial mutex for counter store: prevents duplicate invoice numbers under concurrency
 let counterLock = Promise.resolve();
 
+// Per-intervention mutex: prevents TOCTOU double-invoicing and hash-chain splits
+// under concurrent requests for the same intervention.
+const interventionLocks = new Map();
+
+const acquireInterventionLock = (interventionId) => {
+  const prev = interventionLocks.get(interventionId) || Promise.resolve();
+  let release;
+  const next = new Promise((resolve) => { release = resolve; });
+  interventionLocks.set(interventionId, next);
+  return prev.then(() => release);
+};
+
 const getNextInvoiceNumber = async (series = "F") => {
   // Queue behind the previous counter operation
   const prev = counterLock;
@@ -246,6 +258,20 @@ export const processVerifactu = async ({ payload = {}, currentUser }) => {
     throw new HttpError(400, "intervention_id is required");
   }
 
+  // Serialize all operations for this intervention to prevent TOCTOU double-invoicing
+  // and hash-chain splits when two requests arrive simultaneously.
+  const release = await acquireInterventionLock(interventionId);
+  try {
+    return await _processVerifactuLocked({ payload, currentUser, interventionId, mode });
+  } finally {
+    release();
+    // Clean up the map entry once no other request is waiting
+    // (safe: the next waiter already captured the promise reference)
+    interventionLocks.delete(interventionId);
+  }
+};
+
+const _processVerifactuLocked = async ({ payload, currentUser, interventionId, mode }) => {
   const intervention = await findById(interventionStore, interventionId, "Intervention");
   const now = new Date().toISOString();
 
@@ -914,7 +940,7 @@ export const sendClockInNotifications = async ({ payload = {}, sendEmail }) => {
 export const verifyInvoiceHashes = async ({ sendEmail }) => {
   const invoices = await invoiceStore.list({ sort: "-issue_date", limit: 500 });
   const fiscalInvoices = invoices.filter((invoice) =>
-    ["aceptado", "validado_sandbox", "duplicado"].includes(
+    ["aceptado", "aceptado_con_errores", "validado_sandbox", "duplicado"].includes(
       invoice.verifactu_status
     )
   );
