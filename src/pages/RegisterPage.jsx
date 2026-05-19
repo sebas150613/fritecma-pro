@@ -24,12 +24,7 @@ const BrandPanel = () => (
   <div className="hidden lg:flex flex-col justify-between w-[460px] flex-shrink-0 bg-[#0a0f1e] p-12">
     <div>
       <div className="flex items-center gap-2.5 mb-16">
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-sm"
-          style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)" }}
-        >
-          F
-        </div>
+        <img src="/logo.png" alt="FRIGEST" className="w-8 h-8 rounded-lg shadow-md" />
         <span className="text-white font-bold text-xl tracking-tight">FRIGEST</span>
       </div>
 
@@ -78,12 +73,7 @@ const BrandPanel = () => (
 
 const MobileLogo = () => (
   <div className="lg:hidden flex items-center gap-2 mb-8">
-    <div
-      className="w-7 h-7 rounded-lg flex items-center justify-center text-white font-black text-xs"
-      style={{ background: "linear-gradient(135deg, #3b82f6, #06b6d4)" }}
-    >
-      F
-    </div>
+    <img src="/logo.png" alt="FRIGEST" className="w-7 h-7 rounded-lg shadow-md" />
     <span className="font-bold text-lg tracking-tight">FRIGEST</span>
   </div>
 );

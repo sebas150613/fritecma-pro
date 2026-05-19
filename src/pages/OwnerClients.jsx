@@ -16,6 +16,7 @@ import {
   Building2,
   CheckCircle2,
   ChevronDown,
+  DatabaseBackup,
   Loader2,
   PauseCircle,
   PlayCircle,
@@ -124,6 +125,14 @@ export default function OwnerClients() {
   const [inviteUrl, setInviteUrl] = useState("");
   const [userActionMessage, setUserActionMessage] = useState("");
   const [ownerBanner, setOwnerBanner] = useState(null);
+
+  // Backup state
+  const [backups, setBackups] = useState([]);
+  const [backupsLoading, setBackupsLoading] = useState(false);
+  const [backupBusy, setBackupBusy] = useState("");
+  const [backupMsg, setBackupMsg] = useState(null);
+  const [selectedBackup, setSelectedBackup] = useState("");
+  const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
   const [billingDirty, setBillingDirty] = useState(emptyBillingDirty);
   const [copyBillingConfirmOpen, setCopyBillingConfirmOpen] = useState(false);
   const [fiscalSaveOk, setFiscalSaveOk] = useState(false);
@@ -232,6 +241,18 @@ export default function OwnerClients() {
       mirror_commercial_to_billing: p.mirror_commercial_to_billing === true,
     });
   }, [selectedOrganization]);
+
+  // Load backups when org changes or backup tab is active
+  useEffect(() => {
+    if (!selectedOrganization?.id) { setBackups([]); return; }
+    setBackupsLoading(true);
+    setBackupMsg(null);
+    setSelectedBackup("");
+    appApi.backups.list(selectedOrganization.id)
+      .then((data) => setBackups(data?.backups ?? []))
+      .catch(() => setBackups([]))
+      .finally(() => setBackupsLoading(false));
+  }, [selectedOrganization?.id]);
 
   useEffect(() => {
     if (!selectedOrganization?.id || !fiscalDraft.mirror_commercial_to_billing) {
@@ -832,6 +853,7 @@ export default function OwnerClients() {
                     ["usuarios", "Usuarios"],
                     ["plan", "Plan y licencia"],
                     ["consumo", "Consumo"],
+                    ["backup", "Backup"],
                     ["soporte", "Soporte"],
                     ["peligro", "Zona de peligro"],
                   ].map(([id, label]) => (
@@ -1578,6 +1600,102 @@ export default function OwnerClients() {
                 </div>
               </TabsContent>
 
+              <TabsContent value="backup" className="mt-0 space-y-4">
+                <div className="rounded-2xl border border-border bg-card p-5 space-y-4">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <DatabaseBackup className="h-5 w-5 text-muted-foreground" />
+                      <h3 className="font-semibold text-sm">Copias de seguridad</h3>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-xl"
+                      disabled={backupBusy !== ""}
+                      onClick={async () => {
+                        setBackupBusy("creating");
+                        setBackupMsg(null);
+                        try {
+                          const res = await appApi.backups.create(selectedOrganization.id);
+                          setBackups((prev) => [res.backup, ...prev].slice(0, 5));
+                          setBackupMsg({ type: "ok", text: `Backup creado: ${res.backup.filename}` });
+                        } catch (e) {
+                          setBackupMsg({ type: "error", text: e?.message || "Error al crear backup." });
+                        } finally {
+                          setBackupBusy("");
+                        }
+                      }}
+                    >
+                      {backupBusy === "creating" ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                      Crear backup ahora
+                    </Button>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Los backups se generan automáticamente cada domingo a las 3:00 h. Se conservan los 5 últimos por empresa.
+                    Los datos de cada empresa están completamente aislados: nunca se mezclan entre organizaciones.
+                  </p>
+
+                  {backupMsg && (
+                    <div className={`rounded-lg px-3 py-2 text-sm ${backupMsg.type === "ok" ? "bg-green-50 text-green-800 border border-green-200" : "bg-destructive/10 text-destructive border border-destructive/30"}`}>
+                      {backupMsg.text}
+                    </div>
+                  )}
+
+                  {backupsLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Cargando backups…
+                    </div>
+                  ) : backups.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No hay backups disponibles para esta empresa.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Últimos backups</p>
+                      <ul className="divide-y divide-border rounded-xl border border-border overflow-hidden text-sm">
+                        {backups.map((b) => (
+                          <li key={b.filename} className="flex items-center justify-between px-4 py-2.5 gap-3 bg-background">
+                            <span className="font-mono text-xs text-muted-foreground truncate">{b.filename}</span>
+                            <span className="text-xs text-muted-foreground whitespace-nowrap">
+                              {new Date(b.created_at).toLocaleString("es-ES")} · {(b.size_bytes / 1024).toFixed(1)} KB
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+
+                      <div className="pt-3 space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Restaurar backup</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Select value={selectedBackup} onValueChange={setSelectedBackup}>
+                            <SelectTrigger className="rounded-xl w-auto min-w-[280px] text-sm">
+                              <SelectValue placeholder="Selecciona un backup…" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {backups.map((b) => (
+                                <SelectItem key={b.filename} value={b.filename}>
+                                  {new Date(b.created_at).toLocaleString("es-ES")} — {b.filename}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="rounded-xl"
+                            disabled={!selectedBackup || backupBusy !== ""}
+                            onClick={() => setRestoreConfirmOpen(true)}
+                          >
+                            Restaurar
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          La restauración reemplaza todos los datos actuales de la empresa. Se crea un snapshot automático del estado actual antes de proceder.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
               <TabsContent value="soporte" className="mt-0">
                 <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground space-y-2">
                   <h3 className="font-semibold text-foreground">Soporte FRIGEST</h3>
@@ -1629,6 +1747,56 @@ export default function OwnerClients() {
           )}
         </section>
       </div>
+
+      {/* ── Restore confirmation dialog ─────────────────────────────── */}
+      <Dialog open={restoreConfirmOpen} onOpenChange={setRestoreConfirmOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" /> Confirmar restauración
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              Esto reemplazará <strong>todos los datos actuales</strong> de la empresa con los del backup seleccionado:
+            </p>
+            <p className="font-mono text-xs bg-muted rounded px-2 py-1 break-all">{selectedBackup}</p>
+            <p>
+              Se creará un snapshot automático del estado actual antes de proceder. Esta acción no se puede deshacer fácilmente.
+            </p>
+          </div>
+          <DialogFooter className="gap-2 pt-2">
+            <Button variant="outline" className="rounded-xl" onClick={() => setRestoreConfirmOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              className="rounded-xl"
+              disabled={backupBusy !== ""}
+              onClick={async () => {
+                setRestoreConfirmOpen(false);
+                setBackupBusy("restoring");
+                setBackupMsg(null);
+                try {
+                  const res = await appApi.backups.restore(selectedOrganization.id, selectedBackup);
+                  setBackupMsg({ type: "ok", text: `Restauración completada. ${res.restored_records} registros recuperados del backup del ${new Date(res.backup_date).toLocaleString("es-ES")}.` });
+                  setSelectedBackup("");
+                  // Refresh backup list (pre-restore snapshot was created)
+                  const data = await appApi.backups.list(selectedOrganization.id);
+                  setBackups(data?.backups ?? []);
+                } catch (e) {
+                  setBackupMsg({ type: "error", text: e?.message || "Error al restaurar el backup." });
+                } finally {
+                  setBackupBusy("");
+                }
+              }}
+            >
+              {backupBusy === "restoring" ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              Sí, restaurar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={hardDeleteOpen} onOpenChange={setHardDeleteOpen}>
         <DialogContent className="max-w-md rounded-2xl">

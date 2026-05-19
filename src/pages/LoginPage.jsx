@@ -43,8 +43,14 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-teal-50/40 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-4">
       <div className="w-full max-w-md rounded-xl border border-teal-900/10 bg-card text-card-foreground shadow-xl">
-        <div className="p-6 space-y-2 border-b border-border/60">
-          <h1 className="text-2xl font-semibold tracking-tight">FRIGEST</h1>
+        <div className="p-6 space-y-3 border-b border-border/60">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="FRIGEST" className="h-11 w-11 rounded-2xl shadow-md" />
+            <div>
+              <p className="text-lg font-black uppercase tracking-[0.22em]">FRIGEST</p>
+              <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-muted-foreground">Gestión Técnica</p>
+            </div>
+          </div>
           <p className="text-sm text-muted-foreground">
             Inicia sesión con tu cuenta corporativa. Los datos permanecen aislados por
             organización.
