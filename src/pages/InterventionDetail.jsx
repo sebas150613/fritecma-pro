@@ -55,10 +55,11 @@ export default function InterventionDetail() {
     duplicado:        { label: 'Duplicado (ya registrado)', color: 'text-amber-600' },
   }[status] || { label: status, color: 'text-muted-foreground' });
   const [showRectModal, setShowRectModal] = useState(false);
-  const [rectMode, setRectMode] = useState(null); // null | 'anular' | 'corregir'
+  const [rectMode, setRectMode] = useState(null); // null | 'anular' | 'corregir' | 'reabrir'
   const [rectificando, setRectificando] = useState(false);
   const [rectResult, setRectResult] = useState(null);
   const [rectMotivoAnular, setRectMotivoAnular] = useState("");
+  const [confirmingFacturar, setConfirmingFacturar] = useState(false);
   const [adminTipoHorario, setAdminTipoHorario] = useState('');
   const [adminTarifaOverride, setAdminTarifaOverride] = useState('');
   const [depCantidad, setDepCantidad] = useState(0);
@@ -205,14 +206,20 @@ export default function InterventionDetail() {
     }
   };
 
-  const handleValidateOption = async (mode) => {
+  const handleValidateOption = (mode) => {
     if (mode === "facturar" && intervention?.desplazamiento_pendiente_tarifa) {
       toast.error("Asigna el tramo de desplazamiento antes de facturar.");
       return;
     }
-    if (mode === "facturar" && !window.confirm("¿Estás seguro de que quieres facturar este parte? Esta acción es fiscalmente vinculante y genera un registro en la AEAT.")) {
+    if (mode === "facturar") {
+      setConfirmingFacturar(true);
       return;
     }
+    executeValidation(mode);
+  };
+
+  const executeValidation = async (mode) => {
+    setConfirmingFacturar(false);
     setValidating(true);
     try {
       const payload = { intervention_id: id, mode };
@@ -224,10 +231,17 @@ export default function InterventionDetail() {
       const data = res.data;
       setValidateResult(data);
       await loadData();
+      if (mode === 'guardar') {
+        await generateInvoicePdf(null, intervention).catch((pdfErr) =>
+          console.error("[generatePartePdf]", pdfErr)
+        );
+      }
     } catch (e) {
-      toast.error("No se pudo procesar la operación. Inténtalo de nuevo.");
+      console.error("[processVerifactu]", e);
+      toast.error(e?.message || "No se pudo procesar la operación. Inténtalo de nuevo.");
+    } finally {
+      setValidating(false);
     }
-    setValidating(false);
   };
 
   const handleRectificativaAnular = async () => {
@@ -257,6 +271,35 @@ export default function InterventionDetail() {
       toast.error("No se pudo anular la factura. Inténtalo de nuevo.");
     }
     setRectificando(false);
+  };
+
+  const handleReopenParte = async () => {
+    if (!rectMotivoAnular.trim()) return;
+    setRectificando(true);
+    try {
+      await appApi.entities.Intervention.update(id, {
+        status: 'pendiente_revision',
+        is_locked: false,
+        rectified_by_info: `${user?.full_name || user?.email || "Sistema"} · ${rectMotivoAnular} · Reapertura sin rectificativa fiscal`,
+      });
+      await appApi.entities.AuditLog.create({
+        action: 'modificacion',
+        entity_type: 'Intervention',
+        entity_id: id,
+        entity_reference: intervention.number,
+        user_email: user.email,
+        user_name: user.full_name,
+        changes_summary: `Parte reabierto sin rectificativa fiscal: ${rectMotivoAnular}`,
+        timestamp: new Date().toISOString(),
+      }).catch(() => {});
+      setRectResult({ reopen: true });
+      await loadData();
+    } catch (e) {
+      console.error("[handleReopenParte]", e);
+      toast.error(e?.message || "No se pudo reabrir el parte.");
+    } finally {
+      setRectificando(false);
+    }
   };
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin" || user?.role === "encargado";
@@ -341,17 +384,52 @@ export default function InterventionDetail() {
           </DialogHeader>
           {rectResult ? (
             <div className="space-y-4">
-              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-                <p className="font-semibold text-emerald-700 flex items-center gap-2"><Receipt className="h-4 w-4" /> Rectificativa generada</p>
-                <p className="text-sm text-emerald-700 mt-1">Nº {rectResult.invoice_number}</p>
-                <p className="text-xs text-emerald-600 mt-1">Rectifica: {invoice?.invoice_number}</p>
+              {rectResult.reopen ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <p className="font-semibold text-emerald-700 flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> Parte reabierto</p>
+                  <p className="text-xs text-emerald-600 mt-1">El parte vuelve a estado "Pendiente Revisión" y puede editarse y validarse de nuevo.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                    <p className="font-semibold text-emerald-700 flex items-center gap-2"><Receipt className="h-4 w-4" /> Rectificativa generada</p>
+                    <p className="text-sm text-emerald-700 mt-1">Nº {rectResult.invoice_number}</p>
+                    <p className="text-xs text-emerald-600 mt-1">Rectifica: {invoice?.invoice_number}</p>
+                  </div>
+                  <div className="text-xs font-mono bg-muted/50 p-3 rounded-xl space-y-1">
+                    <p className="text-muted-foreground">Hash SHA-256:</p>
+                    <p className="break-all">{rectResult.hash?.slice(0, 32)}...</p>
+                    <p className="text-muted-foreground mt-2">Estado Veri*factu: <span className="font-semibold">{rectResult.verifactu_status}</span></p>
+                  </div>
+                </>
+              )}
+              <Button onClick={() => { setShowRectModal(false); setRectResult(null); setRectMode(null); setRectMotivoAnular(""); }} className="w-full rounded-xl">Cerrar</Button>
+            </div>
+          ) : rectMode === 'reabrir' ? (
+            <div className="space-y-4 mt-2">
+              <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl">
+                <p className="text-xs font-semibold text-teal-800">Parte validado sin factura: {intervention.number}</p>
+                <p className="text-xs text-teal-700 mt-1">El parte se reabrirá a "Pendiente Revisión" sin generar ningún registro fiscal en AEAT.</p>
               </div>
-              <div className="text-xs font-mono bg-muted/50 p-3 rounded-xl space-y-1">
-                <p className="text-muted-foreground">Hash SHA-256:</p>
-                <p className="break-all">{rectResult.hash?.slice(0, 32)}...</p>
-                <p className="text-muted-foreground mt-2">Estado Veri*factu: <span className="font-semibold">{rectResult.verifactu_status}</span></p>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground">Motivo de reapertura *</label>
+                <textarea
+                  value={rectMotivoAnular}
+                  onChange={e => setRectMotivoAnular(e.target.value)}
+                  placeholder="Ej: Error en datos del cliente, importe incorrecto..."
+                  rows={2}
+                  className="w-full rounded-xl border border-input bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                />
               </div>
-              <Button onClick={() => { setShowRectModal(false); setRectResult(null); setRectMode(null); }} className="w-full rounded-xl">Cerrar</Button>
+              <Button
+                onClick={handleReopenParte}
+                disabled={rectificando || !rectMotivoAnular.trim()}
+                className="w-full rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-2"
+              >
+                {rectificando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                Reabrir Parte
+              </Button>
+              <Button variant="outline" onClick={() => setRectMode(null)} disabled={rectificando} className="w-full rounded-xl">Volver</Button>
             </div>
           ) : rectMode === 'corregir' ? (
             <RectificativaForm
@@ -363,7 +441,35 @@ export default function InterventionDetail() {
               }}
               onCancel={() => setRectMode(null)}
             />
+          ) : !invoice ? (
+            // Parte completado sin factura → solo reapertura
+            <div className="space-y-4 mt-2">
+              <div className="p-3 bg-teal-50 border border-teal-200 rounded-xl">
+                <p className="text-xs font-semibold text-teal-800">Parte archivado sin factura</p>
+                <p className="text-xs text-teal-700 mt-1">No existe registro fiscal que rectificar. Se reabrirá el parte para que puedas editarlo y validarlo de nuevo.</p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground">Motivo de reapertura *</label>
+                <textarea
+                  value={rectMotivoAnular}
+                  onChange={e => setRectMotivoAnular(e.target.value)}
+                  placeholder="Ej: Error en datos del cliente, importe incorrecto..."
+                  rows={2}
+                  className="w-full rounded-xl border border-input bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                />
+              </div>
+              <Button
+                onClick={handleReopenParte}
+                disabled={rectificando || !rectMotivoAnular.trim()}
+                className="w-full rounded-xl bg-teal-600 hover:bg-teal-700 text-white gap-2"
+              >
+                {rectificando ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                Reabrir Parte
+              </Button>
+              <Button variant="outline" onClick={() => setShowRectModal(false)} disabled={rectificando} className="w-full rounded-xl">Cancelar</Button>
+            </div>
           ) : (
+            // Parte facturado con Verifactu → anular o corregir
             <div className="space-y-4 mt-2">
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
                 <p className="text-xs font-semibold text-amber-800">Factura original: {invoice?.invoice_number}</p>
@@ -371,16 +477,16 @@ export default function InterventionDetail() {
               </div>
               <div className="grid grid-cols-1 gap-3">
                 <div className="space-y-2">
-                <label className="text-xs font-semibold text-muted-foreground">Motivo de anulación *</label>
-                <textarea
-                  value={rectMotivoAnular}
-                  onChange={e => setRectMotivoAnular(e.target.value)}
-                  placeholder="Ej: Error en facturación, duplicado, datos incorrectos..."
-                  rows={2}
-                  className="w-full rounded-xl border border-input bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-                />
-              </div>
-              <button
+                  <label className="text-xs font-semibold text-muted-foreground">Motivo de anulación *</label>
+                  <textarea
+                    value={rectMotivoAnular}
+                    onChange={e => setRectMotivoAnular(e.target.value)}
+                    placeholder="Ej: Error en facturación, duplicado, datos incorrectos..."
+                    rows={2}
+                    className="w-full rounded-xl border border-input bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+                  />
+                </div>
+                <button
                   onClick={handleRectificativaAnular}
                   disabled={rectificando || !rectMotivoAnular.trim()}
                   className="p-4 border-2 border-red-200 hover:border-red-400 rounded-xl text-left transition-all hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -404,19 +510,44 @@ export default function InterventionDetail() {
                 </div>
               )}
               <Button variant="outline" onClick={() => setShowRectModal(false)} disabled={rectificando} className="w-full rounded-xl">Cancelar</Button>
-              </div>
-              )
+            </div>
+          )
               }
               </DialogContent>
               </Dialog>
 
       {/* Validate Modal */}
-      <Dialog open={showValidateModal} onOpenChange={v => { if (!validating) { setShowValidateModal(v); setValidateResult(null); } }}>
+      <Dialog open={showValidateModal} onOpenChange={v => { if (!validating) { setShowValidateModal(v); setValidateResult(null); setConfirmingFacturar(false); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-600" /> Validar Parte</DialogTitle>
           </DialogHeader>
-          {!validateResult ? (
+          {confirmingFacturar ? (
+            <div className="space-y-4 mt-2">
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                <p className="font-semibold text-amber-800 flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" /> Confirmar facturación fiscal
+                </p>
+                <p className="text-sm text-amber-700">
+                  Esta acción es <strong>fiscalmente vinculante</strong>. Se generará un registro en la AEAT mediante Veri*Factu y el parte quedará <strong>bloqueado permanentemente</strong>.
+                </p>
+                <p className="text-xs text-amber-600">Cliente: {intervention.client_name} · Total: {(intervention.total || 0).toFixed(2)} €</p>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => executeValidation('facturar')}
+                  disabled={validating}
+                  className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
+                >
+                  {validating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Receipt className="h-4 w-4" />}
+                  Confirmar y Facturar
+                </Button>
+                <Button variant="outline" onClick={() => setConfirmingFacturar(false)} disabled={validating} className="flex-1 rounded-xl">
+                  Volver
+                </Button>
+              </div>
+            </div>
+          ) : !validateResult ? (
             <div className="space-y-4 mt-2">
               {/* Revisión de tarifa MO antes de facturar */}
               {intervention.tipo_horario && (
@@ -466,7 +597,7 @@ export default function InterventionDetail() {
                   className="p-4 border-2 border-border hover:border-muted-foreground rounded-xl text-left transition-all hover:bg-muted/50"
                 >
                   <p className="font-semibold flex items-center gap-2 text-muted-foreground"><CheckCircle2 className="h-5 w-5" /> Validar sin factura</p>
-                  <p className="text-xs text-muted-foreground mt-1">Para garantías, mantenimientos incluidos en cuota o partes internos. Se archiva sin registro fiscal.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Para garantías, mantenimientos incluidos en cuota o partes internos. Se archiva sin registro fiscal y genera un albarán PDF.</p>
                 </button>
               </div>
               {validating && (
@@ -580,7 +711,6 @@ export default function InterventionDetail() {
                 <SelectItem value="en_curso">En Curso</SelectItem>
                 <SelectItem value="pendiente_revision">Pendiente Revisión</SelectItem>
                 <SelectItem value="validado">Validado</SelectItem>
-                <SelectItem value="completado">Completado</SelectItem>
               </SelectContent>
             </Select>
             ) : (
@@ -616,8 +746,13 @@ export default function InterventionDetail() {
               {intervention.email_sent ? <><Check className="h-4 w-4 mr-1 text-emerald-600" />Email enviado</> : "Enviar Email"}
             </Button>
             {(invoiceAceptada || intervention?.status === 'facturado') && invoice && (
-              <Button variant="outline" onClick={() => { setShowRectModal(true); setRectMode(null); }} className="rounded-xl gap-2 border-amber-300 text-amber-700 hover:bg-amber-50">
+              <Button variant="outline" onClick={() => { setShowRectModal(true); setRectMode(null); setRectMotivoAnular(""); }} className="rounded-xl gap-2 border-amber-300 text-amber-700 hover:bg-amber-50">
                 <RotateCcw className="h-4 w-4" /> Rectificativa
+              </Button>
+            )}
+            {intervention?.status === 'completado' && !invoice && (
+              <Button variant="outline" onClick={() => { setShowRectModal(true); setRectMode(null); setRectMotivoAnular(""); }} className="rounded-xl gap-2 border-teal-300 text-teal-700 hover:bg-teal-50">
+                <RotateCcw className="h-4 w-4" /> Reabrir Parte
               </Button>
             )}
           </div>

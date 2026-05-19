@@ -7,6 +7,7 @@ const ML    = 14;
 const PW    = 210 - ML * 2;   // 182 mm
 const PH    = 297;
 const BLUE  = [30, 58, 95];
+const TEAL  = [15, 100, 90];
 const AMBER = [180, 100, 20];
 const GRAY  = [120, 120, 120];
 const LGRAY = [245, 246, 248];
@@ -37,17 +38,30 @@ async function fetchImageAsDataUrl(url) {
   });
 }
 
+async function fetchEmisor() {
+  const currentUser = await appApi.auth.me().catch(() => null);
+  return {
+    nombre:    currentUser?.verifactu_nombre || "FRIGEST S.L.",
+    nif:       currentUser?.verifactu_nif    || "",
+    direccion: currentUser?.emisor_direccion || "",
+    telefono:  currentUser?.emisor_telefono  || "",
+    logo_url:  currentUser?.emisor_logo_url  || "",
+  };
+}
+
 // ── Entrada principal ─────────────────────────────────────────────────────────
 export async function generateInvoicePdf(invoice, intervention) {
-  if (!invoice) { alert("No hay factura generada para este parte."); return; }
+  if (!invoice) {
+    await generatePartePdf(intervention);
+    return;
+  }
 
   const [clientList, currentUser] = await Promise.all([
     appApi.entities.Client.filter({ id: intervention.client_id }, "-created_date", 1).catch(() => []),
     appApi.auth.me().catch(() => null),
   ]);
 
-  const client    = clientList[0] || {};
-
+  const client = clientList[0] || {};
   const emisor = {
     nombre:    currentUser?.verifactu_nombre || "FRIGEST S.L.",
     nif:       currentUser?.verifactu_nif    || "",
@@ -60,10 +74,8 @@ export async function generateInvoicePdf(invoice, intervention) {
   const isRect = invoice.tipo_factura && invoice.tipo_factura !== "F1";
 
   if (isRect) {
-    // Página 1: Factura rectificativa
     await renderPage(doc, invoice, intervention, client, emisor, { isRectificativa: true });
 
-    // Página 2: Factura original como referencia
     if (invoice.factura_rectificada_id) {
       const origList = await appApi.entities.Invoice.filter(
         { id: invoice.factura_rectificada_id }, "-created_date", 1
@@ -71,11 +83,9 @@ export async function generateInvoicePdf(invoice, intervention) {
 
       if (origList.length > 0) {
         doc.addPage();
-        const origInvoice = origList[0];
-        await renderPage(doc, origInvoice, intervention, client, emisor, {
+        await renderPage(doc, origList[0], intervention, client, emisor, {
           isOriginalRef: true,
           rectificativaNumber: invoice.invoice_number,
-          // Bloque comparativo
           rectificativaInvoice: invoice,
         });
       }
@@ -87,17 +97,45 @@ export async function generateInvoicePdf(invoice, intervention) {
   doc.save(`Factura_${invoice.invoice_number.replace(/[/\\]/g, "-")}.pdf`);
 }
 
+// ── PDF para parte guardado sin factura ("Albarán de Trabajo") ────────────────
+async function generatePartePdf(intervention) {
+  const [clientList, emisor] = await Promise.all([
+    appApi.entities.Client.filter({ id: intervention.client_id }, "-created_date", 1).catch(() => []),
+    fetchEmisor(),
+  ]);
+  const client = clientList[0] || {};
+
+  // Objeto sintético que reutiliza renderPage con flag isParteSinFactura
+  const parteDoc = {
+    invoice_number: intervention.number,
+    serie: "PT",
+    tipo_factura: "F1",
+    issue_date: intervention.date || new Date().toISOString(),
+    lines_json: intervention.materials_json || "[]",
+    client_name: intervention.client_name,
+    client_nif: intervention.client_nif || "",
+    client_address: intervention.client_address || intervention.location_address || "",
+    subtotal: intervention.subtotal || 0,
+    iva_total: intervention.iva_total || 0,
+    total: intervention.total || 0,
+    verifactu_status: "__parte__",
+  };
+
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+  await renderPage(doc, parteDoc, intervention, client, emisor, { isParteSinFactura: true });
+  doc.save(`Parte_${intervention.number.replace(/[/\\]/g, "-")}.pdf`);
+}
+
 // ── Renderiza una página ──────────────────────────────────────────────────────
 async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
-  const { isRectificativa, isOriginalRef, rectificativaNumber, rectificativaInvoice } = opts;
+  const { isRectificativa, isOriginalRef, rectificativaNumber, rectificativaInvoice, isParteSinFactura } = opts;
   const lines      = (() => { try { return JSON.parse(inv.lines_json || "[]"); } catch { return []; } })();
   const isAceptado = ["aceptado", "aceptado_con_errores", "duplicado"].includes(inv.verifactu_status);
 
   // ── BANDA SUPERIOR ────────────────────────────────────────────────────────
-  const bandColor = isOriginalRef ? [50, 50, 50] : BLUE;
+  const bandColor = isOriginalRef ? [50, 50, 50] : isParteSinFactura ? TEAL : BLUE;
   fillRect(doc, 0, 0, 210, 32, bandColor);
 
-  // Título
   if (isOriginalRef) {
     sf(doc, 16, "bold", WHITE);
     doc.text("FACTURA ORIGINAL RECTIFICADA", ML, 13);
@@ -114,6 +152,11 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
       sf(doc, 7.5, "bold", [255, 180, 100]);
       doc.text(`Rectifica la factura: ${inv.factura_rectificada_number}`, ML, 27);
     }
+  } else if (isParteSinFactura) {
+    sf(doc, 18, "bold", WHITE);
+    doc.text("PARTE DE TRABAJO", ML, 14);
+    sf(doc, 9, "normal", [180, 230, 220]);
+    doc.text(`Parte Nº ${inv.invoice_number}  ·  ${moment(inv.issue_date).format("DD/MM/YYYY")}  ·  Sin carácter fiscal`, ML, 21);
   } else {
     sf(doc, 18, "bold", WHITE);
     doc.text("FACTURA", ML, 14);
@@ -140,6 +183,17 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
 
   let y = 40;
 
+  // ── AVISO "DOCUMENTO SIN CARÁCTER FISCAL" ────────────────────────────────
+  if (isParteSinFactura) {
+    const warnText = "Este documento es un albarán de trabajo y no tiene carácter fiscal. No sustituye a ninguna factura.";
+    const warnLines = doc.splitTextToSize(warnText, PW - 10);
+    const warnBoxH = warnLines.length * 5 + 7;
+    fillRect(doc, ML, y, PW, warnBoxH, [220, 245, 240], [100, 180, 160]);
+    sf(doc, 7.5, "bold", TEAL);
+    doc.text(warnLines, ML + PW / 2, y + 5.5, { align: "center" });
+    y += warnBoxH + 4;
+  }
+
   // ── AVISO "NO VIGENTE" si es original de referencia ──────────────────────
   if (isOriginalRef) {
     const warnText = `Esta factura ha sido rectificada y queda anulada. Documento válido: ${rectificativaNumber}`;
@@ -151,7 +205,7 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
     y += warnBoxH + 4;
   }
 
-  // ── MOTIVO DE RECTIFICACIÓN ──────────────────────────────────────────────
+  // ── EMISOR / CLIENTE ──────────────────────────────────────────────────────
   const colW = (PW - 6) / 2;
   const colR = ML + colW + 6;
   const boxH = 36;
@@ -161,7 +215,7 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
   doc.text("EMISOR", ML + 3, y + 5);
   doc.setDrawColor(200, 205, 215); doc.setLineWidth(0.2);
   doc.line(ML + 3, y + 6.5, ML + colW - 3, y + 6.5);
-  sf(doc, 9, "bold", BLUE);
+  sf(doc, 9, "bold", isParteSinFactura ? TEAL : BLUE);
   doc.text(emisor.nombre, ML + 3, y + 13);
   sf(doc, 8, "normal", DGRAY);
   let ey = y + 19;
@@ -173,7 +227,7 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
   sf(doc, 6.5, "bold", GRAY);
   doc.text("CLIENTE / DESTINATARIO", colR + 3, y + 5);
   doc.line(colR + 3, y + 6.5, colR + colW - 3, y + 6.5);
-  sf(doc, 9, "bold", BLUE);
+  sf(doc, 9, "bold", isParteSinFactura ? TEAL : BLUE);
   doc.text(inv.client_name || intervention.client_name || "", colR + 3, y + 13);
   sf(doc, 8, "normal", DGRAY);
   let cy = y + 19;
@@ -192,7 +246,6 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
     sf(doc, 7, "bold", [50, 70, 150]);
     doc.text("FACTURA RECTIFICADA:", ML + 3, y + 5.5);
     sf(doc, 7, "normal", DGRAY);
-    const refDate = inv.issue_date ? moment(inv.issue_date).format("DD/MM/YYYY") : "";
     doc.text(
       `Nº ${inv.factura_rectificada_number}  ·  Fecha emisión original: ver documento adjunto`,
       ML + 45, y + 5.5
@@ -202,7 +255,7 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
 
   // ── TABLA DE LÍNEAS ───────────────────────────────────────────────────────
   const ROW_H = 6.5;
-  const headerColor = isOriginalRef ? [60, 60, 60] : BLUE;
+  const headerColor = isOriginalRef ? [60, 60, 60] : isParteSinFactura ? TEAL : BLUE;
   fillRect(doc, ML, y, PW, 7.5, headerColor);
   sf(doc, 7.5, "bold", WHITE);
   doc.text("Descripción",   ML + 3,      y + 5);
@@ -307,15 +360,15 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
     ty += 6;
   });
 
-  const totalColor = isOriginalRef ? [60, 60, 60] : BLUE;
+  const totalColor = isOriginalRef ? [60, 60, 60] : isParteSinFactura ? TEAL : BLUE;
   fillRect(doc, TX, ty, TW, 10, totalColor);
   sf(doc, 11, "bold", WHITE);
   doc.text("TOTAL",                            TX + 4,      ty + 7);
   doc.text(`${(inv.total || 0).toFixed(2)} €`, TX + TW - 3, ty + 7, { align: "right" });
   ty += 10;
 
-  // ── VERI*FACTU (solo si aceptado y no es original de referencia) ──────────
-  if (isAceptado && !isOriginalRef) {
+  // ── VERI*FACTU (solo si aceptado y no es original de referencia ni parte sin factura) ──
+  if (isAceptado && !isOriginalRef && !isParteSinFactura) {
     ty += 4;
     fillRect(doc, ML, ty, PW, 26, LGRAY, [200, 210, 225]);
 
@@ -348,7 +401,8 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
   sf(doc, 6.5, "normal", GRAY);
   const footerLabel = isOriginalRef
     ? `Documento de referencia  ·  Rectificada por ${rectificativaNumber}  ·  ${emisor.nombre}${emisor.nif ? `  ·  NIF ${emisor.nif}` : ""}`
-    : `Emitido el ${moment().format("DD/MM/YYYY")}  ·  ${emisor.nombre}${emisor.nif ? `  ·  NIF ${emisor.nif}` : ""}`;
+    : isParteSinFactura
+      ? `Documento sin carácter fiscal  ·  ${emisor.nombre}${emisor.nif ? `  ·  NIF ${emisor.nif}` : ""}  ·  ${moment().format("DD/MM/YYYY")}`
+      : `Emitido el ${moment().format("DD/MM/YYYY")}  ·  ${emisor.nombre}${emisor.nif ? `  ·  NIF ${emisor.nif}` : ""}`;
   doc.text(footerLabel, ML + PW / 2, footerY, { align: "center" });
 }
-
