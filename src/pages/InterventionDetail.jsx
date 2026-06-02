@@ -581,12 +581,20 @@ export default function InterventionDetail() {
                 </div>
               )}
 
+              {intervention?.desplazamiento_pendiente_tarifa && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2 text-amber-800">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <p className="text-xs leading-snug">
+                    <strong>Tramo de desplazamiento sin tarifa.</strong> Asigna el tramo en la sección de desplazamiento antes de poder facturar.
+                  </p>
+                </div>
+              )}
               <p className="text-sm text-muted-foreground">Selecciona cómo deseas cerrar este parte:</p>
               <div className="grid grid-cols-1 gap-3">
                 <button
                   onClick={() => handleValidateOption('facturar')}
-                  disabled={validating}
-                  className="p-4 border-2 border-accent bg-accent/5 hover:bg-accent/10 rounded-xl text-left transition-all"
+                  disabled={validating || !!intervention?.desplazamiento_pendiente_tarifa}
+                  className="p-4 border-2 border-accent bg-accent/5 hover:bg-accent/10 rounded-xl text-left transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-accent/5"
                 >
                   <p className="font-semibold flex items-center gap-2"><Receipt className="h-5 w-5 text-accent" /> Facturar con Veri*factu</p>
                   <p className="text-xs text-muted-foreground mt-1">Genera factura con hash encadenado, envía a la AEAT y bloquea el parte. Cumple Ley Antifraude.</p>
