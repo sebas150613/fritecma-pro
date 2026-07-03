@@ -157,8 +157,8 @@ export default function WorkDayReport() {
     <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Jornadas</h1>
-          <p className="text-sm text-muted-foreground">Registro de actividad y liquidación</p>
+          <h1 className="text-2xl font-bold tracking-tight">Horas por cliente/obra</h1>
+          <p className="text-sm text-muted-foreground">Actividad interna de los técnicos y liquidación (no es el registro legal de fichajes)</p>
         </div>
         <Button variant="outline" onClick={() => generateCSV(filtered)} className="rounded-xl gap-2">
           <Download className="h-4 w-4" /> Exportar CSV

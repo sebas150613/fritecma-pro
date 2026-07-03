@@ -292,9 +292,16 @@ export default function Materials() {
           {isAdmin ? "Stock / Materiales" : "Catálogo de Materiales"}
         </h1>
         {isAdmin && (
-          <Button onClick={() => setFamiliesOpen(true)} variant="outline" className="rounded-xl px-4 gap-2">
-            <Layers className="h-4 w-4" /> Familias
-          </Button>
+          <div className="flex gap-2">
+            <Link to="/stock-movements">
+              <Button variant="outline" className="rounded-xl px-4 gap-2">
+                <History className="h-4 w-4" /> Movimientos
+              </Button>
+            </Link>
+            <Button onClick={() => setFamiliesOpen(true)} variant="outline" className="rounded-xl px-4 gap-2">
+              <Layers className="h-4 w-4" /> Familias
+            </Button>
+          </div>
         )}
         {canCreate && (
           <div className="flex gap-2">

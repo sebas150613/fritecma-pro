@@ -24,7 +24,10 @@ import {
   Truck,
   ShoppingCart,
   ShoppingBag,
-  Wrench
+  Wrench,
+  Receipt,
+  BarChart3,
+  MapPin
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -32,47 +35,52 @@ import { cn } from "@/lib/utils";
 
 const adminLinks = [
   { to: "/", label: "Panel", icon: LayoutDashboard },
-  { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
+  { to: "/fichaje", label: "Fichar entrada/salida", icon: Fingerprint },
   { to: "/breakdowns", label: "Averías", icon: Wrench },
   { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
-  { to: "/materials", label: "Stock / Materiales", icon: Package },
-  { to: "/clients", label: "Clientes", icon: Users },
   { to: "/calendar", label: "Calendario", icon: CalendarDays },
-  { to: "/time-records", label: "Registro Fichajes", icon: Clock },
-  { to: "/workday-report", label: "Jornadas", icon: CalendarDays },
+  { to: "/clients", label: "Clientes", icon: Users },
+  { to: "/materials", label: "Stock / Materiales", icon: Package },
+  { to: "/stock-entry", label: "Recepción de material", icon: PackagePlus },
+  { to: "/material-requests", label: "Solicitudes de material", icon: ShoppingCart },
+  { to: "/suppliers", label: "Proveedores", icon: Truck },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
-  { to: "/stock-entry", label: "Entrada Stock", icon: PackagePlus },
-  { to: "/suppliers", label: "Proveedores", icon: Truck },
+  { to: "/invoices", label: "Facturación", icon: Receipt },
+  { to: "/time-records", label: "Historial de fichajes", icon: Clock },
+  { to: "/workday-report", label: "Horas por cliente/obra", icon: BarChart3 },
   { to: "/settings", label: "Configuración", icon: Settings },
 ];
 
 const oficinaLinks = [
   { to: "/", label: "Panel", icon: LayoutDashboard },
-  { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
+  { to: "/fichaje", label: "Fichar entrada/salida", icon: Fingerprint },
   { to: "/breakdowns", label: "Averías", icon: Wrench },
   { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
-  { to: "/materials", label: "Stock / Materiales", icon: Package },
-  { to: "/clients", label: "Clientes", icon: Users },
   { to: "/calendar", label: "Calendario", icon: CalendarDays },
-  { to: "/time-records", label: "Registro Fichajes", icon: Clock },
-  { to: "/workday-report", label: "Jornadas", icon: CalendarDays },
+  { to: "/clients", label: "Clientes", icon: Users },
+  { to: "/materials", label: "Stock / Materiales", icon: Package },
+  { to: "/stock-entry", label: "Recepción de material", icon: PackagePlus },
+  { to: "/material-requests", label: "Solicitudes de material", icon: ShoppingCart },
+  { to: "/suppliers", label: "Proveedores", icon: Truck },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
-  { to: "/stock-entry", label: "Entrada Stock", icon: PackagePlus },
-  { to: "/suppliers", label: "Proveedores", icon: Truck },
+  { to: "/invoices", label: "Facturación", icon: Receipt },
+  { to: "/time-records", label: "Historial de fichajes", icon: Clock },
+  { to: "/workday-report", label: "Horas por cliente/obra", icon: BarChart3 },
+  { to: "/settings", label: "Configuración", icon: Settings },
 ];
 
 const techLinks = [
-  { to: "/", label: "Mis Partes", icon: LayoutDashboard },
-  { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
+  { to: "/", label: "Inicio", icon: LayoutDashboard },
+  { to: "/fichaje", label: "Fichar entrada/salida", icon: Fingerprint },
   { to: "/breakdowns", label: "Averías", icon: Wrench },
   { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
-  { to: "/workday", label: "Mi Jornada", icon: CalendarDays },
+  { to: "/workday", label: "Mi actividad por cliente", icon: MapPin },
   { to: "/calendar", label: "Calendario", icon: CalendarDays },
   { to: "/clients", label: "Clientes", icon: Users },
   { to: "/materials", label: "Stock / Materiales", icon: Package },
-  { to: "/stock-entry", label: "Entrada Stock", icon: PackagePlus },
+  { to: "/stock-entry", label: "Recepción de material", icon: PackagePlus },
   { to: "/material-requests", label: "Pedir Material", icon: ShoppingCart },
   { to: "/suppliers", label: "Proveedores", icon: Truck },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
@@ -82,10 +90,10 @@ const techLinks = [
 
 const ayudanteLinks = [
   { to: "/", label: "Panel", icon: LayoutDashboard },
-  { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
+  { to: "/fichaje", label: "Fichar entrada/salida", icon: Fingerprint },
   { to: "/breakdowns", label: "Averías", icon: Wrench },
   { to: "/interventions", label: "Partes de Trabajo", icon: ClipboardList },
-  { to: "/workday", label: "Mi Jornada", icon: CalendarDays },
+  { to: "/workday", label: "Mi actividad por cliente", icon: MapPin },
   { to: "/calendar", label: "Calendario", icon: CalendarDays },
   { to: "/clients", label: "Clientes", icon: Users },
   { to: "/suppliers", label: "Proveedores", icon: Truck },
@@ -101,13 +109,13 @@ const ownerLinks = [
 
 const TAB_ROOTS = ["/", "/interventions", "/fichaje", "/settings"];
 
-const pedidosLink = { to: "/purchase-orders", label: "Pedidos", icon: ShoppingBag };
+const pedidosLink = { to: "/purchase-orders", label: "Pedidos a proveedor", icon: ShoppingBag };
 
 const injectPedidos = (links, show) => {
   if (!show) {
     return links;
   }
-  const idx = links.findIndex((l) => l.to === "/settings");
+  const idx = links.findIndex((l) => l.to === "/suppliers" || l.to === "/settings");
   if (idx === -1) {
     return [...links, pedidosLink];
   }
@@ -316,7 +324,7 @@ export default function Layout() {
         {[
           { to: "/", label: "Panel", icon: LayoutDashboard },
           { to: "/interventions", label: "Partes", icon: ClipboardList },
-          { to: "/fichaje", label: "Fichaje", icon: Fingerprint },
+          { to: "/fichaje", label: "Fichar", icon: Fingerprint },
           { to: "/settings", label: "Config", icon: Settings },
         ].map((item) => {
           const isActive = item.to === "/"

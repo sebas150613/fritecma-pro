@@ -14,6 +14,7 @@ const TYPE_LABELS = {
   ajuste_manual: { label: "Ajuste Manual", color: "bg-blue-100 text-blue-700 border-blue-200", icon: ArrowUpDown },
   salida_obra: { label: "Salida Obra", color: "bg-orange-100 text-orange-700 border-orange-200", icon: TrendingDown },
   entrada_obra: { label: "Retorno Obra", color: "bg-teal-100 text-teal-700 border-teal-200", icon: TrendingUp },
+  entrada_albaran: { label: "Entrada Albarán", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: TrendingUp },
 };
 
 export default function StockMovements() {

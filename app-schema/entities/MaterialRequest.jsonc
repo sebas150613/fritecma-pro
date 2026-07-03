@@ -71,6 +71,14 @@
     "resolution_notes": {
       "type": "string",
       "title": "Notas Resoluci\u00f3n"
+    },
+    "purchase_order_id": {
+      "type": "string",
+      "title": "ID Pedido a proveedor vinculado"
+    },
+    "purchase_order_number": {
+      "type": "string",
+      "title": "N\u00ba Pedido a proveedor vinculado"
     }
   },
   "required": [

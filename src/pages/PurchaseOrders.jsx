@@ -85,20 +85,24 @@ export default function PurchaseOrders() {
 
   const [issueDialog, setIssueDialog] = useState({ open: false, orderId: "", notes: "" });
   const [statusBusy, setStatusBusy] = useState("");
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [selectedRequestIds, setSelectedRequestIds] = useState([]);
 
   const loadAll = async () => {
     const me = await appApi.auth.me();
     setUser(me);
-    const [listRes, sup, mat, proj] = await Promise.all([
+    const [listRes, sup, mat, proj, reqs] = await Promise.all([
       appApi.purchaseOrders.list(),
       appApi.entities.Supplier.list("name", 300),
       appApi.entities.Material.list("name", 800),
       appApi.entities.Project.list("name", 200),
+      appApi.entities.MaterialRequest.filter({ status: "aprobado" }).catch(() => []),
     ]);
     setOrders(listRes?.orders || []);
     setSuppliers(sup);
     setMaterials(mat);
     setProjects((proj || []).filter((p) => p.status === "en_curso"));
+    setPendingRequests((reqs || []).filter((r) => !r.purchase_order_id));
     setLoading(false);
   };
 
@@ -267,7 +271,74 @@ export default function PurchaseOrders() {
     setDeliveryType("company_address");
     setProjectId("");
     setDeliveryAddressManual("");
+    setSelectedRequestIds([]);
     await loadAll();
+  };
+
+  const linkSelectedRequests = async (order) => {
+    if (!order?.id || selectedRequestIds.length === 0) return;
+    try {
+      await Promise.all(
+        selectedRequestIds.map((id) =>
+          appApi.entities.MaterialRequest.update(id, {
+            purchase_order_id: order.id,
+            purchase_order_number: order.number || "",
+          })
+        )
+      );
+      toast.success(`${selectedRequestIds.length} solicitud(es) vinculadas al pedido ${order.number || ""}.`);
+    } catch {
+      toast.error("El pedido se creó, pero no se pudieron vincular algunas solicitudes.");
+    }
+  };
+
+  const toggleRequestSelected = (id) => {
+    setSelectedRequestIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const startOrderFromRequests = () => {
+    const selected = pendingRequests.filter((r) => selectedRequestIds.includes(r.id));
+    if (selected.length === 0) {
+      toast.error("Marca al menos una solicitud.");
+      return;
+    }
+    const newLines = [];
+    const unmatched = [];
+    selected.forEach((r) => {
+      const desc = String(r.description || "").trim().toLowerCase();
+      const mat = materials.find((m) => {
+        const code = String(m.code || "").trim().toLowerCase();
+        const name = String(m.name || "").trim().toLowerCase();
+        return (code && desc.includes(code)) || (name && desc && (desc.includes(name) || name === desc));
+      });
+      if (mat) {
+        newLines.push({
+          material_id: mat.id,
+          material_code: mat.code || "",
+          material_name: mat.name || "",
+          unit: mat.unit || "ud",
+          quantity: Number(r.quantity) || 1,
+          observation: `Solicitud de ${r.technician_name || r.technician_email}`,
+        });
+      } else {
+        unmatched.push(r);
+      }
+    });
+    setLines(newLines);
+    setNotes(
+      unmatched.length
+        ? "Solicitudes sin material en catálogo (añadir línea a mano):\n" +
+            unmatched
+              .map((r) => `• ${r.technician_name || r.technician_email}: ${r.quantity} ${r.unit || "ud"} — ${r.description}`)
+              .join("\n")
+        : ""
+    );
+    setDialogOpen(true);
+    if (unmatched.length) {
+      toast(`${unmatched.length} solicitud(es) sin coincidencia en catálogo: revisa las observaciones del pedido.`);
+    }
   };
 
   const submitOrderWithMethod = async (submitMethod) => {
@@ -275,7 +346,8 @@ export default function PurchaseOrders() {
     setSending(true);
     try {
       try {
-        await appApi.purchaseOrders.send(body);
+        const sendResult = await appApi.purchaseOrders.send(body);
+        await linkSelectedRequests(sendResult?.order);
         if (submitMethod === "email") {
           toast.success("Pedido tramitado y enviado al proveedor por correo.");
         } else {
@@ -285,6 +357,7 @@ export default function PurchaseOrders() {
         }
       } catch (e) {
         if (e?.status === 502 && e?.data?.order) {
+          await linkSelectedRequests(e.data.order);
           toast.error(e?.message || "No se pudo enviar el correo; el pedido quedó registrado.");
         } else {
           throw e;
@@ -360,7 +433,7 @@ export default function PurchaseOrders() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <ShoppingBag className="h-7 w-7 text-accent" /> Pedidos
+            <ShoppingBag className="h-7 w-7 text-accent" /> Pedidos a proveedor
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Registra pedidos con PDF: envío por correo (SMTP propio en Configuración → Pedidos) o solo en aplicación si ya lo gestionaste con el comercial presencial o por teléfono.
@@ -379,6 +452,55 @@ export default function PurchaseOrders() {
           Para <strong>enviar el pedido por correo</strong> al proveedor necesitas el SMTP de pedidos en
           Configuración. Si el pedido ya lo hiciste con el comercial (presencial o teléfono), puedes
           tramitarlo igualmente con «Pedido realizado al comercial» sin SMTP.
+        </div>
+      )}
+
+      {pendingRequests.length > 0 && (
+        <div className="rounded-2xl border border-accent/30 bg-accent/5 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-sm">
+                Solicitudes de material aprobadas sin pedido ({pendingRequests.length})
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Marca las que quieras incluir y crea el pedido: quedarán vinculadas automáticamente.
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+              disabled={selectedRequestIds.length === 0}
+              onClick={startOrderFromRequests}
+            >
+              Crear pedido con seleccionadas ({selectedRequestIds.length})
+            </Button>
+          </div>
+          <ul className="space-y-1">
+            {pendingRequests.map((r) => (
+              <li key={r.id}>
+                <label className="flex items-start gap-3 text-sm rounded-xl px-3 py-2 hover:bg-muted/40 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 accent-current"
+                    checked={selectedRequestIds.includes(r.id)}
+                    onChange={() => toggleRequestSelected(r.id)}
+                  />
+                  <span className="min-w-0">
+                    <span className="font-medium">{r.description}</span>{" "}
+                    <span className="text-muted-foreground">
+                      × {r.quantity} {r.unit || "ud"}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      {r.technician_name || r.technician_email}
+                      {r.created_date ? ` · ${new Date(r.created_date).toLocaleDateString("es-ES")}` : ""}
+                      {r.urgency && r.urgency !== "normal" ? ` · ${r.urgency === "muy_urgente" ? "MUY URGENTE" : "Urgente"}` : ""}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -544,6 +666,11 @@ export default function PurchaseOrders() {
           <DialogHeader>
             <DialogTitle>Nuevo pedido</DialogTitle>
           </DialogHeader>
+          {selectedRequestIds.length > 0 && (
+            <p className="text-xs rounded-xl border border-accent/30 bg-accent/5 px-3 py-2">
+              Al tramitar, se vincularán {selectedRequestIds.length} solicitud(es) de material a este pedido.
+            </p>
+          )}
           <div className="space-y-4">
             <div>
               <Label>Proveedor</Label>

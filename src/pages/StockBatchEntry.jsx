@@ -9,6 +9,15 @@ import { toast } from "sonner";
 
 const EMPTY_LINE = { materialId: "", materialName: "", materialCode: "", currentStock: 0, unit: "ud", quantity: "", supplierId: "", supplierName: "" };
 
+function parseOrderLines(json) {
+  try {
+    const p = JSON.parse(json || "[]");
+    return Array.isArray(p) ? p : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function StockBatchEntry() {
   const [user, setUser] = useState(null);
   const [materials, setMaterials] = useState([]);
@@ -18,15 +27,60 @@ export default function StockBatchEntry() {
   const [saving, setSaving] = useState(false);
   const [searchTerms, setSearchTerms] = useState({});
   const [openDropdown, setOpenDropdown] = useState(null);
+  const [openOrders, setOpenOrders] = useState([]);
+  const [selectedOrderId, setSelectedOrderId] = useState("");
+  const [markDelivered, setMarkDelivered] = useState(true);
 
   useEffect(() => {
     appApi.auth.me().then(setUser).catch(() => toast.error("Error al cargar tu perfil"));
     appApi.entities.Material.filter({ is_active: true }).then(setMaterials).catch(() => toast.error("Error al cargar materiales"));
     appApi.entities.Supplier.filter({ is_active: true }).then(setSuppliers).catch(() => toast.error("Error al cargar proveedores"));
+    // Pedidos pendientes de entrega, para recepcionar contra pedido (solo roles con acceso a pedidos)
+    appApi.purchaseOrders
+      .list()
+      .then((res) =>
+        setOpenOrders(
+          (res?.orders || []).filter((o) => o.status === "pending_delivery" || o.status === "send_error")
+        )
+      )
+      .catch(() => setOpenOrders([]));
   }, []);
 
   const isTecnico = user?.role === "user" || user?.role === "tecnico";
   const savePending = isTecnico;
+
+  const selectedOrder = openOrders.find((o) => o.id === selectedOrderId) || null;
+
+  const applyOrder = (orderId) => {
+    setSelectedOrderId(orderId);
+    const order = openOrders.find((o) => o.id === orderId);
+    if (!order) return;
+    const orderLines = parseOrderLines(order.lines_json);
+    if (orderLines.length === 0) {
+      toast.error("El pedido no tiene líneas legibles.");
+      return;
+    }
+    const now = Date.now();
+    const newLines = orderLines.map((ol, idx) => {
+      const mat = materials.find((m) => m.id === ol.material_id);
+      return {
+        id: now + idx,
+        materialId: ol.material_id,
+        materialName: ol.material_name || mat?.name || "",
+        materialCode: ol.material_code || mat?.code || "",
+        currentStock: mat?.stock_quantity || 0,
+        unit: ol.unit || mat?.unit || "ud",
+        quantity: String(ol.quantity || ""),
+        supplierId: order.supplier_id || "",
+        supplierName: order.supplier_name || "",
+      };
+    });
+    setLines(newLines);
+    setSearchTerms(
+      Object.fromEntries(newLines.map((l) => [l.id, l.materialName]))
+    );
+    toast.success(`${newLines.length} línea(s) cargadas del pedido ${order.number}. Ajusta cantidades si la entrega es parcial.`);
+  };
 
   const filteredMaterials = (lineId) => {
     const term = (searchTerms[lineId] || "").toLowerCase();
@@ -80,6 +134,11 @@ export default function StockBatchEntry() {
         const qty = parseFloat(line.quantity);
         const mat = materials.find(m => m.id === line.materialId);
 
+        const orderRef = selectedOrder
+          ? { purchase_order_id: selectedOrder.id, purchase_order_number: selectedOrder.number || "" }
+          : {};
+        const orderNote = selectedOrder ? ` — Pedido ${selectedOrder.number}` : "";
+
         if (savePending) {
           // Técnico: guardar como pendiente, sin tocar el stock todavía
           await appApi.entities.StockEntry.create({
@@ -94,7 +153,8 @@ export default function StockBatchEntry() {
             technician_email: user?.email || "",
             technician_name: user?.full_name || "",
             status: "pendiente",
-            notes: `Albarán ${albaran.trim()}`,
+            notes: `Albarán ${albaran.trim()}${orderNote}`,
+            ...orderRef,
           });
         } else {
           // Admin/Encargado: actualizar stock directamente y marcar como validado
@@ -111,9 +171,10 @@ export default function StockBatchEntry() {
             albaran_number: albaran.trim(),
             technician_email: user?.email || "",
             technician_name: user?.full_name || "",
-            notes: line.supplierName ? `Albarán ${albaran.trim()} — Proveedor: ${line.supplierName}` : `Albarán ${albaran.trim()} — Entrada lote manual`,
+            notes: (line.supplierName ? `Albarán ${albaran.trim()} — Proveedor: ${line.supplierName}` : `Albarán ${albaran.trim()} — Entrada lote manual`) + orderNote,
             supplier_id: line.supplierId || undefined,
             supplier_name: line.supplierName || undefined,
+            ...orderRef,
           });
           await appApi.entities.StockEntry.create({
             albaran_number: albaran.trim(),
@@ -130,8 +191,19 @@ export default function StockBatchEntry() {
             validated_by: user?.email,
             validated_by_name: user?.full_name,
             validated_at: new Date().toISOString(),
-            notes: `Albarán ${albaran.trim()}`,
+            notes: `Albarán ${albaran.trim()}${orderNote}`,
+            ...orderRef,
           });
+        }
+      }
+
+      // Marcar el pedido como entregado si se recepcionó contra pedido
+      if (selectedOrder && markDelivered && !savePending) {
+        try {
+          await appApi.purchaseOrders.updateStatus(selectedOrder.id, { status: "delivered" });
+          setOpenOrders((prev) => prev.filter((o) => o.id !== selectedOrder.id));
+        } catch {
+          toast.error("Stock registrado, pero no se pudo marcar el pedido como entregado.");
         }
       }
 
@@ -146,6 +218,7 @@ export default function StockBatchEntry() {
       setLines([{ ...EMPTY_LINE, id: Date.now() }]);
       setSearchTerms({});
       setAlbaran("");
+      setSelectedOrderId("");
     } catch (e) {
       toast.error("Error al guardar: " + e.message);
     } finally {
@@ -158,7 +231,7 @@ export default function StockBatchEntry() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
           <Package className="h-6 w-6 text-accent" />
-          Entrada de Stock por Lote
+          Recepción de material
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
           {savePending
@@ -172,6 +245,54 @@ export default function StockBatchEntry() {
           </div>
         )}
       </div>
+
+      {/* Recepción contra pedido a proveedor */}
+      {openOrders.length > 0 && (
+        <div className="mb-4 p-4 bg-card border border-border rounded-xl space-y-2">
+          <label className="text-sm font-semibold">Recepcionar contra pedido a proveedor (opcional)</label>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <Select
+              value={selectedOrderId || "__none__"}
+              onValueChange={(v) => {
+                if (v === "__none__") {
+                  setSelectedOrderId("");
+                } else {
+                  applyOrder(v);
+                }
+              }}
+            >
+              <SelectTrigger className="w-full sm:w-96 text-sm">
+                <SelectValue placeholder="Sin pedido — entrada manual" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Sin pedido — entrada manual</SelectItem>
+                {openOrders.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.number} · {o.supplier_name} · {parseOrderLines(o.lines_json).length} líneas
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedOrder && !savePending && (
+              <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={markDelivered}
+                  onChange={(e) => setMarkDelivered(e.target.checked)}
+                />
+                Marcar pedido como entregado al confirmar
+              </label>
+            )}
+          </div>
+          {selectedOrder && (
+            <p className="text-xs text-muted-foreground">
+              Líneas precargadas del pedido {selectedOrder.number}. Si la entrega es parcial, ajusta las cantidades y
+              desmarca «Marcar pedido como entregado».
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Albaran number */}
       <div className="mb-4 flex items-center gap-3 p-4 bg-card border border-border rounded-xl">

@@ -155,7 +155,10 @@ export default function TimeRecords() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Clock className="h-6 w-6 text-accent" />
-          <h1 className="text-2xl font-bold tracking-tight">Registro de Jornada</h1>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Historial de fichajes</h1>
+            <p className="text-sm text-muted-foreground">Registro legal de jornada (entradas y salidas)</p>
+          </div>
         </div>
         <Button onClick={downloadCSV} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
           <Download className="h-4 w-4 mr-2" /> Exportar Excel (.csv)

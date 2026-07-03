@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, CheckCircle2, Circle, Calendar as CalendarIcon } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Circle, Calendar as CalendarIcon, UserX } from "lucide-react";
 import moment from "moment";
 
 const EVENT_TYPES = { tarea: "Tarea", cita: "Cita", recordatorio: "Recordatorio", mantenimiento: "Mantenimiento", otro: "Otro" };
@@ -195,9 +196,18 @@ export default function Calendar() {
             {isEncargado ? "Vista maestra - Todos los técnicos" : `Mi calendario - ${user?.full_name}`}
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)} className="rounded-xl gap-2 bg-accent hover:bg-accent/90">
-          <Plus className="h-4 w-4" /> Nuevo Evento
-        </Button>
+        <div className="flex gap-2">
+          {isEncargado && (
+            <Link to="/absences">
+              <Button variant="outline" className="rounded-xl gap-2">
+                <UserX className="h-4 w-4" /> Ausencias
+              </Button>
+            </Link>
+          )}
+          <Button onClick={() => setDialogOpen(true)} className="rounded-xl gap-2 bg-accent hover:bg-accent/90">
+            <Plus className="h-4 w-4" /> Nuevo Evento
+          </Button>
+        </div>
       </div>
 
       {/* Controles de mes */}

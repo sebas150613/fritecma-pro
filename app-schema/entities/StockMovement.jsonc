@@ -69,6 +69,14 @@
     "notes": {
       "type": "string",
       "title": "Notas"
+    },
+    "purchase_order_id": {
+      "type": "string",
+      "title": "ID Pedido a proveedor"
+    },
+    "purchase_order_number": {
+      "type": "string",
+      "title": "Nº Pedido a proveedor"
     }
   },
   "required": [

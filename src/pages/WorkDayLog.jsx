@@ -161,8 +161,8 @@ export default function WorkDayLog() {
     <div className="p-4 lg:p-8 max-w-2xl mx-auto space-y-6 pb-28">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Registro de Jornada</h1>
-          <p className="text-sm text-muted-foreground">{user.full_name}</p>
+          <h1 className="text-2xl font-bold tracking-tight">Mi actividad por cliente</h1>
+          <p className="text-sm text-muted-foreground">Reparte tu tiempo real entre clientes y obras (control interno) · {user.full_name}</p>
         </div>
         <Input
           type="date"

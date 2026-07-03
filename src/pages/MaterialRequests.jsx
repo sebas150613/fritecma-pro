@@ -104,7 +104,11 @@ export default function MaterialRequests() {
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <ClipboardList className="h-6 w-6 text-accent" /> Solicitudes de Material
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Pide materiales o herramientas al encargado</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            {canApprove
+              ? "Aprueba solicitudes y conviértelas en pedido desde «Pedidos a proveedor»"
+              : "Pide materiales o herramientas al encargado"}
+          </p>
         </div>
         <Button onClick={() => setDialogOpen(true)} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl gap-2">
           <Plus className="h-4 w-4" /> Nueva Solicitud
@@ -150,6 +154,11 @@ export default function MaterialRequests() {
                 {r.notes && <p className="text-xs text-muted-foreground mt-1">Notas: {r.notes}</p>}
                 {r.resolution_notes && (
                   <p className="text-xs text-muted-foreground mt-1 italic">Resp. encargado: {r.resolution_notes}</p>
+                )}
+                {r.purchase_order_number && (
+                  <Badge variant="outline" className="mt-1 text-xs bg-blue-50 text-blue-700 border-blue-200">
+                    En pedido {r.purchase_order_number}
+                  </Badge>
                 )}
               </div>
               <div className="flex items-center gap-2 shrink-0">
