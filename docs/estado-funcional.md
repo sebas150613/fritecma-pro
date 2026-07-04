@@ -1,8 +1,35 @@
 # Estado funcional FriGest
 
-Última actualización: 2026-07-04 (commit `fc1798b`)
+Última actualización: 2026-07-04 (commit `7fc4f36`)
 
 ## Implementado y en producción
+
+### Stock por vehículo (2026-07-04)
+- Entidades `Vehicle` y `VehicleStock`; página `/my-vehicle` ("Mi Vehículo") en el menú de todos los roles.
+- Técnico ve el material de su furgoneta (preseleccionada si tiene una asignada), añade material
+  del almacén (descuenta del stock general) y devuelve al almacén.
+- Admin/oficina/encargado crean y editan vehículos (nombre, matrícula, técnico habitual).
+- En los partes: selector "Origen del material" por línea, **Almacén/Taller por defecto**; si se
+  elige furgoneta se descuenta de ella y el stock general no se toca. No aplica a mano de obra,
+  desplazamiento ni gas (va por botellas).
+- Historial completo en Movimientos de Stock: tipos `traspaso_a_vehiculo`, `traspaso_a_almacen`,
+  `salida_parte_vehiculo`, siempre con autor, fecha y furgoneta; buscable por nombre de furgoneta.
+- Sin bloqueo por stock insuficiente: aviso y descuadre en negativo visible en la furgoneta.
+
+### Regla de precios por rol (2026-07-04)
+- `tecnico`/`ayudante`/`user` no ven NINGUNA valoración: ni material, ni gas, ni horas,
+  ni desplazamiento, ni totales.
+- `superadmin`/`admin`/`oficina`/`encargado` ven todos los precios.
+- Fix aplicado: oficina/encargado ahora también ven precios por línea en Nuevo Parte.
+- Flags a reutilizar en UIs nuevas: `canSeeBillingTotals`, `canSeePrices`, `canEditPrices`, `isFieldStaff`.
+
+### Fichas de máquinas por cliente (2026-07-04)
+- Entidad `Machine`: nombre, tipo (cámara/vitrina/compresor/clima/otro), marca, modelo, nº serie,
+  gas y carga, fechas de instalación/garantía, ubicación, estado activa/retirada.
+- Sección "Máquinas" en la ficha de cliente: añadir/editar/eliminar para **todos los roles**.
+  Al eliminar se sugiere marcar "Retirada" para conservar el historial.
+- Nueva avería y nuevo parte: desplegable de máquina filtrado por centro de trabajo; el parte
+  hereda la máquina de la avería. Historial de averías y partes por máquina.
 
 ### Presupuestos (2026-07-04)
 - Entidad `Budget` + página `/budgets` para admin/superadmin/encargado/oficina.
@@ -13,8 +40,6 @@
   Desplazamiento, pero se mantienen Materiales y Gas para control de stock y trazabilidad F-Gas.
 - Al guardar, el presupuesto pasa a "parte generado" con enlace bidireccional
   (`budget_id`/`budget_number` en `Intervention`, `intervention_id`/`intervention_number` en `Budget`).
-- Sin valoración económica para técnico/ayudante en partes: sin precios por línea ni
-  subtotal/IVA/total en formulario y detalle. Técnico/ayudante tampoco ven la página de presupuestos.
 
 ### Anterior (commit `6237d24`, 2026-07-03)
 - Página Facturación (listado de facturas).
@@ -26,13 +51,9 @@
 
 1. **Proveedores dentro de Compras** — reorganización de menú: mover "Proveedores" bajo la
    sección de compras (cambio pequeño en `Layout.jsx`).
-2. **Ficha de máquinas del cliente** — nueva entidad de equipos por cliente/centro de trabajo
-   (marca, modelo, gas, carga, historial de intervenciones por máquina).
-3. **Stock por furgoneta** — stock asignado por vehículo/técnico, con traspasos entre almacén
-   central y furgonetas.
-4. **Avisos automáticos de revisiones periódicas** — mantenimientos programados por cliente/máquina
+2. **Avisos automáticos de revisiones periódicas** — mantenimientos programados por cliente/máquina
    con alertas al vencimiento.
-5. **Exportación de fichajes** — export CSV/Excel del historial de fichajes.
+3. **Exportación de fichajes** — export CSV/Excel del historial de fichajes.
 
 ## Pendiente de infraestructura/negocio (no código de features)
 
