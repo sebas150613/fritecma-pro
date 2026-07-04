@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frigest-dev-5199",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set DATABASE_URL=&& set APP_ALLOW_AUTH_BYPASS=true&& set APP_SERVER_PORT=3100&& set VITE_APP_API_URL=http://127.0.0.1:3100&& set VITE_DEV_PORT=5199&& npm run dev:rest"
+      ],
+      "port": 5199,
+      "cwd": "C:\\Users\\sebas\\Desktop\\Proyectos\\fritecma-pro"
+    }
+  ]
+}

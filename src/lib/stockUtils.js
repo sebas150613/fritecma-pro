@@ -1,4 +1,5 @@
 import { appApi } from "@/api/app-api";
+import { deductFromVehicle } from "./vehicleStockUtils";
 
 /**
  * Validates lines against current stock and returns warnings.
@@ -21,6 +22,23 @@ export async function validateStockAvailability(lines) {
     if (mat.category === "mano_de_obra" || mat.category === "desplazamiento") continue;
     // Gas refrigerante: stock viene de trazabilidad de botellas, no del almacén de materiales
     if (mat.category === "gas_refrigerante") continue;
+    if (line.source_vehicle_id) {
+      // Stock de la furgoneta, no del almacén
+      const rows = await appApi.entities.VehicleStock.filter(
+        { vehicle_id: line.source_vehicle_id, material_id: mat.id },
+        "-updated_at",
+        1
+      ).catch(() => []);
+      const availableVeh = rows[0]?.quantity || 0;
+      if ((line.quantity || 0) > availableVeh) {
+        warnings.push({
+          material_name: `${mat.name} (furgoneta ${line.source_vehicle_name || ""})`,
+          requested: line.quantity,
+          available: availableVeh,
+        });
+      }
+      continue;
+    }
     const available = mat.stock_quantity || 0;
     if ((line.quantity || 0) > available) {
       warnings.push({ material_name: mat.name, requested: line.quantity, available });
@@ -46,6 +64,19 @@ export async function deductStockForIntervention({ lines, interventionId, interv
     if (!mat) continue;
     if (mat.category === "mano_de_obra" || mat.category === "desplazamiento") continue;
     if (mat.category === "gas_refrigerante") continue;
+
+    if (line.source_vehicle_id) {
+      // Sale de la furgoneta: no toca el stock del almacén
+      await deductFromVehicle({
+        vehicle: { id: line.source_vehicle_id, name: line.source_vehicle_name || "" },
+        material: mat,
+        quantity: line.quantity || 0,
+        interventionId,
+        interventionNumber,
+        user: { email: technicianEmail, full_name: technicianName },
+      });
+      continue;
+    }
 
     const stockBefore = mat.stock_quantity || 0;
     const stockAfter = stockBefore - (line.quantity || 0);

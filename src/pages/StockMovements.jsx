@@ -15,6 +15,9 @@ const TYPE_LABELS = {
   salida_obra: { label: "Salida Obra", color: "bg-orange-100 text-orange-700 border-orange-200", icon: TrendingDown },
   entrada_obra: { label: "Retorno Obra", color: "bg-teal-100 text-teal-700 border-teal-200", icon: TrendingUp },
   entrada_albaran: { label: "Entrada Albarán", color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: TrendingUp },
+  traspaso_a_vehiculo: { label: "Traspaso a Furgoneta", color: "bg-indigo-100 text-indigo-700 border-indigo-200", icon: TrendingDown },
+  traspaso_a_almacen: { label: "Devolución de Furgoneta", color: "bg-cyan-100 text-cyan-700 border-cyan-200", icon: TrendingUp },
+  salida_parte_vehiculo: { label: "Salida Parte (Furgoneta)", color: "bg-purple-100 text-purple-700 border-purple-200", icon: TrendingDown },
 };
 
 export default function StockMovements() {
@@ -37,7 +40,7 @@ export default function StockMovements() {
   const lowStockItems = materials.filter(m => m.is_active && m.min_stock > 0 && (m.stock_quantity || 0) <= m.min_stock);
 
   const filtered = movements.filter(m => {
-    const matchSearch = !search || m.material_name?.toLowerCase().includes(search.toLowerCase()) || m.intervention_number?.toLowerCase().includes(search.toLowerCase()) || m.albaran_number?.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = !search || m.material_name?.toLowerCase().includes(search.toLowerCase()) || m.intervention_number?.toLowerCase().includes(search.toLowerCase()) || m.albaran_number?.toLowerCase().includes(search.toLowerCase()) || m.vehicle_name?.toLowerCase().includes(search.toLowerCase());
     const matchType = filterType === "all" || m.movement_type === filterType;
     return matchSearch && matchType;
   });
@@ -106,6 +109,7 @@ export default function StockMovements() {
                     {mv.technician_name} · {moment(mv.created_date).format("DD/MM/YYYY HH:mm")}
                     {mv.intervention_number ? ` · Parte: ${mv.intervention_number}` : ""}
                     {mv.albaran_number ? ` · Albarán: ${mv.albaran_number}` : ""}
+                    {mv.vehicle_name ? ` · Furgoneta: ${mv.vehicle_name}` : ""}
                   </p>
                 </div>
               </div>

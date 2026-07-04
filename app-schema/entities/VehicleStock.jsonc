@@ -1,0 +1,42 @@
+{
+  "name": "VehicleStock",
+  "type": "object",
+  "properties": {
+    "vehicle_id": {
+      "type": "string",
+      "title": "ID Vehículo"
+    },
+    "vehicle_name": {
+      "type": "string",
+      "title": "Vehículo"
+    },
+    "material_id": {
+      "type": "string",
+      "title": "ID Material"
+    },
+    "material_name": {
+      "type": "string",
+      "title": "Material"
+    },
+    "material_code": {
+      "type": "string",
+      "title": "Código Material"
+    },
+    "unit": {
+      "type": "string",
+      "title": "Unidad",
+      "default": "ud"
+    },
+    "quantity": {
+      "type": "number",
+      "title": "Cantidad",
+      "default": 0
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Última Actualización"
+    }
+  },
+  "required": ["vehicle_id", "material_id"]
+}

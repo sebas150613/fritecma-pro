@@ -45,6 +45,7 @@ import Breakdowns from './pages/Breakdowns';
 import NewBreakdown from './pages/NewBreakdown';
 import BreakdownDetail from './pages/BreakdownDetail';
 import Invoices from './pages/Invoices';
+import MyVehicle from './pages/MyVehicle';
 const normalizeRole = (value) =>
   String(value || "")
     .trim()
@@ -144,6 +145,7 @@ const AuthenticatedApp = () => {
           <Route path="/time-records" element={<TimeRecords />} />
           <Route path="/gas-bottles" element={<GasBottles />} />
           <Route path="/stock-movements" element={<StockMovements />} />
+          <Route path="/my-vehicle" element={<MyVehicle />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/suppliers" element={<Suppliers />} />
           <Route path="/purchase-orders" element={<PurchaseOrders />} />

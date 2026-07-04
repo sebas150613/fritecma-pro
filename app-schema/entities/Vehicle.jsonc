@@ -1,0 +1,46 @@
+{
+  "name": "Vehicle",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Nombre / Alias"
+    },
+    "plate": {
+      "type": "string",
+      "title": "Matrícula"
+    },
+    "assigned_user_id": {
+      "type": "string",
+      "title": "ID Técnico Habitual"
+    },
+    "assigned_user_email": {
+      "type": "string",
+      "title": "Email Técnico Habitual"
+    },
+    "assigned_user_name": {
+      "type": "string",
+      "title": "Técnico Habitual"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notas"
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Activo",
+      "default": true
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Fecha Creación"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Última Actualización"
+    }
+  },
+  "required": ["name"]
+}

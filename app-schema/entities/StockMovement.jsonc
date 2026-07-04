@@ -35,8 +35,19 @@
         "ajuste_manual",
         "salida_obra",
         "entrada_obra",
-        "entrada_albaran"
+        "entrada_albaran",
+        "traspaso_a_vehiculo",
+        "traspaso_a_almacen",
+        "salida_parte_vehiculo"
       ]
+    },
+    "vehicle_id": {
+      "type": "string",
+      "title": "ID Vehículo"
+    },
+    "vehicle_name": {
+      "type": "string",
+      "title": "Vehículo"
     },
     "albaran_number": {
       "type": "string",

@@ -94,7 +94,7 @@ function MaterialCommandContent({ line, index, gasItems, otherItems, isFreeText,
 
 const GAS_CATEGORY = "gas_refrigerante";
 
-export default function MaterialLineForm({ line, index, materials, onUpdate, onRemove, isAdmin }) {
+export default function MaterialLineForm({ line, index, materials, onUpdate, onRemove, isAdmin, vehicles = [] }) {
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
 
@@ -238,6 +238,32 @@ export default function MaterialLineForm({ line, index, materials, onUpdate, onR
           </div>
         )}
       </div>
+
+      {/* Origen del material: almacén (por defecto) o furgoneta */}
+      {vehicles.length > 0 && selectedMaterial &&
+        !["mano_de_obra", "desplazamiento", "gas_refrigerante"].includes(selectedMaterial.category) && (
+        <div>
+          <label className="text-xs text-muted-foreground">Origen del material</label>
+          <select
+            value={line.source_vehicle_id || ""}
+            onChange={(e) => {
+              const vid = e.target.value;
+              const v = vehicles.find(x => x.id === vid);
+              onUpdate(index, {
+                ...line,
+                source_vehicle_id: vid || undefined,
+                source_vehicle_name: v?.name || undefined,
+              });
+            }}
+            className="w-full h-9 rounded-md border border-input bg-card px-3 text-sm"
+          >
+            <option value="">Almacén / Taller</option>
+            {vehicles.map(v => (
+              <option key={v.id} value={v.id}>Furgoneta: {v.name}{v.plate ? ` (${v.plate})` : ""}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <Input
         placeholder="Observación técnica..."
