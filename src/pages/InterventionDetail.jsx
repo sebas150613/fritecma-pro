@@ -12,6 +12,7 @@ import RectificativaForm from "../components/RectificativaForm";
 import { FileText, Mail, Clock, Flame, User, Loader2, Package, CheckCircle2, Check, Pencil, Trash2, Plus, AlertTriangle, Wrench, Lock, Receipt, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import MapLink from "../components/MapLink";
+import { GasMediaGallery } from "@/components/GasMediaSection";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { cn } from "@/lib/utils";
@@ -902,6 +903,14 @@ export default function InterventionDetail() {
               <p className="font-semibold text-destructive">{intervention.gas_leak_kg} kg</p>
             </div>
           </div>
+          {intervention.gas_media?.length > 0 && (
+            <div className="space-y-2 pt-1">
+              <p className="text-xs text-muted-foreground font-medium">
+                Evidencias de la carga (pesajes / fuga)
+              </p>
+              <GasMediaGallery media={intervention.gas_media} />
+            </div>
+          )}
         </div>
       )}
 

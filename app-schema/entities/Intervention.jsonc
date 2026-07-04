@@ -145,6 +145,20 @@
       "title": "Fuga Estimada (kg)",
       "default": 0
     },
+    "gas_media": {
+      "type": "array",
+      "title": "Evidencias de carga de gas (fotos/vídeos)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "file_uri": { "type": "string" },
+          "original_name": { "type": "string" },
+          "mime_type": { "type": "string" },
+          "size": { "type": "number" },
+          "kind": { "type": "string", "enum": ["image", "video"] }
+        }
+      }
+    },
     "description": {
       "type": "string",
       "title": "Descripci\u00f3n del Trabajo"

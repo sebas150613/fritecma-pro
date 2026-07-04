@@ -71,6 +71,8 @@ Before a production release or deployment, run **`npm run release:check`**. It r
 
 Security / release summary: [docs/release-readiness.md](./docs/release-readiness.md)
 
+**⚠️ OBLIGACIÓN pendiente al tener clientes:** contratar Hetzner Object Storage y migrar allí los adjuntos de partes (fotos/vídeos de cargas de gas), comprimidos — ver [docs/object-storage-media.md](./docs/object-storage-media.md)
+
 **Production environment checklist**
 
 On the **server or staging** (with real env vars injected), run **`npm run check:production-env`**. It applies production rules (`--production`), validates **`NODE_ENV`**, **`APP_ALLOW_AUTH_BYPASS=false`** (explicit), empty **`APP_DEV_TOKEN`**, non-wildcard **`APP_ALLOWED_ORIGINS`** (prefer **`https://`** for non-local origins), **`APP_TRUST_PROXY`** parsing, **`APP_SERVER_HOST`** vs bypass (same rules as `server/config.js`), **`APP_SETTINGS_SECRET`** (required, **≥ 32 characters**, never printed), Stripe/AI/DATABASE presence where relevant, and never prints secret values. For a dry local run without production env, use **`node scripts/production-env-check.mjs`** (relaxed). This check is **not** part of **`release:check`** / CI because CI does not load production secrets.

@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { validateStockAvailability, deductStockForIntervention } from "../lib/stockUtils";
 import moment from "moment";
 import GasTypeCombobox from "@/components/GasTypeCombobox";
+import GasMediaSection from "@/components/GasMediaSection";
 import {
   resolveCanonicalGasLabel,
   normalizeGasCompareKey,
@@ -125,6 +126,7 @@ export default function NewIntervention() {
 
   const [lines, setLines] = useState([]);
   const [laborLines, setLaborLines] = useState([]);
+  const [gasMedia, setGasMedia] = useState([]);
 
   useEffect(() => {
     loadInitialData();
@@ -575,6 +577,9 @@ export default function NewIntervention() {
         gas_loaded_kg: form.gas_loaded_kg,
         gas_recovered_kg: form.gas_recovered_kg,
         gas_leak_kg: Math.max(0, (form.gas_loaded_kg || 0) - (form.gas_recovered_kg || 0)),
+        gas_media: gasMedia.length
+          ? gasMedia.map(({ _previewUrl, ...item }) => item)
+          : undefined,
         description: form.description,
         materials_json: JSON.stringify(allLines),
         subtotal: persistTotals.subtotal,
@@ -1193,6 +1198,11 @@ export default function NewIntervention() {
           </div>
         )}
       </div>
+
+      {/* Evidencias de carga de gas (fotos/vídeos) */}
+      {(resolvedGasType || form.gas_loaded_kg > 0 || form.gas_recovered_kg > 0) && (
+        <GasMediaSection media={gasMedia} onChange={setGasMedia} />
+      )}
 
       {/* Conformidad Cliente */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
