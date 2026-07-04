@@ -40,6 +40,7 @@ import AbsenceManagement from './pages/AbsenceManagement';
 import Calendar from './pages/Calendar';
 import OwnerClients from './pages/OwnerClients';
 import PurchaseOrders from './pages/PurchaseOrders';
+import Budgets from './pages/Budgets';
 import Breakdowns from './pages/Breakdowns';
 import NewBreakdown from './pages/NewBreakdown';
 import BreakdownDetail from './pages/BreakdownDetail';
@@ -152,6 +153,7 @@ const AuthenticatedApp = () => {
           <Route path="/calendar" element={<Calendar />} />
           <Route path="/owner/clients" element={<OwnerClients />} />
           <Route path="/invoices" element={<Invoices />} />
+          <Route path="/budgets" element={<Budgets />} />
           <Route path="/breakdowns" element={<Breakdowns />} />
           <Route path="/breakdowns/new" element={<NewBreakdown />} />
           <Route path="/breakdowns/:id" element={<BreakdownDetail />} />

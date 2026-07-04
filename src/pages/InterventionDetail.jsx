@@ -932,9 +932,9 @@ export default function InterventionDetail() {
                 <div>
                   <p className="text-sm font-medium">{m.material_name || "Material"}</p>
                   <p className="text-xs text-muted-foreground">
-                    {m._isDisplacementLine && isFieldStaff ? (
+                    {isFieldStaff ? (
                       <>
-                        {m.quantity} {m.unit || "ud"} · importe gestionado en oficina
+                        {m.quantity} {m.unit || "ud"}
                         {m.observation && ` — ${m.observation}`}
                       </>
                     ) : (
@@ -946,11 +946,12 @@ export default function InterventionDetail() {
                   </p>
                 </div>
                 <p className="font-semibold text-sm">
-                  {m._isDisplacementLine && isFieldStaff ? "—" : `${(m.total || 0).toFixed(2)} €`}
+                  {isFieldStaff ? "" : `${(m.total || 0).toFixed(2)} €`}
                 </p>
               </div>
             ))}
           </div>
+          {!isFieldStaff && (
           <div className="border-t border-border pt-3 space-y-1">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
@@ -971,6 +972,7 @@ export default function InterventionDetail() {
               <span>{(intervention.total || 0).toFixed(2)} €</span>
             </div>
           </div>
+          )}
         </div>
       )}
 

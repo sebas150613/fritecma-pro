@@ -259,6 +259,14 @@
       "type": "string",
       "title": "Resultado sobre Avería",
       "enum": ["pendiente", "terminado"]
+    },
+    "budget_id": {
+      "type": "string",
+      "title": "ID Presupuesto Vinculado"
+    },
+    "budget_number": {
+      "type": "string",
+      "title": "Nº Presupuesto Vinculado"
     }
   },
   "required": [

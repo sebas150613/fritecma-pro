@@ -66,7 +66,12 @@ export default function NewIntervention() {
   const [searchParams] = useSearchParams();
   const breakdownId = searchParams.get("breakdownId") || "";
   const breakdownResult = searchParams.get("breakdownResult") || "";
+  const budgetId = searchParams.get("budgetId") || "";
   const [breakdown, setBreakdown] = useState(null);
+  const [budget, setBudget] = useState(null);
+  const [adjuntoPresupuesto, setAdjuntoPresupuesto] = useState(false);
+  const [acceptedBudgets, setAcceptedBudgets] = useState([]);
+  const [loadingBudgets, setLoadingBudgets] = useState(false);
   const [user, setUser] = useState(null);
   const [clients, setClients] = useState([]);
   const [materials, setMaterials] = useState([]);
@@ -201,6 +206,43 @@ export default function NewIntervention() {
           // Breakdown not found or no access — proceed normally
         }
       }
+
+      // If coming from an accepted budget, prefill form and lines
+      if (budgetId) {
+        try {
+          const [bg] = await appApi.entities.Budget.filter({ id: budgetId }, undefined, 1);
+          if (!bg) throw new Error("Budget not found");
+          setBudget(bg);
+
+          if (bg.client_id) {
+            const centers = await appApi.entities.WorkCenter.filter(
+              { client_id: bg.client_id }, "name", 100
+            ).catch(() => []);
+            setWorkCenters(centers || []);
+          }
+
+          setForm(f => ({
+            ...f,
+            client_id: bg.client_id || "",
+            client_name: bg.client_name || "",
+            work_center_id: bg.work_center_id || "",
+            work_center_name: bg.work_center_name || "",
+            description: `Presupuesto ${bg.number}: ${bg.description || ""}`,
+            discount_percent: bg.discount_percent || 0,
+          }));
+
+          try {
+            const budgetLines = JSON.parse(bg.lines_json || "[]");
+            setLines(
+              budgetLines.map((l, i) => ({ ...l, _id: Date.now() + i }))
+            );
+          } catch {
+            // Malformed lines — leave empty
+          }
+        } catch {
+          // Budget not found or no access — proceed normally
+        }
+      }
     } catch (error) {
       console.error("Error loading initial data:", error);
       setCheckedIn(true);
@@ -237,6 +279,42 @@ export default function NewIntervention() {
       work_center_id: "",
       work_center_name: "",
       discount_percent: client.discount_percent || 0,
+    }));
+  };
+
+  const handleAdjuntoToggle = async (checked) => {
+    setAdjuntoPresupuesto(checked);
+    if (!checked) {
+      // Only clear the budget if it was chosen through this toggle (not via ?budgetId=)
+      if (!budgetId) setBudget(null);
+      return;
+    }
+    if (acceptedBudgets.length === 0) {
+      setLoadingBudgets(true);
+      const list = await appApi.entities.Budget.filter(
+        { status: "aceptado" }, "-created_date", 100
+      ).catch(() => []);
+      setAcceptedBudgets(list || []);
+      setLoadingBudgets(false);
+    }
+  };
+
+  const handleAdjuntoBudgetSelect = async (id) => {
+    const bg = acceptedBudgets.find((b) => b.id === id);
+    if (!bg) return;
+    setBudget(bg);
+    if (bg.client_id) {
+      const centers = await appApi.entities.WorkCenter.filter(
+        { client_id: bg.client_id }, "name", 100
+      ).catch(() => []);
+      setWorkCenters(centers || []);
+    }
+    setForm((f) => ({
+      ...f,
+      client_id: bg.client_id || "",
+      client_name: bg.client_name || "",
+      work_center_id: bg.work_center_id || "",
+      work_center_name: bg.work_center_name || "",
     }));
   };
 
@@ -379,6 +457,7 @@ export default function NewIntervention() {
     try {
       const interventionNumber = `FRI-${moment().format("YYMMDD")}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
 
+      const isAdjunto = adjuntoPresupuesto && !!budget;
       let materialLinesToPersist = [...lines];
       if (form.gas_bottle_id && form.gas_loaded_kg > 0 && finalGasType) {
         await syncGasMaterialStock(finalGasType);
@@ -404,9 +483,12 @@ export default function NewIntervention() {
       }
 
       const materialLinesForTotals = [...materialLinesToPersist];
-      let allLines = [...laborLines, ...materialLinesForTotals];
+      // In adjunto mode labor is not filled in (billing comes from the budget), but material lines persist for stock control
+      let allLines = isAdjunto ? [...materialLinesForTotals] : [...laborLines, ...materialLinesForTotals];
 
-      const cantDesp = Math.max(0, parseInt(String(form.desplazamientos_cantidad ?? 0), 10) || 0);
+      const cantDesp = isAdjunto
+        ? 0
+        : Math.max(0, parseInt(String(form.desplazamientos_cantidad ?? 0), 10) || 0);
       const canAssignTramo = ["admin", "superadmin", "oficina", "encargado"].includes(user?.role);
       const tramosCfg = ensureTramoIds(parseTramosJson(user?.desplazamiento_tramos_json));
       const tramoSel =
@@ -449,6 +531,10 @@ export default function NewIntervention() {
           breakdown_number: breakdown.number,
           breakdown_client_fault_id: breakdown.client_fault_id || undefined,
           breakdown_status_result: breakdownResult === "terminado" ? "terminado" : "pendiente",
+        } : {}),
+        ...(budget ? {
+          budget_id: budget.id,
+          budget_number: budget.number,
         } : {}),
         work_center_id: form.work_center_id || undefined,
         work_center_name: form.work_center_name || undefined,
@@ -562,6 +648,20 @@ export default function NewIntervention() {
         }
       }
 
+      // Update linked budget after part is saved successfully
+      if (budget) {
+        try {
+          await appApi.entities.Budget.update(budget.id, {
+            status: "parte_generado",
+            status_changed_at: new Date().toISOString(),
+            intervention_id: created.id,
+            intervention_number: interventionNumber,
+          });
+        } catch {
+          // Budget update failure is non-fatal — the part was already saved
+        }
+      }
+
       navigate(`/interventions/${created.id}`, { replace: true });
     } finally {
       setSaving(false);
@@ -584,6 +684,11 @@ export default function NewIntervention() {
     const finalGasType = form.gas_other_ui
       ? resolveCanonicalGasLabel(form.gas_other_input, legacyGasKeys)
       : resolveCanonicalGasLabel(form.gas_type, legacyGasKeys);
+
+    if (adjuntoPresupuesto && !budget) {
+      toast.error("Selecciona el presupuesto al que va adjunto este parte.");
+      return;
+    }
 
     const materialOnlyLinesInput = lines.filter(
       (l) => l.material_id && l.material_id !== "__free_text__"
@@ -669,6 +774,65 @@ export default function NewIntervention() {
             {breakdownResult === "terminado" ? " · Marcará la avería como Terminada" : " · Marcará la avería como Pendiente"}
           </p>
           <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 line-clamp-1">{breakdown.description}</p>
+        </div>
+      )}
+
+      {/* Adjunto a presupuesto */}
+      {!budgetId && (
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              id="adjunto-presupuesto"
+              checked={adjuntoPresupuesto}
+              onCheckedChange={handleAdjuntoToggle}
+            />
+            <label htmlFor="adjunto-presupuesto" className="text-sm font-medium cursor-pointer">
+              Adjunto a presupuesto
+            </label>
+          </div>
+          {adjuntoPresupuesto && (
+            <div>
+              <Label>Presupuesto aceptado *</Label>
+              {loadingBudgets ? (
+                <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground px-3 py-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Cargando presupuestos...
+                </div>
+              ) : acceptedBudgets.length === 0 ? (
+                <p className="mt-1 text-xs text-muted-foreground px-3 py-2 rounded-xl border border-dashed border-border">
+                  No hay presupuestos aceptados pendientes de parte.
+                </p>
+              ) : (
+                <Select value={budget?.id || ""} onValueChange={handleAdjuntoBudgetSelect}>
+                  <SelectTrigger className="mt-1 rounded-xl">
+                    <SelectValue placeholder="Seleccionar presupuesto..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {acceptedBudgets.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {b.number} · {b.client_name}
+                        {b.description ? ` — ${b.description.slice(0, 60)}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <p className="text-xs text-muted-foreground mt-1.5">
+                El trabajo ya está presupuestado: no hace falta indicar horario ni desplazamientos. Registra los materiales que uses para descontar el stock.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Budget context banner */}
+      {budget && (
+        <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-2xl p-4">
+          <p className="text-sm font-medium text-emerald-800 dark:text-emerald-300">
+            {adjuntoPresupuesto
+              ? <>Parte adjunto al presupuesto <span className="font-mono">{budget.number}</span> · La valoración se gestiona en oficina</>
+              : <>Parte generado desde presupuesto <span className="font-mono">{budget.number}</span> · Las líneas presupuestadas ya están cargadas</>}
+          </p>
+          <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5 line-clamp-1">{budget.description}</p>
         </div>
       )}
 
@@ -835,6 +999,7 @@ export default function NewIntervention() {
       </div>
 
       {/* Labor Section */}
+      {!adjuntoPresupuesto && (
       <LaborSection
         materials={materials}
         isAdmin={canSeeBillingTotals}
@@ -855,7 +1020,9 @@ export default function NewIntervention() {
         allUsers={users}
         organizationTarifas={organizationTarifas}
       />
+      )}
 
+      {!adjuntoPresupuesto && (
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
           Desplazamiento
@@ -918,6 +1085,7 @@ export default function NewIntervention() {
           </div>
         )}
       </div>
+      )}
 
       {/* Material Lines */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">

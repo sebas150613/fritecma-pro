@@ -26,6 +26,7 @@ import {
   ShoppingBag,
   Wrench,
   Receipt,
+  FileText,
   BarChart3,
   MapPin
 } from "lucide-react";
@@ -46,6 +47,7 @@ const adminLinks = [
   { to: "/suppliers", label: "Proveedores", icon: Truck },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
+  { to: "/budgets", label: "Presupuestos", icon: FileText },
   { to: "/invoices", label: "Facturación", icon: Receipt },
   { to: "/time-records", label: "Historial de fichajes", icon: Clock },
   { to: "/workday-report", label: "Horas por cliente/obra", icon: BarChart3 },
@@ -65,6 +67,7 @@ const oficinaLinks = [
   { to: "/suppliers", label: "Proveedores", icon: Truck },
   { to: "/gas-bottles", label: "Trazabilidad Gases", icon: FlaskConical },
   { to: "/projects", label: "Obras y Proyectos", icon: Building2 },
+  { to: "/budgets", label: "Presupuestos", icon: FileText },
   { to: "/invoices", label: "Facturación", icon: Receipt },
   { to: "/time-records", label: "Historial de fichajes", icon: Clock },
   { to: "/workday-report", label: "Horas por cliente/obra", icon: BarChart3 },

@@ -1,0 +1,108 @@
+{
+  "name": "Budget",
+  "type": "object",
+  "properties": {
+    "number": {
+      "type": "string",
+      "title": "Nº Presupuesto"
+    },
+    "client_id": {
+      "type": "string",
+      "title": "ID Cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "title": "Nombre Cliente"
+    },
+    "work_center_id": {
+      "type": "string",
+      "title": "ID Centro de Trabajo"
+    },
+    "work_center_name": {
+      "type": "string",
+      "title": "Centro de Trabajo"
+    },
+    "date": {
+      "type": "string",
+      "title": "Fecha",
+      "format": "date-time"
+    },
+    "valid_until": {
+      "type": "string",
+      "title": "Válido hasta",
+      "format": "date"
+    },
+    "description": {
+      "type": "string",
+      "title": "Descripción del Trabajo"
+    },
+    "lines_json": {
+      "type": "string",
+      "title": "Líneas (JSON)"
+    },
+    "subtotal": {
+      "type": "number",
+      "title": "Subtotal (€)",
+      "default": 0
+    },
+    "iva_total": {
+      "type": "number",
+      "title": "Total IVA (€)",
+      "default": 0
+    },
+    "total": {
+      "type": "number",
+      "title": "Total (€)",
+      "default": 0
+    },
+    "discount_percent": {
+      "type": "number",
+      "title": "Descuento (%)",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "title": "Estado",
+      "enum": [
+        "borrador",
+        "enviado",
+        "aceptado",
+        "rechazado",
+        "caducado",
+        "parte_generado"
+      ],
+      "default": "borrador"
+    },
+    "status_changed_at": {
+      "type": "string",
+      "title": "Fecha último cambio de estado",
+      "format": "date-time"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notas internas"
+    },
+    "intervention_id": {
+      "type": "string",
+      "title": "ID Parte generado"
+    },
+    "intervention_number": {
+      "type": "string",
+      "title": "Nº Parte generado"
+    },
+    "created_by": {
+      "type": "string",
+      "title": "Creado por (email)"
+    },
+    "created_by_name": {
+      "type": "string",
+      "title": "Creado por (nombre)"
+    }
+  },
+  "required": [
+    "number",
+    "client_id",
+    "client_name",
+    "date"
+  ]
+}

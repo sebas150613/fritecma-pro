@@ -36,6 +36,9 @@ export default defineConfig(({ mode, command }) => {
     server: {
       proxy,
       host: '0.0.0.0',  // Permite acceder desde dispositivos en la red local
+      // VITE_DEV_PORT permite levantar un segundo entorno local sin chocar con el 5173 por defecto
+      port: Number(env.VITE_DEV_PORT) || 5173,
+      strictPort: Boolean(env.VITE_DEV_PORT),
     },
     plugins: [
       react(),
