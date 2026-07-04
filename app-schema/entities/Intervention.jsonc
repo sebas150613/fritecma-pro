@@ -22,6 +22,14 @@
       "type": "string",
       "title": "Centro de Trabajo"
     },
+    "machine_id": {
+      "type": "string",
+      "title": "ID Máquina"
+    },
+    "machine_name": {
+      "type": "string",
+      "title": "Máquina"
+    },
     "technician_email": {
       "type": "string",
       "title": "Email T\u00e9cnico"

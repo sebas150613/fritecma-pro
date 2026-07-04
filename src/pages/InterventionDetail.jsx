@@ -692,6 +692,9 @@ export default function InterventionDetail() {
           <div>
             <p className="text-sm text-muted-foreground">{intervention.number}</p>
             <h1 className="text-xl font-bold">{intervention.client_name}</h1>
+            {intervention.machine_name && (
+              <p className="text-sm text-muted-foreground">Máquina: {intervention.machine_name}</p>
+            )}
           </div>
         </div>
         <div className="flex flex-col items-end gap-1">

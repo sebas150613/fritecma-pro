@@ -153,12 +153,14 @@ export default function NewBreakdown() {
   const [clients, setClients] = useState([]);
   const [users, setUsers]     = useState([]);
   const [workCenters, setWorkCenters] = useState([]);
+  const [machines, setMachines] = useState([]);
   const [saving, setSaving]   = useState(false);
 
   // shared form (description, priority, assignment, client_fault_id, contact_phone)
   const [form, setForm] = useState({
     client_id: "", client_name: "",
     work_center_id: "", work_center_name: "",
+    machine_id: "", machine_name: "",
     contact_phone_snapshot: "",
     client_fault_id: "",
     description: "",
@@ -253,12 +255,17 @@ export default function NewBreakdown() {
   const handleClientChange = useCallback(async (clientId) => {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
-    const centers = await appApi.entities.WorkCenter.filter({ client_id: clientId }, "name", 100).catch(() => []);
+    const [centers, machineList] = await Promise.all([
+      appApi.entities.WorkCenter.filter({ client_id: clientId }, "name", 100).catch(() => []),
+      appApi.entities.Machine.filter({ client_id: clientId }, "name", 200).catch(() => []),
+    ]);
     setWorkCenters(centers || []);
+    setMachines((machineList || []).filter(m => m.status !== "retirada"));
     setForm(f => ({
       ...f,
       client_id: client.id, client_name: client.name,
       work_center_id: "", work_center_name: "",
+      machine_id: "", machine_name: "",
       contact_phone_snapshot: client.phone || "",
     }));
   }, [clients]);
@@ -267,15 +274,26 @@ export default function NewBreakdown() {
     const wc = workCenters.find(c => c.id === wcId);
     if (!wc) {
       const client = clients.find(c => c.id === form.client_id);
-      setForm(f => ({ ...f, work_center_id: "", work_center_name: "", contact_phone_snapshot: client?.phone || "" }));
+      setForm(f => ({ ...f, work_center_id: "", work_center_name: "", machine_id: "", machine_name: "", contact_phone_snapshot: client?.phone || "" }));
       return;
     }
     setForm(f => ({
       ...f,
       work_center_id: wc.id, work_center_name: wc.name,
+      machine_id: "", machine_name: "",
       contact_phone_snapshot: wc.phone || clients.find(c => c.id === f.client_id)?.phone || "",
     }));
   };
+
+  const handleMachineChange = (machineId) => {
+    const m = machines.find(x => x.id === machineId);
+    setForm(f => ({ ...f, machine_id: m?.id || "", machine_name: m?.name || "" }));
+  };
+
+  // Máquinas del centro elegido (o sin centro asignado); si no hay centro, todas
+  const machineOptions = form.work_center_id
+    ? machines.filter(m => !m.work_center_id || m.work_center_id === form.work_center_id)
+    : machines;
 
   const handleAssignedUserChange = (userId) => {
     if (!userId || userId === "__none__") {
@@ -326,6 +344,8 @@ export default function NewBreakdown() {
           client_name: form.client_name,
           work_center_id: form.work_center_id || undefined,
           work_center_name: form.work_center_name || undefined,
+          machine_id: form.machine_id || undefined,
+          machine_name: form.machine_name || undefined,
           contact_phone_snapshot: form.contact_phone_snapshot || undefined,
           client_fault_id: form.client_fault_id?.trim() || undefined,
           description: form.description.trim(),
@@ -423,6 +443,24 @@ export default function NewBreakdown() {
                       ))}
                     </select>
                   )}
+                </div>
+              )}
+
+              {form.client_id && machineOptions.length > 0 && (
+                <div>
+                  <Label>Máquina</Label>
+                  <select
+                    value={form.machine_id}
+                    onChange={e => handleMachineChange(e.target.value)}
+                    className="mt-1 w-full flex h-9 rounded-xl border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="">— Sin máquina específica —</option>
+                    {machineOptions.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}{m.model ? ` · ${m.model}` : ""}{m.work_center_name ? ` · ${m.work_center_name}` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
 

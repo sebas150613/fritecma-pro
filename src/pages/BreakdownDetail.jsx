@@ -106,6 +106,9 @@ export default function BreakdownDetail() {
             {breakdown.work_center_name && (
               <p className="text-sm text-muted-foreground">{breakdown.work_center_name}</p>
             )}
+            {breakdown.machine_name && (
+              <p className="text-sm text-muted-foreground">Máquina: {breakdown.machine_name}</p>
+            )}
           </div>
           <Badge className={cn("text-xs shrink-0", PRIORITY_COLORS[breakdown.priority] || "bg-muted")}>
             {PRIORITY_LABELS[breakdown.priority] || breakdown.priority}

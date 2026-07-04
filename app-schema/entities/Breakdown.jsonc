@@ -26,6 +26,14 @@
       "type": "string",
       "title": "Centro de Trabajo"
     },
+    "machine_id": {
+      "type": "string",
+      "title": "ID Máquina"
+    },
+    "machine_name": {
+      "type": "string",
+      "title": "Máquina"
+    },
     "contact_phone_snapshot": {
       "type": "string",
       "title": "Teléfono de Contacto"

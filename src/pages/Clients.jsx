@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Search, Users, Edit, Trash2, Phone, Mail as MailIcon, Wrench } from "lucide-react";
 import MapLink from "../components/MapLink";
 import WorkCentersInline from "../components/WorkCentersInline";
+import MachinesInline from "../components/MachinesInline";
 import { AddressAutocomplete } from "../components/AddressAutocomplete";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -232,6 +233,7 @@ export default function Clients() {
                       )}
                     </div>
                     {<WorkCentersInline client={c} readOnly={isTecnico} />}
+                    <MachinesInline client={c} />
 
                     {/* Averías del cliente */}
                     <div className="border-t border-border pt-3 space-y-2">

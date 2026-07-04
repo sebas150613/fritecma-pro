@@ -1,0 +1,91 @@
+{
+  "name": "Machine",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Nombre / Alias"
+    },
+    "client_id": {
+      "type": "string",
+      "title": "ID Cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "title": "Nombre Cliente"
+    },
+    "work_center_id": {
+      "type": "string",
+      "title": "ID Centro de Trabajo"
+    },
+    "work_center_name": {
+      "type": "string",
+      "title": "Centro de Trabajo"
+    },
+    "machine_type": {
+      "type": "string",
+      "title": "Tipo",
+      "enum": ["camara", "vitrina", "compresor", "clima", "otro"],
+      "default": "otro"
+    },
+    "brand": {
+      "type": "string",
+      "title": "Marca"
+    },
+    "model": {
+      "type": "string",
+      "title": "Modelo"
+    },
+    "serial_number": {
+      "type": "string",
+      "title": "Nº de Serie"
+    },
+    "gas_type": {
+      "type": "string",
+      "title": "Gas Refrigerante"
+    },
+    "gas_charge_kg": {
+      "type": "number",
+      "title": "Carga de Gas (kg)"
+    },
+    "installed_at": {
+      "type": "string",
+      "title": "Fecha de Instalación",
+      "format": "date"
+    },
+    "warranty_until": {
+      "type": "string",
+      "title": "Fin de Garantía",
+      "format": "date"
+    },
+    "location_notes": {
+      "type": "string",
+      "title": "Ubicación en el Local"
+    },
+    "status": {
+      "type": "string",
+      "title": "Estado",
+      "enum": ["activa", "retirada"],
+      "default": "activa"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notas"
+    },
+    "created_at": {
+      "type": "string",
+      "title": "Fecha de Creación",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "title": "Última Actualización",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "name",
+    "client_id",
+    "client_name"
+  ]
+}

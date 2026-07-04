@@ -78,6 +78,7 @@ export default function NewIntervention() {
   const [gasBottles, setGasBottles] = useState([]);
   const [users, setUsers] = useState([]);
   const [workCenters, setWorkCenters] = useState([]);
+  const [machines, setMachines] = useState([]);
   const [saving, setSaving] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [stockWarnings, setStockWarnings] = useState([]);
@@ -94,6 +95,8 @@ export default function NewIntervention() {
     client_name: "",
     work_center_id: "",
     work_center_name: "",
+    machine_id: "",
+    machine_name: "",
     date: moment().format("YYYY-MM-DDTHH:mm"),
     location_lat: null,
     location_lng: null,
@@ -191,6 +194,7 @@ export default function NewIntervention() {
               { client_id: bd.client_id }, "name", 100
             ).catch(() => []);
             setWorkCenters(centers || []);
+            loadMachinesForClient(bd.client_id);
           }
 
           setForm(f => ({
@@ -199,6 +203,8 @@ export default function NewIntervention() {
             client_name: bd.client_name || "",
             work_center_id: bd.work_center_id || "",
             work_center_name: bd.work_center_name || "",
+            machine_id: bd.machine_id || "",
+            machine_name: bd.machine_name || "",
             description: prefixedDescription,
             incident_status: incidentStatus,
           }));
@@ -219,6 +225,7 @@ export default function NewIntervention() {
               { client_id: bg.client_id }, "name", 100
             ).catch(() => []);
             setWorkCenters(centers || []);
+            loadMachinesForClient(bg.client_id);
           }
 
           setForm(f => ({
@@ -267,17 +274,29 @@ export default function NewIntervention() {
     );
   };
 
+  const loadMachinesForClient = async (clientId) => {
+    if (!clientId) {
+      setMachines([]);
+      return;
+    }
+    const items = await appApi.entities.Machine.filter({ client_id: clientId }, "name", 200).catch(() => []);
+    setMachines((items || []).filter(m => m.status !== "retirada"));
+  };
+
   const handleClientChange = async (clientId) => {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
     const centers = await appApi.entities.WorkCenter.filter({ client_id: clientId }, "name", 100);
     setWorkCenters(centers);
+    loadMachinesForClient(clientId);
     setForm(f => ({
       ...f,
       client_id: client.id,
       client_name: client.name,
       work_center_id: "",
       work_center_name: "",
+      machine_id: "",
+      machine_name: "",
       discount_percent: client.discount_percent || 0,
     }));
   };
@@ -308,6 +327,7 @@ export default function NewIntervention() {
         { client_id: bg.client_id }, "name", 100
       ).catch(() => []);
       setWorkCenters(centers || []);
+      loadMachinesForClient(bg.client_id);
     }
     setForm((f) => ({
       ...f,
@@ -538,6 +558,8 @@ export default function NewIntervention() {
         } : {}),
         work_center_id: form.work_center_id || undefined,
         work_center_name: form.work_center_name || undefined,
+        machine_id: form.machine_id || undefined,
+        machine_name: form.machine_name || undefined,
         helper_email: form.helper_email || undefined,
         helper_name: form.helper_name || undefined,
         date: new Date(form.date).toISOString(),
@@ -863,7 +885,7 @@ export default function NewIntervention() {
                 value={form.work_center_id}
                 onChange={e => {
                   const wc = workCenters.find(c => c.id === e.target.value);
-                  setForm(f => ({ ...f, work_center_id: e.target.value, work_center_name: wc?.name || "" }));
+                  setForm(f => ({ ...f, work_center_id: e.target.value, work_center_name: wc?.name || "", machine_id: "", machine_name: "" }));
                 }}
                 className="mt-1 w-full flex h-9 rounded-xl border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
@@ -875,6 +897,33 @@ export default function NewIntervention() {
             )}
           </div>
         )}
+
+        {form.client_id && (() => {
+          const machineOptions = form.work_center_id
+            ? machines.filter(m => !m.work_center_id || m.work_center_id === form.work_center_id)
+            : machines;
+          if (machineOptions.length === 0) return null;
+          return (
+            <div>
+              <Label>Máquina</Label>
+              <select
+                value={form.machine_id}
+                onChange={e => {
+                  const m = machines.find(x => x.id === e.target.value);
+                  setForm(f => ({ ...f, machine_id: m?.id || "", machine_name: m?.name || "" }));
+                }}
+                className="mt-1 w-full flex h-9 rounded-xl border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">— Sin máquina específica —</option>
+                {machineOptions.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}{m.model ? ` · ${m.model}` : ""}{m.work_center_name ? ` · ${m.work_center_name}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          );
+        })()}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>

@@ -278,6 +278,8 @@ router.post(
       client_name: verifiedClientName,
       work_center_id: req.body.work_center_id || undefined,
       work_center_name: req.body.work_center_name || undefined,
+      machine_id: req.body.machine_id || undefined,
+      machine_name: req.body.machine_name || undefined,
       assigned_user_id: req.body.assigned_user_id || undefined,
       assigned_user_email: req.body.assigned_user_email || undefined,
       assigned_user_name: req.body.assigned_user_name || undefined,
@@ -319,6 +321,7 @@ router.patch(
 
     const whitelist = [
       "client_id", "client_name", "work_center_id", "work_center_name",
+      "machine_id", "machine_name",
       "description", "priority", "status", "assigned_user_id", "assigned_user_email",
       "assigned_user_name", "client_fault_id", "contact_phone_snapshot",
       "closed_at", "closed_by_email", "last_intervention_id", "last_intervention_number",
