@@ -35,3 +35,4 @@ server/uploads
 
 # Local npm audit JSON exports (regenerable; not for version control)
 audit-frigest.json
+.claude/
