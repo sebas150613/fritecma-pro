@@ -279,9 +279,23 @@ export const mergeOrganizationSettingsIntoUser = (
 
   const safeSettings = sanitizeOrganizationSettingsForClient(organizationSettings);
 
+  // Los settings de organización NO deben pisar la identidad ni los metadatos
+  // del usuario. La fila de OrganizationSettings tiene su propio id/created_date/
+  // updated_date; si se propagaran, req.currentUser.id apuntaría a la fila de
+  // settings (rompía PATCH /me, DELETE /me y la atribución de user_id).
+  const { id: _sid, created_date: _scd, updated_date: _sud, organization_id: _soid, ...settingsForUser } =
+    safeSettings || {};
+  void _sid;
+  void _scd;
+  void _sud;
+  void _soid;
+
   return {
     ...user,
-    ...(safeSettings || {}),
+    ...settingsForUser,
+    id: user.id,
+    created_date: user.created_date,
+    updated_date: user.updated_date,
     current_organization: sanitizeOrganizationForViewer(organization),
     current_organization_settings: safeSettings,
     organization_memberships: memberships.map(sanitizeOrganizationMembership),

@@ -1327,7 +1327,16 @@ router.post(
     const email = req.body?.email?.toString();
     const password = req.body?.password?.toString();
 
+    // El login por user_id (sin contraseña) es SOLO para desarrollo con bypass
+    // explícito. En producción exige siempre email + contraseña.
+    const devLoginAllowed =
+      serverConfig.allowAuthBypass && !serverConfig.isProduction;
+
     try {
+      if (userId && !devLoginAllowed) {
+        throw new HttpError(400, "Introduce email y contraseña.");
+      }
+
       const session = userId
         ? await createSessionForUser(userId)
         : await createSessionForCredentials(email, password, {
@@ -1822,7 +1831,24 @@ router.patch(
       }
     }
 
-    const { userPatch } = split;
+    // Lista blanca de campos que un usuario puede editar de SÍ MISMO.
+    // Impide mass-assignment de campos sensibles (role, global_role,
+    // is_hidden_owner, owner_panel_enabled, is_active, password_hash, id,
+    // organization_id, tokens de invitación/reset, email verificado…).
+    const SELF_EDITABLE_USER_FIELDS = new Set([
+      "full_name",
+      "first_name",
+      "last_name",
+      "phone",
+      "avatar_url",
+      "locale",
+      "notification_preferences",
+    ]);
+    const userPatch = Object.fromEntries(
+      Object.entries(split.userPatch).filter(([key]) =>
+        SELF_EDITABLE_USER_FIELDS.has(key)
+      )
+    );
     const hasUserPatch = Object.keys(userPatch).length > 0;
     const hasOrganizationSettingsPatch =
       Object.keys(organizationSettingsPatch).length > 0;

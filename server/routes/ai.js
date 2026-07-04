@@ -10,7 +10,10 @@ router.use(requireAuth);
 router.post(
   "/invoke",
   asyncHandler(async (req, res) => {
-    const result = await invokeAi(req.body || {});
+    const result = await invokeAi(req.body || {}, {
+      organizationId: req.currentOrganization?.id || null,
+      isOwner: req.currentUser?.is_hidden_owner === true,
+    });
     res.json(result);
   })
 );

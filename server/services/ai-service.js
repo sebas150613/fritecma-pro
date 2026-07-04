@@ -146,7 +146,23 @@ const resolveUploadPath = (pathname) => {
   return absolutePath;
 };
 
-const localFileUrlToDataUrl = async (fileUrl) => {
+/** True si la ruta (relativa a /uploads/) pertenece a la organización dada. */
+const uploadPathBelongsToOrg = (uploadPathname, context) => {
+  if (context?.isOwner) {
+    return true;
+  }
+  const orgId = context?.organizationId;
+  if (!orgId) {
+    return false;
+  }
+  const relative = uploadPathname.replace(/^\/+/, "").replace(/^uploads\//, "");
+  return (
+    relative.startsWith(`public/${orgId}/`) ||
+    relative.startsWith(`private/${orgId}/`)
+  );
+};
+
+const localFileUrlToDataUrl = async (fileUrl, context = {}) => {
   if (!fileUrl || typeof fileUrl !== "string" || fileUrl.startsWith("data:")) {
     return fileUrl;
   }
@@ -165,13 +181,19 @@ const localFileUrlToDataUrl = async (fileUrl) => {
     return fileUrl;
   }
 
+  // El fichero local debe pertenecer a la organización del solicitante:
+  // evita lectura cruzada entre organizaciones a través de la visión IA.
+  if (!uploadPathBelongsToOrg(url.pathname, context)) {
+    throw new HttpError(403, "No autorizado para acceder a ese fichero.");
+  }
+
   const filePath = resolveUploadPath(url.pathname);
   const buffer = await fs.readFile(filePath);
   const mimeType = guessMimeType(filePath);
   return `data:${mimeType};base64,${buffer.toString("base64")}`;
 };
 
-const normalizeInputFileUrls = async (fileUrls = []) => {
+const normalizeInputFileUrls = async (fileUrls = [], context = {}) => {
   const results = [];
 
   for (const fileUrl of fileUrls) {
@@ -179,7 +201,7 @@ const normalizeInputFileUrls = async (fileUrls = []) => {
       continue;
     }
 
-    results.push(await localFileUrlToDataUrl(fileUrl));
+    results.push(await localFileUrlToDataUrl(fileUrl, context));
   }
 
   return results;
@@ -199,7 +221,7 @@ const isConfigured = () =>
 const buildFallbackText = () =>
   "La IA del backend REST no esta configurada todavia. Define OPENAI_API_KEY para activar respuestas reales.";
 
-export const invokeAi = async (payload = {}) => {
+export const invokeAi = async (payload = {}, context = {}) => {
   const prompt = typeof payload.prompt === "string" ? payload.prompt.trim() : "";
   const responseJsonSchema =
     payload.response_json_schema && typeof payload.response_json_schema === "object"
@@ -216,7 +238,7 @@ export const invokeAi = async (payload = {}) => {
       : buildFallbackText();
   }
 
-  const fileUrls = await normalizeInputFileUrls(payload.file_urls);
+  const fileUrls = await normalizeInputFileUrls(payload.file_urls, context);
   const model = resolveModel({
     requestedModel: payload.model,
     hasVisionInput: fileUrls.length > 0,
