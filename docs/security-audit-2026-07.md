@@ -61,8 +61,22 @@ Sesiones: read-modify-write del objeto completo (race sin bloqueo). Rate-limit: 
 scrypt + `timingSafeEqual`; secretos AES-256-GCM; cookies HttpOnly/Secure/SameSite=strict; CSP+HSTS; SQL parametrizado; anti path-traversal en ficheros y backups; backups cifrados con checksum y restauración transaccional; validaciones de arranque que abortan config insegura de producción.
 
 ## ¿Hay más fallos? — barrido de completitud
-Tras el barrido dirigido no encontré vulnerabilidades adicionales de severidad alta/crítica en el código revisado. **Zonas NO auditadas en profundidad** (honestidad de alcance) que recomiendo revisar antes de dar por cerrada la auditoría:
-- `server/services/verifactu-*.js` (firma, cadena de hash, envío AEAT).
-- `server/routes/billing.js` + webhook de Stripe (validación de firma del webhook).
-- `server/routes/organizations.js` (líneas 535/899 usan `req.currentUser.id`, ahora correcto tras F10, pero conviene revisar la lógica de switch/creación de sesión de owner).
-- Fuzzing de entradas y revisión de dependencias transitivas periódica (`npm audit` en CI).
+Tras el barrido dirigido no encontré vulnerabilidades adicionales de severidad alta/crítica en el código revisado.
+
+---
+
+## Estado de la auditoría
+
+### ✅ Completado y desplegado (esta iteración)
+- **Corregido y verificado:** F1, F2, F10, F4, F3 (ver arriba). Verificación en instancia local aislada + lint + 12/12 tests + build. Desplegado a producción el 2026-07-04 (rama `fix/security-audit-2026-07` → `main`).
+- **Revisado a fondo (sin hallazgos críticos nuevos):** autenticación/sesiones (`auth.js`, `security-config.js`), aislamiento multi-tenant (`tenant.js`, `entities.js`), subida/descarga de ficheros (`files.js`), backups (`backup-service.js`), cifrado de secretos (`secret-crypto.js`), cabeceras/CSP (`security-headers.js`), rate-limit (`rate-limit.js`), servicio de IA (`ai-service.js`), rutas de cuenta/usuarios (`account.js`, `users.js`), CORS y config de arranque (`index.js`, `config.js`).
+
+### ⏳ Pendiente para cerrar la auditoría en profundidad
+1. **VeriFactu** (`server/services/verifactu-*.js`): validar la generación de la cadena de hash y la firma XAdES, el manejo del certificado .p12, y que no se registren datos sensibles en logs. Alto valor legal/fiscal.
+2. **Facturación / Stripe** (`server/routes/billing.js`): verificar que el webhook valida la firma (`STRIPE_WEBHOOK_SECRET`) con el cuerpo *raw*, idempotencia de eventos y que no haya escalada de plan/licencia manipulable desde el cliente.
+3. **Organizaciones** (`server/routes/organizations.js`): revisar la lógica de switch/creación de sesión de owner (usos de `req.currentUser.id`, ahora correctos tras F10) y el hard-delete de organizaciones.
+4. **Decisiones de arquitectura/producto:** F5 (filtrado/paginación en SQL con índice JSONB), F6 (tabla de sesiones + rate-limit compartido), F7 (rol `encargado`).
+5. **Proceso continuo:** `npm audit` en CI, fuzzing de entradas en endpoints públicos (signup, invitación, reset), y una revisión del frontend más allá de patrones peligrosos (XSS en render de datos de usuario).
+
+### Historial
+- **2026-07-04:** primera pasada de auditoría + corrección de F1/F2/F3/F4/F10 y despliegue. Pendientes 1–5 arriba.
