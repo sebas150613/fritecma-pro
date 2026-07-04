@@ -1162,7 +1162,7 @@ export default function NewIntervention() {
                 materials={materials}
                 onUpdate={updateLine}
                 onRemove={removeLine}
-                isAdmin={isAdmin}
+                isAdmin={canSeeBillingTotals}
                 vehicles={vehicles}
               />
             ))}
