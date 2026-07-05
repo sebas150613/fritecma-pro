@@ -120,6 +120,13 @@ const ensurePostgresSchema = async () => {
         CREATE INDEX IF NOT EXISTS ${ENTITY_TABLE}_entity_name_idx
         ON ${ENTITY_TABLE} (entity_name)
       `);
+      // Accelerates the most common query shape: tenant-scoped listing/filtering
+      // by organization_id (see buildTenantFilter). Without it, filtering large
+      // entities (Invoice, Intervention…) degrades to a per-entity seq scan.
+      await activePool.query(`
+        CREATE INDEX IF NOT EXISTS ${ENTITY_TABLE}_entity_org_idx
+        ON ${ENTITY_TABLE} (entity_name, (payload->>'organization_id'))
+      `);
       await activePool.query(`
         CREATE TABLE IF NOT EXISTS ${FILE_TABLE} (
           store_key TEXT PRIMARY KEY,
@@ -209,13 +216,50 @@ const createPostgresEntityStore = (entityName, filePath) => {
     return result.rows.map((row) => row.payload).filter(Boolean);
   };
 
+  // Reads rows for this entity, pushing string-valued equality filters into SQL
+  // so we don't transfer/scan the whole entity in Node. Only string equality is
+  // pushed down (key and value are parameterised — no SQL injection via keys);
+  // the `id` filter maps to the PK column `record_id` (= String(payload.id)).
+  // Callers still re-apply matchesFilter in JS, so non-string filters and exact
+  // typed semantics are preserved even though they aren't pushed down.
+  const readScoped = async (filter = {}) => {
+    const stringConds = Object.entries(filter || {}).filter(
+      ([, value]) => typeof value === "string"
+    );
+    if (stringConds.length === 0) {
+      return readAll();
+    }
+
+    await ensureMigrated();
+    const activePool = getPool();
+    const conditions = ["entity_name = $1"];
+    const params = [entityName];
+    for (const [key, value] of stringConds) {
+      if (key === "id") {
+        params.push(value);
+        conditions.push(`record_id = $${params.length}`);
+        continue;
+      }
+      params.push(key);
+      const keyIndex = params.length;
+      params.push(value);
+      conditions.push(`payload->>$${keyIndex} = $${params.length}`);
+    }
+
+    const result = await activePool.query(
+      `SELECT payload FROM ${ENTITY_TABLE} WHERE ${conditions.join(" AND ")}`,
+      params
+    );
+    return result.rows.map((row) => row.payload).filter(Boolean);
+  };
+
   return {
     async list({ sort, limit } = {}) {
       const records = await readAll();
       return applyLimit(applySort(records, sort), limit);
     },
     async filter({ filter = {}, sort, limit } = {}) {
-      const records = await readAll();
+      const records = await readScoped(filter);
       const filtered = records.filter((item) => matchesFilter(item, filter));
       return applyLimit(applySort(filtered, sort), limit);
     },

@@ -11,14 +11,14 @@
 | F10 | **ALTO** | `OrganizationSettings.id` machacaba `req.currentUser.id` | ✅ **CORREGIDO + verificado** (hallazgo nuevo) |
 | F3 | **ALTO** | Dependencias vulnerables | ✅ **CORREGIDO** (`npm audit` = 0) |
 | F4 | MEDIO | Lectura de ficheros cruzada entre orgs vía IA | ✅ **CORREGIDO** (verificado por código) |
-| F5 | MEDIO | Store carga toda la entidad en memoria por request | ⏳ Documentado (refactor arquitectónico) |
+| F5 | MEDIO | Store carga toda la entidad en memoria por request | 🟡 **MITIGADO** — filtro de igualdad + `id` empujados a SQL e índice JSONB por `organization_id` (rama, pendiente desplegar); paginación/`limit` en SQL sigue pendiente |
 | F6 | MEDIO | Sesiones/rate-limit sin bloqueo ni estado compartido | ⏳ Documentado (arquitectónico) |
 | F7 | MEDIO | Rol `encargado` se normaliza a `admin` | ✅ Aceptado — decisión de producto (intencionado: `encargado` = permisos de `admin`) |
 | F8 | BAJO | CORS en prod acepta origen = host de la request | ⏳ Aceptable tras el proxy (ver nota) |
 | V1 | **CRÍTICO** | VeriFactu: numeración y cadena de hash **globales**, no por organización | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
 | V2 | ALTO | Scheduler de reintentos AEAT abandona facturas reales al primer tick | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
 | S1 | ALTO | `POST /api/billing/contact-sales` lanza `ReferenceError` (500) | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
-| S2 | BAJO | Webhook Stripe sin idempotencia por `event.id` | ✅ **CORREGIDO** en rama `fix/security-audit-2026-07-v2` (pendiente desplegar) |
+| S2 | BAJO | Webhook Stripe sin idempotencia por `event.id` | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
 | V3 | BAJO | Certificado `.p12` sin cifrar en disco | ⏳ Pendiente conocido |
 
 ---
@@ -48,8 +48,9 @@
 
 ## Pendientes (no auto-corregidos, con motivo)
 
-### F5 · Cuello de botella del store — arquitectónico
-`server/lib/json-store.js`: cada `list`/`filter` carga TODAS las filas de la entidad en memoria y filtra en JS; el filtro por `organization_id` es solo en JS. Escala O(N) y frágil. **Recomendación:** filtrar/paginar en SQL con índice JSONB `(entity_name, (payload->>'organization_id'))`. No aplicado por ser un refactor que requiere pruebas de regresión de todas las consultas.
+### F5 · Cuello de botella del store — MITIGADO 🟡 (en rama, pendiente desplegar)
+`server/lib/json-store.js`: el `filter()` del store **Postgres** cargaba TODAS las filas de la entidad y filtraba en JS. Ahora empuja las igualdades de tipo string a SQL (`readScoped`): clave y valor **parametrizados** (`payload->>$k = $v`, sin inyección por nombre de clave), y el filtro por `id` usa la PK `record_id`. Se re-aplica `matchesFilter` en JS para preservar la semántica exacta (filtros no-string y tipado), así que el SQL solo **reduce** el conjunto, nunca cambia el resultado. Nuevo índice `(entity_name, (payload->>'organization_id'))` para la consulta tenant-scoped más común. **Validado contra Postgres de producción (solo-lectura): el nuevo SQL devuelve conjuntos idénticos al scan+filtro-JS**; regresión local (store JSON) 12/12 + contratos multitenant/rbac OK.
+**Pendiente (fase 2):** empujar también `sort`/`limit` a SQL (hoy la paginación sigue en JS sobre el conjunto ya reducido) y considerar índices adicionales según los patrones de consulta reales al crecer los datos.
 
 ### F6 · Sesiones y rate-limit — arquitectónico
 Sesiones: read-modify-write del objeto completo (race sin bloqueo). Rate-limit: en memoria del proceso (inútil al escalar horizontalmente). **Recomendación:** tabla `sessions` por-fila con TTL; store de rate-limit compartido si se escala. Aceptable hoy con una sola instancia.
