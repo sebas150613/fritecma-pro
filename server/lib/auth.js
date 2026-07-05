@@ -523,6 +523,33 @@ const readSessions = async () => {
 
 const writeSessions = async (sessions) => sessionStore.write(sessions);
 
+// Serialize read-modify-write of the whole session blob. Without this, two
+// concurrent session operations (login / logout / org-switch) both read the
+// same snapshot and the last writer wins — losing a freshly created token or,
+// worse, resurrecting one that a concurrent logout just invalidated. The
+// mutator runs synchronously so the critical section stays short (no external
+// I/O while holding the lock). Same serial-lock pattern as counterLock in
+// verifactu-service. Single-instance guarantee (see F6 in the security audit).
+let sessionMutationLock = Promise.resolve();
+
+const mutateSessions = async (mutator) => {
+  const previous = sessionMutationLock;
+  let release;
+  sessionMutationLock = new Promise((resolve) => {
+    release = resolve;
+  });
+  await previous;
+
+  try {
+    const sessions = await readSessions();
+    const result = mutator(sessions);
+    await writeSessions(sessions);
+    return result;
+  } finally {
+    release();
+  }
+};
+
 const getUserById = async (id) => {
   const users = await userStore.list();
   return users.find((user) => user.id === id) || null;
@@ -687,9 +714,14 @@ const resolveAuthenticatedBaseUser = async (req) => {
   if (session?.userId) {
     // Limpieza lazy de sesiones expiradas
     if (session.expiresAt && new Date(session.expiresAt) < new Date()) {
-      const expiredSessions = await readSessions();
-      delete expiredSessions[token];
-      await writeSessions(expiredSessions);
+      await mutateSessions((current) => {
+        // Only prune if still present and still expired: a concurrent re-login
+        // could have replaced this entry with a fresh, valid token.
+        const stored = current[token];
+        if (stored?.expiresAt && new Date(stored.expiresAt) < new Date()) {
+          delete current[token];
+        }
+      });
     } else {
       const user = users.find((item) => item.id === session.userId);
       if (user && user.is_active !== false) {
@@ -803,15 +835,16 @@ export const createSessionForUser = async (
     }
 
     const token = randomUUID();
-    const sessions = await readSessions();
     const now = Date.now();
-    sessions[token] = {
+    const sessionRecord = {
       userId: user.id,
       organizationId: DEFAULT_ORGANIZATION_ID,
       createdAt: new Date(now).toISOString(),
       expiresAt: new Date(now + serverConfig.sessionTtlMs).toISOString(),
     };
-    await writeSessions(sessions);
+    await mutateSessions((sessions) => {
+      sessions[token] = sessionRecord;
+    });
 
     const context = await createResolvedAuthContext(user, DEFAULT_ORGANIZATION_ID);
 
@@ -833,15 +866,16 @@ export const createSessionForUser = async (
   }
 
   const token = randomUUID();
-  const sessions = await readSessions();
   const now = Date.now();
-  sessions[token] = {
+  const sessionRecord = {
     userId: user.id,
     organizationId: selectedMembership.organization_id,
     createdAt: new Date(now).toISOString(),
     expiresAt: new Date(now + serverConfig.sessionTtlMs).toISOString(),
   };
-  await writeSessions(sessions);
+  await mutateSessions((sessions) => {
+    sessions[token] = sessionRecord;
+  });
 
   const context = await createResolvedAuthContext(user, selectedMembership.organization_id);
 
@@ -892,8 +926,7 @@ export const updateSessionOrganization = async (token, organizationId) => {
     throw new HttpError(400, "Authentication token is required");
   }
 
-  const sessions = await readSessions();
-  const session = sessions[token];
+  const session = (await readSessions())[token];
 
   if (!session?.userId) {
     throw new HttpError(401, "Authentication required");
@@ -913,13 +946,20 @@ export const updateSessionOrganization = async (token, organizationId) => {
     throw new HttpError(403, "You do not belong to that organization");
   }
 
-  sessions[token] = {
-    ...session,
-    organizationId: membership.organization_id,
-    updatedAt: new Date().toISOString(),
-  };
+  // Re-check the token inside the lock: a concurrent logout may have removed it
+  // between the read above and this write, and we must not resurrect it.
+  await mutateSessions((sessions) => {
+    const current = sessions[token];
+    if (!current?.userId) {
+      throw new HttpError(401, "Authentication required");
+    }
+    sessions[token] = {
+      ...current,
+      organizationId: membership.organization_id,
+      updatedAt: new Date().toISOString(),
+    };
+  });
 
-  await writeSessions(sessions);
   return createResolvedAuthContext(user, membership.organization_id);
 };
 
@@ -928,14 +968,13 @@ export const invalidateSessionToken = async (token) => {
     return false;
   }
 
-  const sessions = await readSessions();
-  if (!sessions[token]) {
-    return false;
-  }
-
-  delete sessions[token];
-  await writeSessions(sessions);
-  return true;
+  return mutateSessions((sessions) => {
+    if (!sessions[token]) {
+      return false;
+    }
+    delete sessions[token];
+    return true;
+  });
 };
 
 export const requireAuth = async (req, _res, next) => {
