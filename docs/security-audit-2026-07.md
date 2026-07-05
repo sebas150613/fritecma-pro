@@ -15,9 +15,9 @@
 | F6 | MEDIO | Sesiones/rate-limit sin bloqueo ni estado compartido | ⏳ Documentado (arquitectónico) |
 | F7 | MEDIO | Rol `encargado` se normaliza a `admin` | ⏳ Requiere decisión de producto |
 | F8 | BAJO | CORS en prod acepta origen = host de la request | ⏳ Aceptable tras el proxy (ver nota) |
-| V1 | **CRÍTICO** | VeriFactu: numeración y cadena de hash **globales**, no por organización | ✅ **CORREGIDO** en rama `fix/security-audit-2026-07-v2` (pendiente desplegar) |
-| V2 | ALTO | Scheduler de reintentos AEAT abandona facturas reales al primer tick | ✅ **CORREGIDO** en rama `fix/security-audit-2026-07-v2` (pendiente desplegar) |
-| S1 | ALTO | `POST /api/billing/contact-sales` lanza `ReferenceError` (500) | ✅ **CORREGIDO** en rama `fix/security-audit-2026-07-v2` (pendiente desplegar) |
+| V1 | **CRÍTICO** | VeriFactu: numeración y cadena de hash **globales**, no por organización | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
+| V2 | ALTO | Scheduler de reintentos AEAT abandona facturas reales al primer tick | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
+| S1 | ALTO | `POST /api/billing/contact-sales` lanza `ReferenceError` (500) | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
 | S2 | BAJO | Webhook Stripe sin idempotencia por `event.id` | ⏳ Mitigado (handlers idempotentes) |
 | V3 | BAJO | Certificado `.p12` sin cifrar en disco | ⏳ Pendiente conocido |
 
@@ -136,3 +136,4 @@ No se registran los `event.id` procesados; Stripe puede reentregar el mismo even
   - **V2:** `processVerifactuRetry` resuelve el certificado desde `OrganizationSettings` de la organización de la factura cuando ni el llamante ni el creador lo tienen (caso del scheduler automático), en vez de abandonarla.
   - **S1:** `billing-service.js` usa `getUserStore().list()` (llamada diferida para evitar el ciclo de import con `auth.js`).
   - **Verificado:** `node --check`, test unitario de `migrateLegacyCounters`/`parseInvoiceIndex`, test de integración de numeración+cadena por-org con dos organizaciones, contrato `multitenant-isolation` OK, 12/12 tests, lint y build OK.
+- **2026-07-05 (despliegue):** `fix/security-audit-2026-07-v2` (commit `3f56001`) fusionado a `main` y desplegado. Producción usa **Postgres** (no el store JSON), y al desplegar había **0 facturas** y sin fila de contadores, así que **no fue necesario backfill** (`scripts/migrate-verifactu-per-organization.mjs` es solo para el store JSON y se salta con `DATABASE_URL`). Servicio `frigest-api` reiniciado, `/health` 200, sin errores en logs. `main` publicado en GitHub.
