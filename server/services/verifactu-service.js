@@ -1,6 +1,11 @@
 import { createJsonEntityStore, createJsonFileStore } from "../lib/json-store.js";
 import { HttpError } from "../lib/http-error.js";
 import {
+  DEFAULT_ORGANIZATION_ID,
+  decryptOrganizationSettingsFromStorage,
+  getOrganizationSettingsStore,
+} from "../lib/tenant.js";
+import {
   VERIFACTU_PRODUCTION_ENDPOINT,
   VERIFACTU_SANDBOX_ENDPOINT,
   buildVerifactuQrUrl,
@@ -16,6 +21,7 @@ const invoiceStore = createJsonEntityStore("Invoice");
 const interventionStore = createJsonEntityStore("Intervention");
 const retryQueueStore = createJsonEntityStore("InvoiceRetryQueue");
 const counterStore = createJsonFileStore("function-counters.json", {});
+const organizationSettingsStore = getOrganizationSettingsStore();
 
 const RETRY_BACKOFF_MS = [60000, 300000, 1800000];
 const MAX_RETRIES = 5;
@@ -61,7 +67,72 @@ const acquireInterventionLock = (interventionId) => {
   return prev.then(() => release);
 };
 
-const getNextInvoiceNumber = async (series = "F") => {
+// Extracts the numeric suffix from an invoice number like "F-000004" → 4.
+export const parseInvoiceIndex = (invoiceNumber) => {
+  const match = /(\d+)\s*$/.exec(String(invoiceNumber || ""));
+  return match ? Number(match[1]) : 0;
+};
+
+// Legacy counters were a single flat shape shared by every tenant:
+//   { "F": 4, "R": 1 }
+// VeriFactu requires an independent series per obligado tributario, so the new
+// shape is per-organization:
+//   { "org-frigest": { "F": 4, "R": 1 }, "org-otra": { "F": 2 } }
+// Any legacy flat keys are attributed to the default (single-tenant) organization.
+export const migrateLegacyCounters = (counters) => {
+  if (!counters || typeof counters !== "object") {
+    return {};
+  }
+
+  const hasLegacyFlat = Object.prototype.hasOwnProperty.call(counters, "F") ||
+    Object.prototype.hasOwnProperty.call(counters, "R");
+
+  if (!hasLegacyFlat) {
+    return { ...counters };
+  }
+
+  const migrated = {};
+  const legacy = {};
+  for (const [key, value] of Object.entries(counters)) {
+    if (key === "F" || key === "R") {
+      legacy[key] = value;
+    } else {
+      migrated[key] = value;
+    }
+  }
+
+  migrated[DEFAULT_ORGANIZATION_ID] = {
+    ...(migrated[DEFAULT_ORGANIZATION_ID] || {}),
+    ...legacy,
+  };
+
+  return migrated;
+};
+
+// Highest invoice index already stored for an organization + series. Used to
+// seed a fresh counter (new org, or counter file lost) so numbering never
+// collides with or skips an existing fiscal record.
+const getMaxInvoiceIndex = async (organizationId, series) => {
+  const items = await invoiceStore.filter({
+    filter: { organization_id: organizationId, serie: series },
+    limit: 1000000,
+  });
+
+  let max = 0;
+  for (const item of items) {
+    const index = parseInvoiceIndex(item.invoice_number);
+    if (index > max) {
+      max = index;
+    }
+  }
+  return max;
+};
+
+const getNextInvoiceNumber = async (series = "F", organizationId) => {
+  if (!organizationId) {
+    throw new HttpError(400, "No se pudo determinar la organización para numerar la factura.");
+  }
+
   // Queue behind the previous counter operation
   const prev = counterLock;
   let release;
@@ -69,10 +140,21 @@ const getNextInvoiceNumber = async (series = "F") => {
   await prev;
 
   try {
-    const counters = await counterStore.read();
-    const current = Number(counters[series] || 0) + 1;
-    counters[series] = current;
+    const counters = migrateLegacyCounters(await counterStore.read());
+    const orgCounters = { ...(counters[organizationId] || {}) };
+
+    let current = Number(orgCounters[series] || 0);
+    if (current === 0) {
+      // No counter yet for this org/series: seed from existing invoices so we
+      // never reuse a number that is already on a stored record.
+      current = await getMaxInvoiceIndex(organizationId, series);
+    }
+    current += 1;
+
+    orgCounters[series] = current;
+    counters[organizationId] = orgCounters;
     await counterStore.write(counters);
+
     return {
       number: `${series}-${String(current).padStart(6, "0")}`,
       index: current,
@@ -99,10 +181,20 @@ const findById = async (store, id, label) => {
   return item;
 };
 
-const getLastInvoice = async ({ isProduction = false } = {}) => {
-  // Fetch more items so we can skip sandbox invoices in production mode
+const getLastInvoice = async ({ isProduction = false, organizationId } = {}) => {
+  if (!organizationId) {
+    throw new HttpError(400, "No se pudo determinar la organización para encadenar la factura.");
+  }
+  // The VeriFactu hash chain is per obligado tributario (per organization),
+  // so the previous record must be scoped to the same organization. Mixing
+  // tenants into one chain is non-compliant.
+  // Fetch more items so we can skip sandbox invoices in production mode.
   const limit = isProduction ? 50 : 1;
-  const items = await invoiceStore.list({ sort: "-created_date", limit });
+  const items = await invoiceStore.filter({
+    filter: { organization_id: organizationId },
+    sort: "-created_date",
+    limit,
+  });
   if (isProduction) {
     return items.find((i) => i.verifactu_status !== "validado_sandbox") || null;
   }
@@ -328,14 +420,25 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
       );
     }
   }
+  const organizationId =
+    currentUser?.current_organization?.id ||
+    currentUser?.organization_id ||
+    null;
+  if (!organizationId) {
+    throw new HttpError(400, "No se pudo determinar la organización del emisor para facturar.");
+  }
+
   const isProductionMode = currentUser?.verifactu_produccion === true;
   const shouldQueueSubmission =
     payload.force_pending_submission === true ||
     payload.pending_submission === true;
   const { issuerNif, issuerName } = getIssuerInfo(currentUser);
-  const previousInvoice = await getLastInvoice({ isProduction: isProductionMode });
+  const previousInvoice = await getLastInvoice({ isProduction: isProductionMode, organizationId });
   const previousHash = previousInvoice?.hash_huella || "";
-  const { number: invoiceNumber } = await getNextInvoiceNumber(isRectificativa ? "R" : "F");
+  const { number: invoiceNumber } = await getNextInvoiceNumber(
+    isRectificativa ? "R" : "F",
+    organizationId
+  );
   const chainIndex = Number(previousInvoice?.invoice_chain_index || 0) + 1;
 
   const originalSubtotal = clampMoney(intervention.subtotal ?? intervention.total ?? 0);
@@ -392,6 +495,7 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
   });
 
   const invoiceRecord = await invoiceStore.create({
+    organization_id: organizationId,
     invoice_number: invoiceNumber,
     serie: isRectificativa ? "R" : "F",
     tipo_factura: tipoFactura,
@@ -625,17 +729,40 @@ export const processVerifactuRetry = async ({ payload = {}, currentUser }) => {
           limit: 1,
         }))[0] || null
       : null;
-  const submissionUser =
-    currentUser?.verifactu_produccion === true && currentUser?.verifactu_cert_uri
-      ? currentUser
-      : owner;
+
+  const hasSubmissionCert = (candidate) =>
+    candidate?.verifactu_produccion === true && Boolean(candidate?.verifactu_cert_uri);
+
+  let submissionUser = hasSubmissionCert(currentUser)
+    ? currentUser
+    : hasSubmissionCert(owner)
+      ? owner
+      : null;
+
+  // The VeriFactu credentials (production flag + certificate) live in
+  // OrganizationSettings, not on the User record. When neither the caller nor
+  // the invoice creator carries them — e.g. the automatic retry scheduler runs
+  // without a currentUser — resolve them from the invoice's organization so
+  // real AEAT submissions are not abandoned as permanent failures.
+  if (!submissionUser && invoice.organization_id) {
+    const settingsRow = (
+      await organizationSettingsStore.filter({
+        filter: { organization_id: invoice.organization_id },
+        limit: 1,
+      })
+    )[0] || null;
+    if (settingsRow) {
+      const decrypted = decryptOrganizationSettingsFromStorage({ ...settingsRow });
+      if (hasSubmissionCert(decrypted)) {
+        submissionUser = { ...(owner || {}), ...decrypted };
+      }
+    }
+  }
+
   const requiresRealSubmission =
     typeof invoice.xml_payload === "string" &&
     invoice.xml_payload.includes("RegFactuSistemaFacturacion");
-  const canUseRealSubmission =
-    submissionUser?.verifactu_produccion === true &&
-    submissionUser?.verifactu_cert_uri &&
-    requiresRealSubmission;
+  const canUseRealSubmission = Boolean(submissionUser) && requiresRealSubmission;
 
   if (requiresRealSubmission && !canUseRealSubmission) {
     throw new HttpError(

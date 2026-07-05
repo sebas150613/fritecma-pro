@@ -436,7 +436,7 @@ export const createSalesContactRequest = async ({
     throw new HttpError(404, "Plan not found");
   }
 
-  const users = await userStore.list();
+  const users = await getUserStore().list();
   const ownerRecipients = users
     .filter((user) => user.is_hidden_owner === true && user.is_active !== false && user.email)
     .map((user) => user.email);
