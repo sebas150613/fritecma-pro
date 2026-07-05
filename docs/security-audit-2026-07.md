@@ -13,7 +13,7 @@
 | F4 | MEDIO | Lectura de ficheros cruzada entre orgs vía IA | ✅ **CORREGIDO** (verificado por código) |
 | F5 | MEDIO | Store carga toda la entidad en memoria por request | ⏳ Documentado (refactor arquitectónico) |
 | F6 | MEDIO | Sesiones/rate-limit sin bloqueo ni estado compartido | ⏳ Documentado (arquitectónico) |
-| F7 | MEDIO | Rol `encargado` se normaliza a `admin` | ⏳ Requiere decisión de producto |
+| F7 | MEDIO | Rol `encargado` se normaliza a `admin` | ✅ Aceptado — decisión de producto (intencionado: `encargado` = permisos de `admin`) |
 | F8 | BAJO | CORS en prod acepta origen = host de la request | ⏳ Aceptable tras el proxy (ver nota) |
 | V1 | **CRÍTICO** | VeriFactu: numeración y cadena de hash **globales**, no por organización | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
 | V2 | ALTO | Scheduler de reintentos AEAT abandona facturas reales al primer tick | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
@@ -54,8 +54,8 @@
 ### F6 · Sesiones y rate-limit — arquitectónico
 Sesiones: read-modify-write del objeto completo (race sin bloqueo). Rate-limit: en memoria del proceso (inútil al escalar horizontalmente). **Recomendación:** tabla `sessions` por-fila con TTL; store de rate-limit compartido si se escala. Aceptable hoy con una sola instancia.
 
-### F7 · `encargado` → `admin` — decisión de producto
-`server/lib/roles.js`: `LEGACY_ROLE_ALIASES = { encargado: "admin" }` da a `encargado` permisos plenos de admin. Si el producto lo entiende como rol intermedio, es sobre-privilegio. **No lo cambio sin confirmar la intención**, porque convertir `encargado` en rol de primera clase implica definir su matriz de permisos en toda la app.
+### F7 · `encargado` → `admin` — ACEPTADO (decisión de producto, 2026-07-05)
+`server/lib/roles.js`: `LEGACY_ROLE_ALIASES = { encargado: "admin" }`. **Decisión confirmada por el propietario: es intencionado — `encargado` debe tener exactamente los mismos permisos que `admin`.** No es sobre-privilegio; es un alias de rol deliberado. El mapeo se aplica en un único punto de normalización (`normalizeOrganizationRole` → `resolveAppRole`), por lo que la resolución a `admin` es consistente en toda la app (permisos, visibilidad de precios, billing, gestión de usuarios). La etiqueta "encargado" se conserva como nombre visible en la UI. No requiere cambios de código.
 
 ### F8 · CORS en producción — aceptable tras el proxy
 `server/index.js` permite orígenes cuyo host = host de la request (necesario para las páginas HTML servidas por la API, p. ej. aceptar invitación). El `Host`/`X-Forwarded-Host` lo fija el proxy de confianza, así que el riesgo práctico es bajo. Se puede endurecer a solo `APP_ALLOWED_ORIGINS` si se separan esos flujos.
