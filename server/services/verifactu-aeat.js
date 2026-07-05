@@ -4,6 +4,11 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { serverConfig } from "../config.js";
 import { HttpError } from "../lib/http-error.js";
+import {
+  decryptBufferAtRest,
+  encryptBufferAtRest,
+  isEncryptedBuffer,
+} from "../lib/secret-crypto.js";
 
 export const VERIFACTU_SANDBOX_ENDPOINT =
   process.env.APP_VERIFACTU_SANDBOX_ENDPOINT ||
@@ -253,6 +258,28 @@ export const resolveCertificateFile = async (certUri) => {
   return target;
 };
 
+// Reads a .p12/.pfx from disk, transparently decrypting the at-rest envelope
+// (see encryptBufferAtRest). Legacy plaintext certificates are re-encrypted in
+// place on first use (atomic tmp+rename, best-effort) so existing installs
+// self-migrate without an operator step. The plaintext only ever lives in
+// process memory for the TLS handshake.
+export const readCertificateSecure = async (certPath) => {
+  const raw = await fs.readFile(certPath);
+  if (isEncryptedBuffer(raw)) {
+    return decryptBufferAtRest(raw);
+  }
+  try {
+    const sealed = encryptBufferAtRest(raw);
+    const tmpPath = `${certPath}.enc-tmp`;
+    await fs.writeFile(tmpPath, sealed);
+    await fs.rename(tmpPath, certPath);
+  } catch {
+    // Best-effort: without APP_SETTINGS_SECRET (or on a read-only fs) keep
+    // serving the plaintext file rather than breaking fiscal submissions.
+  }
+  return raw;
+};
+
 export const postSoapRequest = async ({
   endpoint,
   xml,
@@ -261,7 +288,7 @@ export const postSoapRequest = async ({
   timeoutMs = 20000,
 }) => {
   const url = new URL(endpoint);
-  const pfx = certPath ? await fs.readFile(certPath) : null;
+  const pfx = certPath ? await readCertificateSecure(certPath) : null;
 
   return await new Promise((resolve, reject) => {
     const request = https.request(

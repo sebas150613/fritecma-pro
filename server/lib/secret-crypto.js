@@ -87,6 +87,57 @@ export const decryptSecret = (value, options = {}) => {
   ]).toString("utf8");
 };
 
+// --- Binary at-rest encryption (certificate files, etc.) ---
+// Format: MAGIC(8) | iv(12) | tag(16) | ciphertext. Same key derivation and
+// AES-256-GCM as the string variant, so one APP_SETTINGS_SECRET protects both.
+const BUFFER_MAGIC = Buffer.from("FRGENC1\0", "latin1");
+
+export const isEncryptedBuffer = (buffer) =>
+  Buffer.isBuffer(buffer) &&
+  buffer.length > BUFFER_MAGIC.length + 12 + 16 &&
+  buffer.subarray(0, BUFFER_MAGIC.length).equals(BUFFER_MAGIC);
+
+export const encryptBufferAtRest = (buffer, options = {}) => {
+  if (!Buffer.isBuffer(buffer)) {
+    throw new Error("encryptBufferAtRest expects a Buffer");
+  }
+  if (isEncryptedBuffer(buffer)) {
+    return buffer;
+  }
+  const secret = resolveSecret(options);
+  if (!secret) {
+    throw new Error(
+      "APP_SETTINGS_SECRET is required to encrypt files at rest"
+    );
+  }
+  const key = deriveKey(secret);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(buffer), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([BUFFER_MAGIC, iv, tag, ciphertext]);
+};
+
+export const decryptBufferAtRest = (buffer, options = {}) => {
+  if (!Buffer.isBuffer(buffer) || !isEncryptedBuffer(buffer)) {
+    return buffer;
+  }
+  const secret = resolveSecret(options);
+  if (!secret) {
+    throw new Error(
+      "APP_SETTINGS_SECRET is required to decrypt files at rest"
+    );
+  }
+  const headerEnd = BUFFER_MAGIC.length;
+  const iv = buffer.subarray(headerEnd, headerEnd + 12);
+  const tag = buffer.subarray(headerEnd + 12, headerEnd + 28);
+  const ciphertext = buffer.subarray(headerEnd + 28);
+  const key = deriveKey(secret);
+  const decipher = createDecipheriv("aes-256-gcm", key, iv);
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+};
+
 /**
  * Decrypt enc:v1 values when possible; legacy plaintext unchanged.
  * On decrypt failure (wrong key), returns the stored string unchanged.

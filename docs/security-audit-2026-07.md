@@ -19,7 +19,7 @@
 | V2 | ALTO | Scheduler de reintentos AEAT abandona facturas reales al primer tick | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
 | S1 | ALTO | `POST /api/billing/contact-sales` lanza `ReferenceError` (500) | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
 | S2 | BAJO | Webhook Stripe sin idempotencia por `event.id` | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
-| V3 | BAJO | Certificado `.p12` sin cifrar en disco | ⏳ Pendiente conocido |
+| V3 | BAJO | Certificado `.p12` sin cifrar en disco | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) — cifrado AES-256-GCM en reposo con auto-migración al primer uso |
 
 ---
 
@@ -96,8 +96,16 @@ Hoy es en gran parte **latente** porque solo opera la organización `org-frigest
 
 **Recomendación:** en el scheduler, resolver por factura la organización y cargar los secretos de `OrganizationSettings` (equivalente a `mergeDecryptedOrgSecretsForServer`) antes de reintentar, o excluir del abandono los 400 por "certificado no disponible".
 
-### V3 · Certificado `.p12` sin cifrar en disco — BAJO ⏳
-La contraseña del certificado sí se cifra en `OrganizationSettings` (AES-GCM), pero el fichero `.p12` reside en `uploads/` sin cifrar. Pendiente conocido (toca el pipeline genérico de subida + la ruta mTLS de envío).
+### V3 · Certificado `.p12` sin cifrar en disco — CORREGIDO ✅ (2026-07-05)
+`server/lib/secret-crypto.js`: nuevas primitivas binarias `encryptBufferAtRest`/`decryptBufferAtRest`/`isEncryptedBuffer` (AES-256-GCM, misma derivación de clave de `APP_SETTINGS_SECRET` que los secretos de organización; formato `MAGIC|iv|tag|ciphertext`). `server/services/verifactu-aeat.js`: `readCertificateSecure` lee el `.p12`, lo descifra si está sellado y, si lo encuentra en claro, **lo re-cifra in situ al primer uso** (escritura atómica tmp+rename, best-effort) — las instalaciones existentes se auto-migran sin intervención. El plaintext solo vive en memoria para el handshake TLS. Sin `APP_SETTINGS_SECRET` (dev local) degrada a comportamiento anterior sin romper envíos. No se tocó el pipeline genérico de subida.
+**Verificado (2026-07-05, con certificados de prueba FNMT):** round-trip binario, auto-cifrado en primer uso (disco cifrado, lectura íntegra), lectura descifrada idéntica, y **envío mTLS real al sandbox de AEAT con el `.p12` ya cifrado en disco (HTTP 200, misma respuesta que en claro)**. Caso sin secreto: fichero intacto y lectura correcta.
+
+### VeriFactu · Prueba end-to-end contra el sandbox de AEAT — HECHA ✅ (2026-07-05)
+Con los certificados de prueba FNMT (`ACTIVO_EIDAS_CERTIFICADO_PRUEBAS___99999999R.p12`):
+- **mTLS**: handshake con certificado cliente aceptado por `prewww1.aeat.es` (HTTP 200).
+- **Pipeline completo** (`processVerifactu` en modo producción → envelope `RegFactuSistemaFacturacion` → envío → parseo → persistencia): funciona de extremo a extremo; AEAT parseó el envelope y ejecutó la validación de cabecera.
+- **Resultado funcional**: error **4104** ("NIF del ObligadoEmision no está identificado") — limitación del entorno, no fallo de la app: los NIF genéricos de prueba FNMT (99999999R, Q0000000J) **no están en el censo** que contrasta la preproducción de AEAT. El certificado de representante devuelve 302 (no autorizado a nivel de aplicación) y el sello de entidad no completa el handshake en preproducción.
+- **Conclusión**: todo lo que depende de FriGest está verificado (certificado, mTLS, envelope, parseo de respuestas, persistencia de errores). Para obtener un "Correcto" real hace falta el **certificado real de la empresa** (NIF censado) — mismo procedimiento, sin cambios de código.
 
 ### S1 · `POST /api/billing/contact-sales` siempre falla — ALTO 🔴
 `server/services/billing-service.js` → `createSalesContactRequest` usa `userStore.list()` (línea ~439) pero **`userStore` no está declarado**: el módulo importa `getUserStore` y nunca lo instancia. Resultado: `ReferenceError` → **HTTP 500** en cada solicitud comercial. Endpoint roto.
