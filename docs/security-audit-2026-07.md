@@ -18,7 +18,7 @@
 | V1 | **CRÍTICO** | VeriFactu: numeración y cadena de hash **globales**, no por organización | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
 | V2 | ALTO | Scheduler de reintentos AEAT abandona facturas reales al primer tick | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
 | S1 | ALTO | `POST /api/billing/contact-sales` lanza `ReferenceError` (500) | ✅ **CORREGIDO + DESPLEGADO** (2026-07-05) |
-| S2 | BAJO | Webhook Stripe sin idempotencia por `event.id` | ⏳ Mitigado (handlers idempotentes) |
+| S2 | BAJO | Webhook Stripe sin idempotencia por `event.id` | ✅ **CORREGIDO** en rama `fix/security-audit-2026-07-v2` (pendiente desplegar) |
 | V3 | BAJO | Certificado `.p12` sin cifrar en disco | ⏳ Pendiente conocido |
 
 ---
@@ -105,8 +105,8 @@ La contraseña del certificado sí se cifra en `OrganizationSettings` (AES-GCM),
 - **Firma del webhook:** correcta. `server/index.js` monta `express.raw({type:"application/json"})` en `/api/billing/webhook` **antes** de `express.json`, y `parseStripeWebhookEvent` valida con `stripe.webhooks.constructEvent(rawBuffer, signature, STRIPE_WEBHOOK_SECRET)`.
 - **Sin escalada de plan desde cliente:** el plan efectivo solo se aplica vía webhook mapeando `price.id` → plan (`updateSubscriptionFromStripePayload`); `/checkout` valida el plan contra el catálogo y exige `stripe_price_id`; `/assign-plan` y `license/activate|pause` exigen owner (`is_hidden_owner`). Un cliente no puede autopromocionarse sin pagar.
 
-### S2 · Webhook sin idempotencia — BAJO ⏳
-No se registran los `event.id` procesados; Stripe puede reentregar el mismo evento. Hoy es de bajo riesgo porque los handlers son idempotentes (actualizan al mismo estado). Si se añaden efectos no idempotentes (p. ej. contabilizar pagos), registrar los `event.id` ya procesados.
+### S2 · Webhook sin idempotencia — CORREGIDO ✅ (en rama, pendiente desplegar)
+Nueva entidad global `StripeWebhookEvent` (keyed por el `event.id` de Stripe). `stripeWebhookHandler` comprueba `hasStripeEventBeenProcessed(event.id)` y sale con `{received:true, duplicate:true}` si ya se procesó; registra el evento con `recordStripeEventProcessed` **solo tras** manejarlo con éxito (así un evento fallido se sigue reintentando). Defensa en profundidad sobre unos handlers que ya eran idempotentes. Verificado con test de integración (mismo `event.id` dos veces → segunda es no-op).
 
 ### Organizaciones — CORRECTO ✅ (con una consecuencia de V1)
 - **Hard-delete:** restringido a owner (`canAccessHiddenUsers`), bloquea la org activa de la sesión y la org interna de plataforma; purga entidades tenant por `organization_id`, memberships y usuarios sin otra membership (nunca al owner oculto). Salvedad: las facturas sin `organization_id` de V1 no se purgan.
@@ -126,7 +126,13 @@ No se registran los `event.id` procesados; Stripe puede reentregar el mismo even
 2. **Facturación / Stripe** (`server/routes/billing.js`): verificar que el webhook valida la firma (`STRIPE_WEBHOOK_SECRET`) con el cuerpo *raw*, idempotencia de eventos y que no haya escalada de plan/licencia manipulable desde el cliente.
 3. **Organizaciones** (`server/routes/organizations.js`): revisar la lógica de switch/creación de sesión de owner (usos de `req.currentUser.id`, ahora correctos tras F10) y el hard-delete de organizaciones.
 4. **Decisiones de arquitectura/producto:** F5 (filtrado/paginación en SQL con índice JSONB), F6 (tabla de sesiones + rate-limit compartido), F7 (rol `encargado`).
-5. **Proceso continuo:** `npm audit` en CI, fuzzing de entradas en endpoints públicos (signup, invitación, reset), y una revisión del frontend más allá de patrones peligrosos (XSS en render de datos de usuario).
+5. **Proceso continuo:** ~~revisión de XSS en el frontend~~ ✅ hecha 2026-07-05 (limpia, ver abajo); ~~`npm audit`~~ ✅ 0 vulnerabilidades (2026-07-05). Sigue pendiente: `npm audit` en CI (automatizado) y fuzzing de entradas en endpoints públicos (signup, invitación, reset).
+
+### Frontend · Revisión de XSS — SIN HALLAZGOS ✅ (2026-07-05)
+- Único `dangerouslySetInnerHTML` en `src/components/ui/chart.jsx`: blindado con allowlist (`SAFE_CSS_KEY` `/^[\w-]+$/` y `SAFE_CSS_COLOR`), el `id`/`config` provienen del código (no del usuario). Seguro.
+- Todos los `href`/`src` dinámicos usan esquema fijo (`tel:`/`mailto:`), URL `https://maps.google.com/?q=` + `encodeURIComponent` (`MapLink`), o URLs construidas por el backend (`qr_url` de AEAT, media de ficheros). Ninguno permite inyección `javascript:` ni HTML.
+- React escapa por defecto todo el texto de datos de usuario (nombres de cliente, notas, campos de factura, etc.). Sin `eval`/`new Function`/`document.write`.
+- `npm audit`: **0 vulnerabilidades**.
 
 ### Historial
 - **2026-07-04:** primera pasada de auditoría + corrección de F1/F2/F3/F4/F10 y despliegue. Pendientes 1–5 arriba.
@@ -136,4 +142,5 @@ No se registran los `event.id` procesados; Stripe puede reentregar el mismo even
   - **V2:** `processVerifactuRetry` resuelve el certificado desde `OrganizationSettings` de la organización de la factura cuando ni el llamante ni el creador lo tienen (caso del scheduler automático), en vez de abandonarla.
   - **S1:** `billing-service.js` usa `getUserStore().list()` (llamada diferida para evitar el ciclo de import con `auth.js`).
   - **Verificado:** `node --check`, test unitario de `migrateLegacyCounters`/`parseInvoiceIndex`, test de integración de numeración+cadena por-org con dos organizaciones, contrato `multitenant-isolation` OK, 12/12 tests, lint y build OK.
+- **2026-07-05 (continuación):** revisión de XSS del frontend (sin hallazgos), `npm audit` = 0, F7 cerrado como decisión de producto, y **S2** corregido (idempotencia del webhook Stripe con la entidad `StripeWebhookEvent`). Verificado: 12/12 tests, contrato multitenant-isolation, test de integración de idempotencia, lint y build. **En rama `fix/security-audit-2026-07-v2`, pendiente de desplegar** (S2 toca el path del webhook de pagos).
 - **2026-07-05 (despliegue):** `fix/security-audit-2026-07-v2` (commit `3f56001`) fusionado a `main` y desplegado. Producción usa **Postgres** (no el store JSON), y al desplegar había **0 facturas** y sin fila de contadores, así que **no fue necesario backfill** (`scripts/migrate-verifactu-per-organization.mjs` es solo para el store JSON y se salta con `DATABASE_URL`). Servicio `frigest-api` reiniciado, `/health` 200, sin errores en logs. `main` publicado en GitHub.

@@ -10,7 +10,9 @@ import {
   createOrganizationCheckoutSession,
   getOrganizationSubscription,
   getSubscriptionSummary,
+  hasStripeEventBeenProcessed,
   parseStripeWebhookEvent,
+  recordStripeEventProcessed,
   syncStripeCheckoutCompletion,
   updateSubscriptionFromStripePayload,
 } from "../services/billing-service.js";
@@ -159,6 +161,11 @@ export const stripeWebhookHandler = async (req, res, next) => {
     const signature = req.headers["stripe-signature"];
     const event = parseStripeWebhookEvent(req.body, signature);
 
+    // Skip events already processed (Stripe re-delivers on timeout/retry).
+    if (await hasStripeEventBeenProcessed(event.id)) {
+      return res.json({ received: true, duplicate: true });
+    }
+
     switch (event.type) {
       case "checkout.session.completed": {
         await syncStripeCheckoutCompletion(event.data.object);
@@ -180,6 +187,9 @@ export const stripeWebhookHandler = async (req, res, next) => {
       default:
         break;
     }
+
+    // Record only after successful handling so a failed event is still retried.
+    await recordStripeEventProcessed(event);
 
     res.json({ received: true });
   } catch (error) {

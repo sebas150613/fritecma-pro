@@ -16,6 +16,7 @@ const GLOBAL_ENTITY_NAMES = new Set([
   "Organization",
   "OrganizationMembership",
   "SubscriptionPlan",
+  "StripeWebhookEvent",
 ]);
 
 export const DEFAULT_ORGANIZATION_ID = "org-frigest";

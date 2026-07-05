@@ -11,6 +11,7 @@ import { getUserStore } from "../lib/auth.js";
 
 const planStore = createJsonEntityStore("SubscriptionPlan");
 const subscriptionStore = createJsonEntityStore("OrganizationSubscription");
+const webhookEventStore = createJsonEntityStore("StripeWebhookEvent");
 const membershipStore = getOrganizationMembershipStore();
 const organizationStore = getOrganizationStore();
 
@@ -553,6 +554,31 @@ export const updateSubscriptionFromStripePayload = async ({
       stripeSubscription.cancel_at_period_end === true,
     trial_ends_at:
       fromUnixSeconds(stripeSubscription.trial_end) || existing.trial_ends_at,
+  });
+};
+
+// Idempotency guard: Stripe may deliver the same event more than once. The
+// event record is keyed by Stripe's own event id so a replay is a no-op even
+// though the individual handlers are already idempotent (defence in depth).
+export const hasStripeEventBeenProcessed = async (eventId) => {
+  if (!eventId) {
+    return false;
+  }
+  const existing = await webhookEventStore.filter({
+    filter: { id: String(eventId) },
+    limit: 1,
+  });
+  return existing.length > 0;
+};
+
+export const recordStripeEventProcessed = async (event) => {
+  if (!event?.id) {
+    return null;
+  }
+  return webhookEventStore.create({
+    id: String(event.id),
+    event_type: event.type || "",
+    processed_at: new Date().toISOString(),
   });
 };
 

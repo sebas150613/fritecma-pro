@@ -1,0 +1,16 @@
+{
+  "name": "StripeWebhookEvent",
+  "type": "object",
+  "properties": {
+    "event_type": {
+      "type": "string",
+      "title": "Tipo de evento Stripe"
+    },
+    "processed_at": {
+      "type": "string",
+      "title": "Procesado el",
+      "format": "date-time"
+    }
+  },
+  "required": []
+}
