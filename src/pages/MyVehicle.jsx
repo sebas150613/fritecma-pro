@@ -279,7 +279,7 @@ export default function MyVehicle() {
         <Dialog open={addDialog} onOpenChange={(o) => { setAddDialog(o); if (!o) { setAddMaterial(null); setAddQty(""); setAddSearch(""); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader><DialogTitle>Añadir material a {selectedVehicle?.name}</DialogTitle></DialogHeader>
-            <div className="space-y-3">
+            <div className="min-w-0 space-y-3">
               <p className="text-xs text-muted-foreground">El material se descuenta del stock del almacén y queda registrado el traspaso.</p>
               {!addMaterial ? (
                 <>
@@ -288,7 +288,7 @@ export default function MyVehicle() {
                     {addCandidates.slice(0, 50).map(m => (
                       <button key={m.id} type="button" onClick={() => setAddMaterial(m)}
                         className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-border hover:bg-accent/10 text-left text-sm">
-                        <span className="truncate">{m.code ? `[${m.code}] ` : ""}{m.name}</span>
+                        <span className="min-w-0 truncate">{m.code ? `[${m.code}] ` : ""}{m.name}</span>
                         <span className="text-xs text-muted-foreground shrink-0 ml-2">Almacén: {m.stock_quantity || 0} {m.unit || "ud"}</span>
                       </button>
                     ))}
@@ -298,7 +298,7 @@ export default function MyVehicle() {
               ) : (
                 <>
                   <div className="bg-muted/50 rounded-xl px-3 py-2 text-sm flex items-center justify-between">
-                    <span className="truncate">{addMaterial.code ? `[${addMaterial.code}] ` : ""}{addMaterial.name}</span>
+                    <span className="min-w-0 truncate">{addMaterial.code ? `[${addMaterial.code}] ` : ""}{addMaterial.name}</span>
                     <button type="button" className="text-xs text-accent hover:underline shrink-0 ml-2" onClick={() => setAddMaterial(null)}>Cambiar</button>
                   </div>
                   <p className="text-xs text-muted-foreground">Disponible en almacén: {addMaterial.stock_quantity || 0} {addMaterial.unit || "ud"}</p>
