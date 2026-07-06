@@ -1,6 +1,7 @@
 import { appApi } from "@/api/app-api";
 import moment from "moment";
 import { jsPDF } from "jspdf";
+import QRCode from "qrcode";
 
 // ── Constantes de diseño ──────────────────────────────────────────────────────
 const ML    = 14;
@@ -182,6 +183,31 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
   }
 
   let y = 40;
+
+  // ── QR TRIBUTARIO (Orden HAC/1177/2024: al principio de la factura, ──────
+  // ── nivel de corrección M, lado entre 30 y 40 mm, margen de silencio) ────
+  if (isAceptado && inv.qr_url && !isOriginalRef && !isParteSinFactura) {
+    try {
+      const qrDataUrl = await QRCode.toDataURL(inv.qr_url, {
+        errorCorrectionLevel: "M",
+        margin: 4, // zona de silencio estándar (4 módulos) incluida en la imagen
+        scale: 8,
+      });
+      const QR_SIDE = 36; // mm totales; el área de código queda dentro de 30-40 mm
+      const qrX = ML + (PW - QR_SIDE) / 2;
+      sf(doc, 7, "bold", DGRAY);
+      doc.text("QR tributario:", ML + PW / 2, y + 2.5, { align: "center" });
+      doc.addImage(qrDataUrl, "PNG", qrX, y + 4, QR_SIDE, QR_SIDE);
+      sf(doc, 7, "normal", DGRAY);
+      doc.text(
+        "Factura verificable en la sede electrónica de la AEAT — VERI*FACTU",
+        ML + PW / 2,
+        y + 4 + QR_SIDE + 4,
+        { align: "center" }
+      );
+      y += QR_SIDE + 13;
+    } catch (_) { /* si falla la generación local se continúa sin QR */ }
+  }
 
   // ── AVISO "DOCUMENTO SIN CARÁCTER FISCAL" ────────────────────────────────
   if (isParteSinFactura) {
@@ -371,15 +397,6 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
   if (isAceptado && !isOriginalRef && !isParteSinFactura) {
     ty += 4;
     fillRect(doc, ML, ty, PW, 26, LGRAY, [200, 210, 225]);
-
-    if (inv.qr_url) {
-      try {
-        const qrDataUrl = await fetchImageAsDataUrl(
-          `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(inv.qr_url)}`
-        );
-        doc.addImage(qrDataUrl, "PNG", ML + PW - 24, ty + 3, 20, 20);
-      } catch (_) { /* QR no disponible */ }
-    }
 
     sf(doc, 6.5, "bold", BLUE);
     doc.text("FACTURA REGISTRADA EN LA AGENCIA TRIBUTARIA (VERI*FACTU)", ML + 3, ty + 6);

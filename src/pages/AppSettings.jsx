@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
-import { Settings, Users, Shield, Trash2, Upload, Key, FileCheck, Loader2, Crown, Copy, Building2, Coins, Plus, ShoppingBag } from "lucide-react";
+import { Settings, Users, Shield, Trash2, Upload, Key, FileCheck, Loader2, Crown, Copy, Building2, Coins, Plus, ShoppingBag, Hash } from "lucide-react";
 import OrganizationBillingPanel from "@/components/OrganizationBillingPanel";
 import { parseTramosJson, ensureTramoIds } from "@/lib/displacementBilling";
 import { toast } from "sonner";
@@ -44,6 +44,10 @@ export default function AppSettings() {
   const [certSaved, setCertSaved] = useState(false);
   const [certUri, setCertUri] = useState("");
   const [modoProduccion, setModoProduccion] = useState(false);
+  const [seriePrefijo, setSeriePrefijo] = useState("F");
+  const [serieAnual, setSerieAnual] = useState(true);
+  const [savingSerie, setSavingSerie] = useState(false);
+  const [serieSaved, setSerieSaved] = useState(false);
   const [lastInviteUrl, setLastInviteUrl] = useState("");
   const [copiedInviteUrl, setCopiedInviteUrl] = useState(false);
   const [smtpHost, setSmtpHost] = useState("");
@@ -149,6 +153,8 @@ export default function AppSettings() {
     setEmisorLogo(me.emisor_logo_url || "");
     setCertUri(me.verifactu_cert_uri || "");
     setModoProduccion(me.verifactu_produccion === true);
+    setSeriePrefijo(me.factura_serie_prefijo || "F");
+    setSerieAnual(me.factura_serie_anual !== false);
     if (me.is_hidden_owner === true) {
       const [emailSettings, overview] = await Promise.all([
         appApi.email.getSettings(),
@@ -715,6 +721,64 @@ export default function AppSettings() {
             🧪 <strong>Modo Sandbox activo.</strong> Los envíos a la AEAT son simulados. El hash se genera correctamente para poder verificar el flujo. Activa el toggle para pasar a producción real.
           </p>
         )}
+      </div>
+      )}
+
+      {["admin", "superadmin", "oficina"].includes(user?.role) && (
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+        <h2 className="font-semibold flex items-center gap-2">
+          <Hash className="h-4 w-4 text-accent" /> Numeración de facturas
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Define la serie de las facturas de esta empresa. El cambio solo afecta a las facturas nuevas
+          (las ya emitidas conservan su número) y las rectificativas usan siempre la serie R.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <Label className="text-xs">Prefijo de serie</Label>
+            <Input
+              value={seriePrefijo}
+              onChange={(e) => setSeriePrefijo(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10))}
+              placeholder="F"
+              className="mt-1 rounded-xl font-mono"
+            />
+          </div>
+          <div className="flex items-center justify-between rounded-xl border border-border bg-muted/30 px-4 py-2 sm:mt-5">
+            <div>
+              <p className="text-sm font-medium">Incluir año y reiniciar cada año</p>
+              <p className="text-xs text-muted-foreground">Recomendado (p. ej. gestorías lo prefieren)</p>
+            </div>
+            <Switch checked={serieAnual} onCheckedChange={setSerieAnual} />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Formato resultante:{" "}
+          <span className="font-mono font-medium text-foreground">
+            {(seriePrefijo || "F") + (serieAnual ? `-${new Date().getFullYear()}-0001` : "-000001")}
+          </span>
+        </p>
+        {serieSaved && (
+          <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+            <span className="text-emerald-700 font-semibold text-sm">✓ Numeración guardada</span>
+          </div>
+        )}
+        <Button
+          onClick={async () => {
+            setSavingSerie(true);
+            await appApi.auth.updateMe({
+              factura_serie_prefijo: seriePrefijo || "F",
+              factura_serie_anual: serieAnual,
+            });
+            setSavingSerie(false);
+            setSerieSaved(true);
+            setTimeout(() => setSerieSaved(false), 5000);
+          }}
+          disabled={savingSerie || !(seriePrefijo || "").trim()}
+          className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+        >
+          {savingSerie ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Hash className="h-4 w-4 mr-2" />}
+          Guardar numeración
+        </Button>
       </div>
       )}
 

@@ -27,6 +27,8 @@ export const ORGANIZATION_SETTINGS_FIELDS = [
   "verifactu_cert_uri",
   "verifactu_cert_password",
   "verifactu_produccion",
+  "factura_serie_prefijo",
+  "factura_serie_anual",
   "emisor_direccion",
   "emisor_telefono",
   "emisor_logo_url",

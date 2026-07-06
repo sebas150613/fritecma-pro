@@ -52,6 +52,24 @@ const getIssuerInfo = (user) => {
   };
 };
 
+// Configuración de serie por organización (llega en currentUser desde OrganizationSettings).
+// prefix: solo A-Z0-9, máx. 10 chars (serie+número AEAT limitado a 60). yearly: reinicio anual.
+export const getInvoiceSeriesConfig = (user) => {
+  const rawPrefix = String(user?.factura_serie_prefijo || "F").toUpperCase();
+  const prefix = rawPrefix.replace(/[^A-Z0-9]/g, "").slice(0, 10) || "F";
+  return {
+    prefix,
+    yearly: user?.factura_serie_anual !== false,
+  };
+};
+
+// Clave de serie: "F-2026" (anual) o "F" (continua). Las rectificativas usan
+// siempre "R" como base con la misma política de año.
+export const buildInvoiceSerieKey = (base, { prefix = "F", yearly = true } = {}, date = new Date()) => {
+  const effectivePrefix = base === "R" ? "R" : prefix;
+  return yearly ? `${effectivePrefix}-${date.getFullYear()}` : effectivePrefix;
+};
+
 // Serial mutex for counter store: prevents duplicate invoice numbers under concurrency
 let counterLock = Promise.resolve();
 
@@ -128,10 +146,13 @@ const getMaxInvoiceIndex = async (organizationId, series) => {
   return max;
 };
 
-const getNextInvoiceNumber = async (series = "F", organizationId) => {
+const getNextInvoiceNumber = async (base = "F", organizationId, seriesConfig = {}) => {
   if (!organizationId) {
     throw new HttpError(400, "No se pudo determinar la organización para numerar la factura.");
   }
+
+  const { yearly = true } = seriesConfig;
+  const serieKey = buildInvoiceSerieKey(base, seriesConfig);
 
   // Queue behind the previous counter operation
   const prev = counterLock;
@@ -143,21 +164,24 @@ const getNextInvoiceNumber = async (series = "F", organizationId) => {
     const counters = migrateLegacyCounters(await counterStore.read());
     const orgCounters = { ...(counters[organizationId] || {}) };
 
-    let current = Number(orgCounters[series] || 0);
+    let current = Number(orgCounters[serieKey] || 0);
     if (current === 0) {
       // No counter yet for this org/series: seed from existing invoices so we
-      // never reuse a number that is already on a stored record.
-      current = await getMaxInvoiceIndex(organizationId, series);
+      // never reuse a number that is already on a stored record. En series
+      // anuales el contador arranca de cero cada año de forma natural
+      // (la clave incluye el año y no hay facturas previas de esa serie).
+      current = await getMaxInvoiceIndex(organizationId, serieKey);
     }
     current += 1;
 
-    orgCounters[series] = current;
+    orgCounters[serieKey] = current;
     counters[organizationId] = orgCounters;
     await counterStore.write(counters);
 
     return {
-      number: `${series}-${String(current).padStart(6, "0")}`,
+      number: `${serieKey}-${String(current).padStart(yearly ? 4 : 6, "0")}`,
       index: current,
+      serie: serieKey,
     };
   } finally {
     release();
@@ -435,9 +459,11 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
   const { issuerNif, issuerName } = getIssuerInfo(currentUser);
   const previousInvoice = await getLastInvoice({ isProduction: isProductionMode, organizationId });
   const previousHash = previousInvoice?.hash_huella || "";
-  const { number: invoiceNumber } = await getNextInvoiceNumber(
+  const seriesConfig = getInvoiceSeriesConfig(currentUser);
+  const { number: invoiceNumber, serie: serieKey } = await getNextInvoiceNumber(
     isRectificativa ? "R" : "F",
-    organizationId
+    organizationId,
+    seriesConfig
   );
   const chainIndex = Number(previousInvoice?.invoice_chain_index || 0) + 1;
 
@@ -497,7 +523,7 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
   const invoiceRecord = await invoiceStore.create({
     organization_id: organizationId,
     invoice_number: invoiceNumber,
-    serie: isRectificativa ? "R" : "F",
+    serie: serieKey,
     tipo_factura: tipoFactura,
     intervention_id: intervention.id,
     intervention_number: intervention.number,
