@@ -9,7 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { BadgeEuro, Building2, CreditCard, Layers3, Loader2, Plus } from "lucide-react";
+import { BadgeEuro, Building2, CreditCard, Layers3, Loader2, Mail, Plus } from "lucide-react";
+
+const SUPPORT_EMAIL = "administracion@tramuntanalabs.es";
 
 const formatMoney = (amountCents, currency = "EUR") => {
   if (!amountCents) {
@@ -38,9 +40,6 @@ export default function OrganizationBillingPanel({ user, onChange, ownerOrganiza
   const [loading, setLoading] = useState(true);
   const [switchingOrg, setSwitchingOrg] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [contactOpen, setContactOpen] = useState(false);
-  const [contactPlan, setContactPlan] = useState(null);
-  const [contactMessage, setContactMessage] = useState("");
   const [contactSuccess, setContactSuccess] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
   const [billingBusy, setBillingBusy] = useState("");
@@ -139,28 +138,6 @@ export default function OrganizationBillingPanel({ user, onChange, ownerOrganiza
     }
   };
 
-  const handleCheckout = async (planCode) => {
-    setBillingBusy(planCode);
-    setError("");
-
-    try {
-      const response = await appApi.billing.checkout({
-        organization_id: targetOrganizationId,
-        plan_code: planCode,
-        success_url: `${window.location.origin}/settings?billing=success`,
-        cancel_url: `${window.location.origin}/settings?billing=cancel`,
-      });
-
-      if (response?.url) {
-        window.location.assign(response.url);
-      }
-    } catch (checkoutError) {
-      setError(checkoutError?.message || "No se pudo iniciar el checkout.");
-    } finally {
-      setBillingBusy("");
-    }
-  };
-
   const handlePortal = async () => {
     setBillingBusy("portal");
     setError("");
@@ -176,42 +153,6 @@ export default function OrganizationBillingPanel({ user, onChange, ownerOrganiza
       }
     } catch (portalError) {
       setError(portalError?.message || "No se pudo abrir el portal de billing.");
-    } finally {
-      setBillingBusy("");
-    }
-  };
-
-  const openContactDialog = (plan) => {
-    setContactPlan(plan);
-    setContactMessage("");
-    setError("");
-    setContactSuccess("");
-    setContactOpen(true);
-  };
-
-  const handleContactSales = async () => {
-    if (!contactPlan?.code) {
-      return;
-    }
-
-    setBillingBusy(`contact:${contactPlan.code}`);
-    setError("");
-
-    try {
-      const response = await appApi.billing.contactSales({
-        organization_id: targetOrganizationId,
-        plan_code: contactPlan.code,
-        message: contactMessage,
-      });
-      setContactOpen(false);
-      setContactMessage("");
-      setContactSuccess(
-        response?.queued
-          ? "Solicitud registrada. El aviso comercial ha quedado en cola."
-          : "Solicitud enviada al equipo comercial."
-      );
-    } catch (contactError) {
-      setError(contactError?.message || "No se pudo enviar la solicitud comercial.");
     } finally {
       setBillingBusy("");
     }
@@ -378,126 +319,103 @@ export default function OrganizationBillingPanel({ user, onChange, ownerOrganiza
           </div>
         )}
 
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <BadgeEuro className="h-4 w-4 text-accent" />
-            <h3 className="font-medium">Catalogo de planes</h3>
-          </div>
+        {isOwner ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <BadgeEuro className="h-4 w-4 text-accent" />
+              <h3 className="font-medium">Catalogo de planes</h3>
+            </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
-            {plans.map((plan) => {
-              const isCurrent = plan.code === currentPlanCode;
-              const isContactPlan = !plan.monthly_price_cents || !plan.stripe_price_id;
-              const canOwnerAssign = isOwner && !isCurrent;
-              const shouldOfferContact =
-                !isOwner &&
-                canManageBilling &&
-                !isCurrent &&
-                (isContactPlan || !summary?.billing?.stripe_enabled);
-              const canCheckout =
-                !isOwner &&
-                canManageBilling &&
-                !isCurrent &&
-                summary?.billing?.stripe_enabled &&
-                !isContactPlan;
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
+              {plans.map((plan) => {
+                const isCurrent = plan.code === currentPlanCode;
 
-              return (
-                <div
-                  key={plan.code}
-                  className={`rounded-2xl border p-4 space-y-3 ${
-                    isCurrent
-                      ? "border-accent bg-accent/5"
-                      : "border-border bg-card"
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
+                return (
+                  <div
+                    key={plan.code}
+                    className={`rounded-2xl border p-4 space-y-3 ${
+                      isCurrent
+                        ? "border-accent bg-accent/5"
+                        : "border-border bg-card"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{plan.name}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {plan.description}
+                        </p>
+                      </div>
+                      {isCurrent && (
+                        <span className="rounded-full bg-accent/15 px-2.5 py-1 text-[11px] font-medium text-accent">
+                          Actual
+                        </span>
+                      )}
+                    </div>
+
                     <div>
-                      <p className="font-semibold">{plan.name}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {plan.description}
+                      <p className="text-2xl font-bold">
+                        {formatMoney(plan.monthly_price_cents, plan.currency)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {plan.monthly_price_cents ? "por mes" : "precio a medida"}
                       </p>
                     </div>
-                    {isCurrent && (
-                      <span className="rounded-full bg-accent/15 px-2.5 py-1 text-[11px] font-medium text-accent">
-                        Actual
-                      </span>
-                    )}
+
+                    <div className="space-y-1.5 text-sm text-muted-foreground">
+                      <p>
+                        {plan.seat_limit ? `${plan.seat_limit} usuarios` : "Usuarios ilimitados"}
+                      </p>
+                      <p>
+                        {plan.storage_limit_gb
+                          ? `${plan.storage_limit_gb} GB almacenamiento`
+                          : "Almacenamiento personalizado"}
+                      </p>
+                      {(plan.features || []).slice(0, 4).map((feature) => (
+                        <p key={feature}>{feature}</p>
+                      ))}
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant={isCurrent ? "outline" : "default"}
+                      className={`w-full rounded-xl ${
+                        !isCurrent
+                          ? "bg-accent hover:bg-accent/90 text-accent-foreground"
+                          : ""
+                      }`}
+                      disabled={isCurrent || billingBusy === `assign:${plan.code}`}
+                      onClick={() => handleOwnerAssignPlan(plan.code)}
+                    >
+                      {billingBusy === `assign:${plan.code}` ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Building2 className="h-4 w-4 mr-2" />
+                      )}
+                      {isCurrent ? "Plan activo" : "Asignar plan"}
+                    </Button>
                   </div>
-
-                  <div>
-                    <p className="text-2xl font-bold">
-                      {formatMoney(plan.monthly_price_cents, plan.currency)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {plan.monthly_price_cents ? "por mes" : "contacto comercial"}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1.5 text-sm text-muted-foreground">
-                    <p>
-                      {plan.seat_limit ? `${plan.seat_limit} usuarios` : "Usuarios ilimitados"}
-                    </p>
-                    <p>
-                      {plan.storage_limit_gb
-                        ? `${plan.storage_limit_gb} GB almacenamiento`
-                        : "Almacenamiento personalizado"}
-                    </p>
-                    {(plan.features || []).slice(0, 4).map((feature) => (
-                      <p key={feature}>{feature}</p>
-                    ))}
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant={isCurrent ? "outline" : "default"}
-                    className={`w-full rounded-xl ${
-                      !isCurrent
-                        ? "bg-accent hover:bg-accent/90 text-accent-foreground"
-                        : ""
-                    }`}
-                    disabled={
-                      isCurrent ||
-                      billingBusy === plan.code ||
-                      billingBusy === `assign:${plan.code}` ||
-                      billingBusy === `contact:${plan.code}` ||
-                      (!canCheckout && !shouldOfferContact && !canOwnerAssign)
-                    }
-                    onClick={() => {
-                      if (canOwnerAssign) {
-                        handleOwnerAssignPlan(plan.code);
-                        return;
-                      }
-
-                      if (canCheckout) {
-                        handleCheckout(plan.code);
-                        return;
-                      }
-
-                      if (shouldOfferContact) {
-                        openContactDialog(plan);
-                      }
-                    }}
-                  >
-                    {billingBusy === plan.code || billingBusy === `assign:${plan.code}` || billingBusy === `contact:${plan.code}` ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <Building2 className="h-4 w-4 mr-2" />
-                    )}
-                    {isCurrent
-                      ? "Plan activo"
-                      : canOwnerAssign
-                        ? "Asignar plan"
-                      : canCheckout
-                        ? "Contratar plan"
-                        : shouldOfferContact
-                          ? "Contactar"
-                          : "No disponible"}
-                  </Button>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="rounded-2xl border border-border bg-muted/20 p-5 space-y-2">
+            <h3 className="font-medium flex items-center gap-2">
+              <Mail className="h-4 w-4 text-accent" />
+              ¿Necesitas más funciones o cuentas?
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              Ponte en contacto con nosotros y adaptamos tu plan a lo que necesite tu empresa.
+            </p>
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="inline-block text-sm font-medium text-accent hover:underline"
+            >
+              {SUPPORT_EMAIL}
+            </a>
+          </div>
+        )}
       </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -570,41 +488,6 @@ export default function OrganizationBillingPanel({ user, onChange, ownerOrganiza
         </DialogContent>
       </Dialog>
 
-      <Dialog open={contactOpen} onOpenChange={setContactOpen}>
-        <DialogContent className="rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>Solicitar plan {contactPlan?.name || ""}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm">
-              <p className="font-medium">{targetOrganization?.name || "Empresa actual"}</p>
-              <p className="text-muted-foreground mt-1">
-                Esta solicitud se enviará al equipo comercial para activar o preparar el cambio de suscripción.
-              </p>
-            </div>
-            <div>
-              <Label>Mensaje opcional</Label>
-              <textarea
-                className="mt-1 min-h-28 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
-                placeholder="Ej: necesitamos ampliar usuarios y soporte de implantación."
-                value={contactMessage}
-                onChange={(event) => setContactMessage(event.target.value)}
-              />
-            </div>
-            <Button
-              type="button"
-              className="w-full rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
-              onClick={handleContactSales}
-              disabled={billingBusy === `contact:${contactPlan?.code || ""}`}
-            >
-              {billingBusy === `contact:${contactPlan?.code || ""}` ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : null}
-              Enviar solicitud
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
