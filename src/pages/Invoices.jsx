@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Receipt, Download, Search, ExternalLink, QrCode, HandCoins, Loader2 } from "lucide-react";
+import { Receipt, Download, Search, ExternalLink, QrCode, HandCoins, Loader2, Layers, FileStack } from "lucide-react";
 import { toast } from "sonner";
 import moment from "moment";
 
@@ -69,6 +69,13 @@ export default function Invoices() {
   const [payMethod, setPayMethod] = useState(PAYMENT_METHODS[0]);
   const [payDate, setPayDate] = useState(moment().format("YYYY-MM-DD"));
   const [paySaving, setPaySaving] = useState(false);
+  const [groupOpen, setGroupOpen] = useState(false);
+  const [groupClients, setGroupClients] = useState([]);
+  const [groupClientId, setGroupClientId] = useState("");
+  const [groupCandidates, setGroupCandidates] = useState([]);
+  const [groupSelected, setGroupSelected] = useState([]);
+  const [groupLoading, setGroupLoading] = useState(false);
+  const [groupBusy, setGroupBusy] = useState(false);
 
   const canManagePayments = ["admin", "superadmin", "oficina"].includes(user?.role);
 
@@ -149,6 +156,62 @@ export default function Invoices() {
     }
   };
 
+  const openGroupDialog = async () => {
+    setGroupOpen(true);
+    setGroupClientId("");
+    setGroupCandidates([]);
+    setGroupSelected([]);
+    try {
+      const clients = await appApi.entities.Client.list("name", 500);
+      setGroupClients(clients || []);
+    } catch {
+      setGroupClients([]);
+    }
+  };
+
+  const loadGroupCandidates = async (clientId) => {
+    setGroupClientId(clientId);
+    setGroupSelected([]);
+    setGroupLoading(true);
+    try {
+      const items = await appApi.entities.Intervention.filter({ client_id: clientId }, "-date", 300);
+      setGroupCandidates(
+        (items || []).filter((i) => ["pendiente_revision", "revisado"].includes(i.status))
+      );
+    } catch {
+      setGroupCandidates([]);
+    } finally {
+      setGroupLoading(false);
+    }
+  };
+
+  const toggleGroupSelected = (id) => {
+    setGroupSelected((current) =>
+      current.includes(id) ? current.filter((x) => x !== id) : [...current, id]
+    );
+  };
+
+  const groupTotal = groupCandidates
+    .filter((i) => groupSelected.includes(i.id))
+    .reduce((acc, i) => acc + (Number(i.total) || 0), 0);
+
+  const createGroupedInvoice = async () => {
+    setGroupBusy(true);
+    try {
+      const res = await appApi.functions.invoke("processVerifactu", {
+        mode: "facturar_agrupada",
+        intervention_ids: groupSelected,
+      });
+      toast.success(`Factura agrupada emitida: ${res?.data?.invoice_number || ""}`);
+      setGroupOpen(false);
+      await loadData();
+    } catch (err) {
+      toast.error(err?.message || "No se pudo emitir la factura agrupada.");
+    } finally {
+      setGroupBusy(false);
+    }
+  };
+
   const markPending = async (inv) => {
     try {
       await appApi.entities.Invoice.update(inv.id, {
@@ -222,13 +285,24 @@ export default function Invoices() {
               Listado de todas las facturas emitidas (VeriFactu). Las facturas se emiten desde el parte de trabajo y son inalterables.
             </p>
           </div>
-          <Button
-            onClick={downloadCSV}
-            disabled={filtered.length === 0}
-            className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground shrink-0"
-          >
-            <Download className="h-4 w-4 mr-2" /> Exportar CSV (gestoría)
-          </Button>
+          <div className="flex gap-2 shrink-0">
+            {canManagePayments && (
+              <Button
+                variant="outline"
+                onClick={openGroupDialog}
+                className="rounded-xl"
+              >
+                <FileStack className="h-4 w-4 mr-2" /> Factura agrupada
+              </Button>
+            )}
+            <Button
+              onClick={downloadCSV}
+              disabled={filtered.length === 0}
+              className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+            >
+              <Download className="h-4 w-4 mr-2" /> Exportar CSV (gestoría)
+            </Button>
+          </div>
         </div>
 
         {/* Summary cards */}
@@ -390,7 +464,7 @@ export default function Invoices() {
                           {inv.intervention_number || "Ver parte"} <ExternalLink className="h-3 w-3" />
                         </Link>
                       ) : (
-                        <span className="text-muted-foreground text-xs">—</span>
+                        <span className="text-muted-foreground text-xs">{inv.intervention_number || "—"}</span>
                       )}
                     </td>
                   </tr>
@@ -455,6 +529,84 @@ export default function Invoices() {
           )}
         </div>
       </div>
+
+      {/* Dialog: factura agrupada */}
+      <Dialog open={groupOpen} onOpenChange={(o) => !groupBusy && setGroupOpen(o)}>
+        <DialogContent className="max-w-lg rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileStack className="h-5 w-5 text-accent" /> Factura agrupada
+            </DialogTitle>
+          </DialogHeader>
+          <div className="min-w-0 space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Emite una sola factura (recapitulativa) con varios partes del mismo cliente.
+              Los partes seleccionados quedan bloqueados como facturados.
+            </p>
+            <div>
+              <Label className="text-xs">Cliente</Label>
+              <select
+                className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                value={groupClientId}
+                onChange={(e) => loadGroupCandidates(e.target.value)}
+              >
+                <option value="">Selecciona cliente...</option>
+                {groupClients.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+            {groupClientId && (
+              <div className="max-h-64 overflow-y-auto space-y-1.5">
+                {groupLoading ? (
+                  <p className="text-center text-sm text-muted-foreground py-4">
+                    <Loader2 className="h-4 w-4 animate-spin inline mr-2" />Cargando partes...
+                  </p>
+                ) : groupCandidates.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-4">
+                    Este cliente no tiene partes pendientes de facturar.
+                  </p>
+                ) : (
+                  groupCandidates.map((i) => (
+                    <label
+                      key={i.id}
+                      className="flex items-center gap-3 rounded-xl border border-border px-3 py-2 text-sm cursor-pointer hover:bg-accent/5"
+                    >
+                      <input
+                        type="checkbox"
+                        className="accent-current h-4 w-4"
+                        checked={groupSelected.includes(i.id)}
+                        onChange={() => toggleGroupSelected(i.id)}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="font-mono text-xs">{i.number}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {i.date ? moment(i.date).format("DD/MM/YYYY") : ""} · {i.description || "Sin descripción"}
+                        </span>
+                      </span>
+                      <span className="shrink-0 font-medium">{euro(i.total)}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            )}
+            {groupSelected.length > 0 && (
+              <div className="flex items-center justify-between rounded-xl bg-muted/30 border border-border px-4 py-2 text-sm">
+                <span>{groupSelected.length} partes seleccionados</span>
+                <span className="font-bold">{euro(groupTotal)}</span>
+              </div>
+            )}
+            <Button
+              className="w-full rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+              onClick={createGroupedInvoice}
+              disabled={groupBusy || groupSelected.length < 2}
+            >
+              {groupBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Receipt className="h-4 w-4 mr-2" />}
+              Facturar {groupSelected.length >= 2 ? `${groupSelected.length} partes` : "(mínimo 2 partes)"} con Veri*factu
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog: marcar pagada */}
       <Dialog open={!!payDialog} onOpenChange={(o) => !o && setPayDialog(null)}>

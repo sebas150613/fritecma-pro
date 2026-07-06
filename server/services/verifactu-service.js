@@ -366,9 +366,52 @@ const shouldQueueAeatRetry = (error, httpStatus) => {
   return true;
 };
 
+// ids de partes de una factura agrupada (recapitulativa); null si es de un solo parte
+const parseGroupedInterventionIds = (invoice) => {
+  if (!invoice?.intervention_ids_json) {
+    return null;
+  }
+  try {
+    const ids = JSON.parse(invoice.intervention_ids_json);
+    return Array.isArray(ids) && ids.length > 0 ? ids.map(String) : null;
+  } catch {
+    return null;
+  }
+};
+
 export const processVerifactu = async ({ payload = {}, currentUser }) => {
-  const interventionId = payload.intervention_id;
   const mode = payload.mode || "facturar";
+
+  // Factura agrupada (recapitulativa): una sola factura para varios partes del
+  // mismo cliente. Bloqueo de todos los partes en orden estable (anti-interbloqueo).
+  if (mode === "facturar_agrupada") {
+    const ids = Array.isArray(payload.intervention_ids)
+      ? [...new Set(payload.intervention_ids.map(String).filter(Boolean))]
+      : [];
+    if (ids.length < 2) {
+      throw new HttpError(400, "Selecciona al menos dos partes para la factura agrupada.");
+    }
+
+    const sortedIds = [...ids].sort();
+    const releases = [];
+    try {
+      for (const id of sortedIds) {
+        releases.push(await acquireInterventionLock(id));
+      }
+      return await _processVerifactuLocked({
+        payload,
+        currentUser,
+        interventionId: ids[0],
+        mode: "facturar",
+        groupInterventionIds: ids,
+      });
+    } finally {
+      releases.reverse().forEach((release) => release());
+      sortedIds.forEach((id) => interventionLocks.delete(id));
+    }
+  }
+
+  const interventionId = payload.intervention_id;
 
   if (!interventionId) {
     throw new HttpError(400, "intervention_id is required");
@@ -387,17 +430,53 @@ export const processVerifactu = async ({ payload = {}, currentUser }) => {
   }
 };
 
-const _processVerifactuLocked = async ({ payload, currentUser, interventionId, mode }) => {
+const _processVerifactuLocked = async ({ payload, currentUser, interventionId, mode, groupInterventionIds = null }) => {
   const intervention = await findById(interventionStore, interventionId, "Intervention");
   const now = new Date().toISOString();
   const isRectificativaMode = mode === "rectificar" || mode === "rectificar_corregida";
+
+  const organizationId =
+    currentUser?.current_organization?.id ||
+    currentUser?.organization_id ||
+    null;
+  if (!organizationId) {
+    throw new HttpError(400, "No se pudo determinar la organización del emisor para facturar.");
+  }
+
+  const groupInterventions = groupInterventionIds
+    ? await Promise.all(
+        groupInterventionIds.map((id) => findById(interventionStore, id, "Intervention"))
+      )
+    : null;
+  const invoiceTargets = groupInterventions || [intervention];
+
+  // Aislamiento multi-tenant: ningún parte de otra organización es visible aquí.
+  const foreign = invoiceTargets.find(
+    (item) => item.organization_id && item.organization_id !== organizationId
+  );
+  if (foreign) {
+    throw new HttpError(404, "Intervention not found");
+  }
+
+  if (groupInterventions) {
+    const clientIds = new Set(groupInterventions.map((item) => item.client_id || ""));
+    if (clientIds.size > 1) {
+      throw new HttpError(422, "Todos los partes de una factura agrupada deben ser del mismo cliente.");
+    }
+  }
 
   // Prevent double invoicing: intervention already finalised. Las rectificativas
   // operan precisamente sobre partes ya facturados, así que quedan fuera de este
   // guard (sus propias validaciones exigen factura original aceptada y sin rectificar).
   const NON_INVOICEABLE_STATUSES = ["facturado", "completado", "anulado"];
-  if (!isRectificativaMode && NON_INVOICEABLE_STATUSES.includes(intervention.status)) {
-    throw new HttpError(409, `Este parte ya está ${intervention.status} y no puede facturarse de nuevo.`);
+  if (!isRectificativaMode) {
+    const blocked = invoiceTargets.find((item) => NON_INVOICEABLE_STATUSES.includes(item.status));
+    if (blocked) {
+      throw new HttpError(
+        409,
+        `El parte ${blocked.number || blocked.id} ya está ${blocked.status} y no puede facturarse de nuevo.`
+      );
+    }
   }
 
   if (mode === "guardar") {
@@ -433,9 +512,18 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
         `La factura original no ha sido aceptada por AEAT (estado: ${originalInvoice.verifactu_status}). Solo se pueden rectificar facturas aceptadas.`
       );
     }
-    // Validate the original invoice belongs to the same intervention
-    if (originalInvoice.intervention_id !== interventionId) {
+    // Validate the original invoice belongs to this intervention (o a su grupo
+    // si la original es una factura agrupada).
+    const groupedOriginalIds = parseGroupedInterventionIds(originalInvoice);
+    const belongsToOriginal = groupedOriginalIds
+      ? groupedOriginalIds.includes(String(interventionId))
+      : originalInvoice.intervention_id === interventionId;
+    if (!belongsToOriginal) {
       throw new HttpError(400, "La factura original no pertenece a este parte.");
+    }
+    // Aislamiento multi-tenant también sobre la factura original.
+    if (originalInvoice.organization_id && originalInvoice.organization_id !== organizationId) {
+      throw new HttpError(404, "Invoice not found");
     }
     // Check the original invoice hasn't already been rectified
     const existingRect = await invoiceStore.filter({
@@ -447,13 +535,6 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
         `Esta factura ya fue rectificada por ${existingRect[0].invoice_number}. No se puede rectificar dos veces.`
       );
     }
-  }
-  const organizationId =
-    currentUser?.current_organization?.id ||
-    currentUser?.organization_id ||
-    null;
-  if (!organizationId) {
-    throw new HttpError(400, "No se pudo determinar la organización del emisor para facturar.");
   }
 
   const isProductionMode = currentUser?.verifactu_produccion === true;
@@ -471,9 +552,15 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
   );
   const chainIndex = Number(previousInvoice?.invoice_chain_index || 0) + 1;
 
-  const originalSubtotal = clampMoney(intervention.subtotal ?? intervention.total ?? 0);
-  const originalIvaTotal = clampMoney(intervention.iva_total ?? 0);
-  const originalTotal = clampMoney(intervention.total ?? 0);
+  const originalSubtotal = clampMoney(
+    invoiceTargets.reduce((acc, item) => acc + (Number(item.subtotal ?? item.total ?? 0) || 0), 0)
+  );
+  const originalIvaTotal = clampMoney(
+    invoiceTargets.reduce((acc, item) => acc + (Number(item.iva_total ?? 0) || 0), 0)
+  );
+  const originalTotal = clampMoney(
+    invoiceTargets.reduce((acc, item) => acc + (Number(item.total ?? 0) || 0), 0)
+  );
 
   let subtotal = originalSubtotal;
   let ivaTotal = originalIvaTotal;
@@ -519,6 +606,51 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
     ? null
     : new Date(Date.now() + dueDays * 86400000).toISOString().slice(0, 10);
 
+  // Referencias parte(s) ↔ factura: agrupada nueva o rectificativa de una agrupada.
+  const groupedOriginalIds = isRectificativa ? parseGroupedInterventionIds(originalInvoice) : null;
+  const isGroupedInvoice = Boolean(groupInterventions);
+  const isGroupedContext = isGroupedInvoice || Boolean(groupedOriginalIds);
+
+  const buildGroupedLinesJson = () => {
+    const merged = [];
+    for (const item of groupInterventions) {
+      let itemLines = [];
+      try {
+        itemLines = JSON.parse(item.materials_json || "[]");
+      } catch {
+        itemLines = [];
+      }
+      merged.push({
+        _isSection: true,
+        material_name: `Parte ${item.number || item.id} · ${formatIsoDate(item.date || item.created_date)}${
+          item.description ? ` — ${String(item.description).slice(0, 70)}` : ""
+        }`,
+      });
+      merged.push(...itemLines);
+    }
+    return JSON.stringify(merged);
+  };
+
+  const linesJson = isRectificativa && originalInvoice?.lines_json
+    ? originalInvoice.lines_json
+    : isGroupedInvoice
+      ? buildGroupedLinesJson()
+      : intervention.materials_json || "[]";
+
+  const descripcionOperacion = isGroupedInvoice
+    ? `Factura recapitulativa de ${groupInterventions.length} partes: ${groupInterventions
+        .map((item) => item.number || item.id)
+        .join(", ")}`.slice(0, 250)
+    : intervention.description ||
+      intervention.summary ||
+      intervention.notes ||
+      `Intervencion ${intervention.number || invoiceNumber}`;
+
+  // Para el registro AEAT de una agrupada, la descripción es la recapitulativa.
+  const descriptionSourceIntervention = isGroupedInvoice
+    ? { description: descripcionOperacion, number: invoiceNumber }
+    : intervention;
+
   const hashHuella = computeInvoiceFingerprint({
     invoiceNumber,
     issueDate: now,
@@ -535,8 +667,17 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
     invoice_number: invoiceNumber,
     serie: serieKey,
     tipo_factura: tipoFactura,
-    intervention_id: intervention.id,
-    intervention_number: intervention.number,
+    intervention_id: isGroupedContext ? null : intervention.id,
+    intervention_number: isGroupedInvoice
+      ? `${groupInterventions.length} partes`
+      : groupedOriginalIds
+        ? originalInvoice.intervention_number || `${groupedOriginalIds.length} partes`
+        : intervention.number,
+    intervention_ids_json: isGroupedInvoice
+      ? JSON.stringify(groupInterventions.map((item) => item.id))
+      : groupedOriginalIds
+        ? originalInvoice.intervention_ids_json
+        : null,
     client_id: intervention.client_id,
     client_name: intervention.client_name,
     client_nif: intervention.client_nif || "",
@@ -545,7 +686,7 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
     subtotal,
     iva_total: ivaTotal,
     total,
-    lines_json: intervention.materials_json || "[]",
+    lines_json: linesJson,
     hash_huella: hashHuella,
     hash_anterior: previousHash,
     invoice_chain_index: chainIndex,
@@ -587,11 +728,7 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
     rectified_base: originalInvoice ? clampMoney(originalInvoice.subtotal ?? 0) : null,
     rectified_tax: originalInvoice ? clampMoney(originalInvoice.iva_total ?? 0) : null,
     rectificativa_motivo: rectificationNote || null,
-    descripcion_operacion:
-      intervention.description ||
-      intervention.summary ||
-      intervention.notes ||
-      `Intervencion ${intervention.number || invoiceNumber}`,
+    descripcion_operacion: descripcionOperacion,
     xml_payload: createMockXmlPayload({
       invoiceNumber,
       issueDate: now,
@@ -606,16 +743,28 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
     }),
   });
 
-  await interventionStore.update(intervention.id, {
-    status: nextInterventionStatus,
-    validated_by: currentUser?.email || "",
-    validated_at: now,
-    ...(rectificationNote
-      ? {
-          rectified_by_info: `${currentUser?.full_name || currentUser?.email || "Sistema"} · ${rectificationNote} · ${invoiceNumber}`,
-        }
-      : {}),
-  });
+  // Partes afectados: los del grupo (facturación agrupada), los del grupo de la
+  // factura original (rectificativa de agrupada) o el parte único.
+  const affectedInterventions = groupInterventions
+    || (groupedOriginalIds
+      ? await Promise.all(groupedOriginalIds.map((id) => findById(interventionStore, id, "Intervention")))
+      : [intervention]);
+
+  for (const item of affectedInterventions) {
+    await interventionStore.update(item.id, {
+      status: mode === "rectificar_corregida" ? (item.status || "facturado") : nextInterventionStatus,
+      validated_by: currentUser?.email || "",
+      validated_at: now,
+      ...(isGroupedInvoice
+        ? { invoice_id: invoiceRecord.id, invoice_number: invoiceNumber }
+        : {}),
+      ...(rectificationNote
+        ? {
+            rectified_by_info: `${currentUser?.full_name || currentUser?.email || "Sistema"} · ${rectificationNote} · ${invoiceNumber}`,
+          }
+        : {}),
+    });
+  }
 
   // La factura rectificada deja de ser cobrable: su cobro pasa a "no_aplica".
   if (isRectificativa && originalInvoice) {
@@ -632,7 +781,7 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
     const productionInvoice = buildProductionInvoiceRecord({
       invoiceRecord,
       originalInvoice,
-      intervention,
+      intervention: descriptionSourceIntervention,
       tipoFactura,
       rectificativaTipo,
     });
@@ -708,7 +857,7 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
     const productionInvoice = buildProductionInvoiceRecord({
       invoiceRecord: responseInvoice,
       originalInvoice,
-      intervention,
+      intervention: descriptionSourceIntervention,
       tipoFactura,
       rectificativaTipo,
     });

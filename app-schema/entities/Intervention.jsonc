@@ -93,6 +93,15 @@
       "title": "Fecha Validaci\u00f3n",
       "format": "date-time"
     },
+    "invoice_id": {
+      "type": ["string", "null"],
+      "title": "Factura agrupada que incluye este parte",
+      "description": "Solo se rellena al facturar el parte dentro de una factura agrupada (la factura normal referencia al parte por intervention_id)"
+    },
+    "invoice_number": {
+      "type": ["string", "null"],
+      "title": "N\u00famero de la factura agrupada"
+    },
     "location_lat": {
       "type": "number",
       "title": "Latitud"

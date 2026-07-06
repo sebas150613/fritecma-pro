@@ -82,7 +82,18 @@ export default function InterventionDetail() {
     setUser(me);
     if (items.length > 0) setIntervention(items[0]);
     setVisits(visitList);
-    if (invoiceList.length > 0) setInvoice(invoiceList[0]);
+    if (invoiceList.length > 0) {
+      setInvoice(invoiceList[0]);
+    } else if (items[0]?.invoice_id) {
+      // Factura agrupada: el parte guarda la referencia porque la factura no
+      // apunta a un único intervention_id.
+      const groupedList = await appApi.entities.Invoice.filter(
+        { id: items[0].invoice_id },
+        "-created_date",
+        1
+      ).catch(() => []);
+      if (groupedList.length > 0) setInvoice(groupedList[0]);
+    }
     } catch (err) {
       console.error("[InterventionDetail] Error loading data:", err);
       toast.error("Error al cargar el parte.");

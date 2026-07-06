@@ -296,6 +296,16 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
     y += ROW_H;
   } else {
     lines.forEach((m, idx) => {
+      // Separador de parte en facturas agrupadas (recapitulativas)
+      if (m._isSection) {
+        fillRect(doc, ML, y, PW, ROW_H, [225, 230, 238]);
+        doc.setDrawColor(200, 205, 215); doc.setLineWidth(0.2);
+        doc.line(ML, y + ROW_H, ML + PW, y + ROW_H);
+        sf(doc, 7.5, "bold", BLUE);
+        doc.text(String(m.material_name || "").slice(0, 95), ML + 3, y + 4.2);
+        y += ROW_H;
+        return;
+      }
       if (idx % 2 === 1) fillRect(doc, ML, y, PW, ROW_H, LGRAY);
       doc.setDrawColor(220, 222, 226); doc.setLineWidth(0.2);
       doc.line(ML, y + ROW_H, ML + PW, y + ROW_H);

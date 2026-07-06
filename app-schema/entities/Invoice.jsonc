@@ -93,6 +93,10 @@
       "type": "string",
       "title": "Conservar hasta (YYYY-MM-DD) \u2014 m\u00edn. 6 a\u00f1os"
     },
+    "intervention_ids_json": {
+      "type": ["string", "null"],
+      "title": "IDs de partes (JSON) — factura agrupada"
+    },
     "payment_status": {
       "type": "string",
       "title": "Estado de cobro",
