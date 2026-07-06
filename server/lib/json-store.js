@@ -77,6 +77,33 @@ const matchesFilter = (item, filter = {}) => {
   return Object.entries(filter).every(([key, value]) => item?.[key] === value);
 };
 
+// Sort fields whose values are ISO-timestamp shaped strings ("2026-07-05…").
+// For these, jsonb string ordering equals the JS comparator regardless of the
+// database collation (ASCII, fixed structure), so ORDER BY can move into SQL.
+// Anything else (name, full_name…) is collation-sensitive or type-mixed and
+// keeps sorting in JS.
+const SQL_SAFE_SORT_FIELD = /(^date$|_date$|_at$)/;
+
+const parseSqlSafeSort = (sort) => {
+  if (typeof sort !== "string" || sort.length === 0) {
+    return null;
+  }
+  const desc = sort.startsWith("-");
+  const field = desc ? sort.slice(1) : sort;
+  if (!/^[\w-]+$/.test(field) || !SQL_SAFE_SORT_FIELD.test(field)) {
+    return null;
+  }
+  return { field, desc };
+};
+
+const parseLimitCount = (limit) => {
+  const parsed = Number(limit);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return Math.floor(parsed);
+};
+
 const isPostgresEnabled = () => Boolean(serverConfig.databaseUrl);
 
 const getPool = () => {
@@ -222,19 +249,28 @@ const createPostgresEntityStore = (entityName, filePath) => {
   // the `id` filter maps to the PK column `record_id` (= String(payload.id)).
   // Callers still re-apply matchesFilter in JS, so non-string filters and exact
   // typed semantics are preserved even though they aren't pushed down.
-  const readScoped = async (filter = {}) => {
-    const stringConds = Object.entries(filter || {}).filter(
-      ([, value]) => typeof value === "string"
-    );
-    if (stringConds.length === 0) {
-      return readAll();
-    }
-
+  //
+  // Phase 2: ORDER BY + LIMIT are also pushed into SQL, so limit:1 lookups and
+  // "latest N by date" queries stop transferring the whole entity. ORDER BY is
+  // only pushed for SQL_SAFE_SORT_FIELD fields (ISO-timestamp shaped values:
+  // ASCII, fixed structure, so jsonb string ordering equals the JS comparator
+  // under any collation; NULLS FIRST/LAST mirrors compareValues' null-first-asc
+  // rule, and jsonb null — the lowest jsonb type — lands on the same side).
+  // Collation-sensitive fields (name, full_name…) keep sorting in JS. When a
+  // sort is requested but not SQL-safe, LIMIT is not pushed either (the top-N
+  // can only be known after the JS sort). Returns { rows, truncated }:
+  // truncated=true means SQL LIMIT may have cut off further matching rows, so
+  // filter() falls back to an unbounded fetch if the JS re-filter drops rows.
+  const readScoped = async (filter = {}, { sort, limit } = {}) => {
     await ensureMigrated();
     const activePool = getPool();
+
     const conditions = ["entity_name = $1"];
     const params = [entityName];
-    for (const [key, value] of stringConds) {
+    for (const [key, value] of Object.entries(filter || {})) {
+      if (typeof value !== "string") {
+        continue;
+      }
       if (key === "id") {
         params.push(value);
         conditions.push(`record_id = $${params.length}`);
@@ -246,21 +282,56 @@ const createPostgresEntityStore = (entityName, filePath) => {
       conditions.push(`payload->>$${keyIndex} = $${params.length}`);
     }
 
+    const parsedSort = parseSqlSafeSort(sort);
+    const parsedLimit = parseLimitCount(limit);
+    const canPushLimit = parsedLimit !== null && (!sort || parsedSort !== null);
+
+    let orderClause = "";
+    if (canPushLimit && parsedSort) {
+      params.push(parsedSort.field);
+      // Cast disambiguates jsonb->text from jsonb->integer for the parameter.
+      orderClause = ` ORDER BY payload->($${params.length}::text) ${
+        parsedSort.desc ? "DESC NULLS LAST" : "ASC NULLS FIRST"
+      }`;
+    }
+
+    let limitClause = "";
+    if (canPushLimit) {
+      params.push(parsedLimit);
+      limitClause = ` LIMIT $${params.length}`;
+    }
+
     const result = await activePool.query(
-      `SELECT payload FROM ${ENTITY_TABLE} WHERE ${conditions.join(" AND ")}`,
+      `SELECT payload FROM ${ENTITY_TABLE} WHERE ${conditions.join(
+        " AND "
+      )}${orderClause}${limitClause}`,
       params
     );
-    return result.rows.map((row) => row.payload).filter(Boolean);
+    const rows = result.rows.map((row) => row.payload).filter(Boolean);
+    return {
+      rows,
+      truncated: canPushLimit && rows.length >= parsedLimit,
+    };
   };
 
   return {
     async list({ sort, limit } = {}) {
-      const records = await readAll();
-      return applyLimit(applySort(records, sort), limit);
+      const { rows } = await readScoped({}, { sort, limit });
+      return applyLimit(applySort(rows, sort), limit);
     },
     async filter({ filter = {}, sort, limit } = {}) {
-      const records = await readScoped(filter);
-      const filtered = records.filter((item) => matchesFilter(item, filter));
+      const { rows, truncated } = await readScoped(filter, { sort, limit });
+      const filtered = rows.filter((item) => matchesFilter(item, filter));
+
+      // SQL equality on payload->>key can over-match typed values (JSON number
+      // 5 vs filter "5"). If that trimmed a full page, matching rows may hide
+      // beyond the LIMIT — refetch without it for exact semantics.
+      if (truncated && filtered.length < rows.length) {
+        const full = await readScoped(filter);
+        const exact = full.rows.filter((item) => matchesFilter(item, filter));
+        return applyLimit(applySort(exact, sort), limit);
+      }
+
       return applyLimit(applySort(filtered, sort), limit);
     },
     async create(data) {
