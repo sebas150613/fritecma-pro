@@ -39,15 +39,19 @@ async function fetchImageAsDataUrl(url) {
   });
 }
 
+const buildEmisorFromUser = (currentUser) => ({
+  nombre:      currentUser?.verifactu_nombre || "FRIGEST S.L.",
+  nif:         currentUser?.verifactu_nif    || "",
+  direccion:   currentUser?.emisor_direccion || "",
+  telefono:    currentUser?.emisor_telefono  || "",
+  logo_url:    currentUser?.emisor_logo_url  || "",
+  iban:        currentUser?.factura_iban     || "",
+  condiciones: currentUser?.factura_condiciones_pago || "",
+});
+
 async function fetchEmisor() {
   const currentUser = await appApi.auth.me().catch(() => null);
-  return {
-    nombre:    currentUser?.verifactu_nombre || "FRIGEST S.L.",
-    nif:       currentUser?.verifactu_nif    || "",
-    direccion: currentUser?.emisor_direccion || "",
-    telefono:  currentUser?.emisor_telefono  || "",
-    logo_url:  currentUser?.emisor_logo_url  || "",
-  };
+  return buildEmisorFromUser(currentUser);
 }
 
 // ── Entrada principal ─────────────────────────────────────────────────────────
@@ -63,13 +67,7 @@ export async function generateInvoicePdf(invoice, intervention) {
   ]);
 
   const client = clientList[0] || {};
-  const emisor = {
-    nombre:    currentUser?.verifactu_nombre || "FRIGEST S.L.",
-    nif:       currentUser?.verifactu_nif    || "",
-    direccion: currentUser?.emisor_direccion || "",
-    telefono:  currentUser?.emisor_telefono  || "",
-    logo_url:  currentUser?.emisor_logo_url  || "",
-  };
+  const emisor = buildEmisorFromUser(currentUser);
 
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
   const isRect = invoice.tipo_factura && invoice.tipo_factura !== "F1";
@@ -371,7 +369,27 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
   const vfH       = isAceptado ? 30 : 0;
   const footerH   = 10;
   const bottomY   = PH - ML - footerH - vfH - totalsH - 4;
-  let ty = Math.max(y + 8, bottomY);
+  const tyStart   = Math.max(y + 8, bottomY);
+  let ty = tyStart;
+
+  // ── FORMA DE PAGO (columna izquierda, en paralelo a los totales) ─────────
+  const showPago = !isParteSinFactura && !isOriginalRef && !isRectificativa &&
+    (emisor.iban || emisor.condiciones || inv.due_date);
+  let pagoEnd = tyStart;
+  if (showPago) {
+    const pagoLines = [];
+    if (emisor.condiciones) pagoLines.push(emisor.condiciones);
+    if (emisor.iban)        pagoLines.push(`IBAN: ${emisor.iban}`);
+    if (inv.due_date)       pagoLines.push(`Vencimiento: ${moment(inv.due_date).format("DD/MM/YYYY")}`);
+    const pagoW = PW - TW - 6;
+    const pagoH = 8 + pagoLines.length * 5;
+    fillRect(doc, ML, tyStart, pagoW, pagoH, LGRAY, [215, 220, 230]);
+    sf(doc, 6.5, "bold", GRAY);
+    doc.text("FORMA DE PAGO", ML + 3, tyStart + 5);
+    sf(doc, 8, "normal", DGRAY);
+    pagoLines.forEach((line, i) => doc.text(line, ML + 3, tyStart + 10.5 + i * 5));
+    pagoEnd = tyStart + pagoH;
+  }
 
   Object.entries(ivaByRate).forEach(([rate, v]) => {
     fillRect(doc, TX, ty, TW, 6, LGRAY, [210, 215, 222]);
@@ -392,6 +410,7 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
   doc.text("TOTAL",                            TX + 4,      ty + 7);
   doc.text(`${(inv.total || 0).toFixed(2)} €`, TX + TW - 3, ty + 7, { align: "right" });
   ty += 10;
+  ty = Math.max(ty, pagoEnd);
 
   // ── VERI*FACTU (solo si aceptado y no es original de referencia ni parte sin factura) ──
   if (isAceptado && !isOriginalRef && !isParteSinFactura) {

@@ -390,10 +390,13 @@ export const processVerifactu = async ({ payload = {}, currentUser }) => {
 const _processVerifactuLocked = async ({ payload, currentUser, interventionId, mode }) => {
   const intervention = await findById(interventionStore, interventionId, "Intervention");
   const now = new Date().toISOString();
+  const isRectificativaMode = mode === "rectificar" || mode === "rectificar_corregida";
 
-  // Prevent double invoicing: intervention already finalised
+  // Prevent double invoicing: intervention already finalised. Las rectificativas
+  // operan precisamente sobre partes ya facturados, así que quedan fuera de este
+  // guard (sus propias validaciones exigen factura original aceptada y sin rectificar).
   const NON_INVOICEABLE_STATUSES = ["facturado", "completado", "anulado"];
-  if (NON_INVOICEABLE_STATUSES.includes(intervention.status)) {
+  if (!isRectificativaMode && NON_INVOICEABLE_STATUSES.includes(intervention.status)) {
     throw new HttpError(409, `Este parte ya está ${intervention.status} y no puede facturarse de nuevo.`);
   }
 
@@ -419,11 +422,12 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
       ? await findById(invoiceStore, payload.original_invoice_id, "Invoice")
       : null;
 
-  const isRectificativa = mode === "rectificar" || mode === "rectificar_corregida";
+  const isRectificativa = isRectificativaMode;
 
   if (isRectificativa && originalInvoice) {
-    // Validate original invoice is in a rectifiable state (accepted/duplicated by AEAT)
-    const VALID_ORIGINAL_STATUSES = ["aceptado", "aceptado_con_errores", "duplicado"];
+    // Validate original invoice is in a rectifiable state: aceptada por AEAT en
+    // producción, o validada en sandbox (para poder probar el flujo completo).
+    const VALID_ORIGINAL_STATUSES = ["aceptado", "aceptado_con_errores", "duplicado", "validado_sandbox"];
     if (!VALID_ORIGINAL_STATUSES.includes(originalInvoice.verifactu_status)) {
       throw new HttpError(400,
         `La factura original no ha sido aceptada por AEAT (estado: ${originalInvoice.verifactu_status}). Solo se pueden rectificar facturas aceptadas.`
@@ -509,6 +513,12 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
       payload.rectificativa_motivo || "Rectificativa corregida generada en backend REST";
   }
 
+  const dueDaysRaw = Number(currentUser?.factura_vencimiento_dias);
+  const dueDays = Number.isFinite(dueDaysRaw) && dueDaysRaw >= 0 && dueDaysRaw <= 365 ? dueDaysRaw : 30;
+  const dueDate = isRectificativa
+    ? null
+    : new Date(Date.now() + dueDays * 86400000).toISOString().slice(0, 10);
+
   const hashHuella = computeInvoiceFingerprint({
     invoiceNumber,
     issueDate: now,
@@ -540,6 +550,11 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
     hash_anterior: previousHash,
     invoice_chain_index: chainIndex,
     retention_until: getRetentionUntil(),
+    payment_status: isRectificativa ? "no_aplica" : "pendiente",
+    payment_method: "",
+    paid_at: null,
+    payment_notes: "",
+    due_date: dueDate,
     verifactu_status: shouldQueueSubmission
       ? "sin_envio"
       : isProductionMode
@@ -601,6 +616,11 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
         }
       : {}),
   });
+
+  // La factura rectificada deja de ser cobrable: su cobro pasa a "no_aplica".
+  if (isRectificativa && originalInvoice) {
+    await invoiceStore.update(originalInvoice.id, { payment_status: "no_aplica" });
+  }
 
   let responseInvoice = invoiceRecord;
   let pendingSubmission = shouldQueueSubmission;

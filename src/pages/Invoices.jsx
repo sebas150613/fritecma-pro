@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Receipt, Download, Search, ExternalLink, QrCode } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Receipt, Download, Search, ExternalLink, QrCode, HandCoins, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import moment from "moment";
 
 const canViewInvoices = (u) =>
@@ -38,6 +41,22 @@ const TIPO_LABELS = {
 const euro = (n) =>
   (Number(n) || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 
+const PAYMENT_METHODS = ["Transferencia", "Recibo domiciliado", "Efectivo", "Tarjeta", "Bizum"];
+
+// Estado de cobro efectivo: "vencida" se deriva de pendiente + due_date pasada.
+const paymentInfo = (inv) => {
+  if (inv.payment_status === "no_aplica") {
+    return { key: "no_aplica", label: "No aplica", color: "bg-slate-100 text-slate-500 border-slate-200" };
+  }
+  if (inv.payment_status === "pagada") {
+    return { key: "pagada", label: "Pagada", color: "bg-emerald-100 text-emerald-700 border-emerald-200" };
+  }
+  if (inv.due_date && moment(inv.due_date).isBefore(moment(), "day")) {
+    return { key: "vencida", label: "Vencida", color: "bg-red-100 text-red-700 border-red-200" };
+  }
+  return { key: "pendiente", label: "Pendiente", color: "bg-amber-100 text-amber-700 border-amber-200" };
+};
+
 export default function Invoices() {
   const [user, setUser] = useState(null);
   const [invoices, setInvoices] = useState([]);
@@ -45,6 +64,13 @@ export default function Invoices() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [monthFilter, setMonthFilter] = useState("all");
+  const [cobroFilter, setCobroFilter] = useState("all");
+  const [payDialog, setPayDialog] = useState(null);
+  const [payMethod, setPayMethod] = useState(PAYMENT_METHODS[0]);
+  const [payDate, setPayDate] = useState(moment().format("YYYY-MM-DD"));
+  const [paySaving, setPaySaving] = useState(false);
+
+  const canManagePayments = ["admin", "superadmin", "oficina"].includes(user?.role);
 
   const loadData = async () => {
     const me = await appApi.auth.me();
@@ -72,6 +98,7 @@ export default function Invoices() {
   const filtered = useMemo(() => {
     return invoices.filter((inv) => {
       if (statusFilter !== "all" && inv.verifactu_status !== statusFilter) return false;
+      if (cobroFilter !== "all" && paymentInfo(inv).key !== cobroFilter) return false;
       if (monthFilter !== "all" && (!inv.issue_date || !moment(inv.issue_date).format("YYYY-MM").startsWith(monthFilter))) return false;
       if (search.trim()) {
         const q = search.trim().toLowerCase();
@@ -82,25 +109,66 @@ export default function Invoices() {
       }
       return true;
     });
-  }, [invoices, statusFilter, monthFilter, search]);
+  }, [invoices, statusFilter, cobroFilter, monthFilter, search]);
 
   const totals = useMemo(() => {
     return filtered.reduce(
-      (acc, inv) => ({
-        count: acc.count + 1,
-        subtotal: acc.subtotal + (Number(inv.subtotal) || 0),
-        iva: acc.iva + (Number(inv.iva_total) || 0),
-        total: acc.total + (Number(inv.total) || 0),
-      }),
-      { count: 0, subtotal: 0, iva: 0, total: 0 }
+      (acc, inv) => {
+        const cobro = paymentInfo(inv).key;
+        const total = Number(inv.total) || 0;
+        return {
+          count: acc.count + 1,
+          subtotal: acc.subtotal + (Number(inv.subtotal) || 0),
+          iva: acc.iva + (Number(inv.iva_total) || 0),
+          total: acc.total + total,
+          cobrado: acc.cobrado + (cobro === "pagada" ? total : 0),
+          pendiente: acc.pendiente + (cobro === "pendiente" || cobro === "vencida" ? total : 0),
+          vencido: acc.vencido + (cobro === "vencida" ? total : 0),
+        };
+      },
+      { count: 0, subtotal: 0, iva: 0, total: 0, cobrado: 0, pendiente: 0, vencido: 0 }
     );
   }, [filtered]);
 
+  const markPaid = async () => {
+    if (!payDialog) return;
+    setPaySaving(true);
+    try {
+      await appApi.entities.Invoice.update(payDialog.id, {
+        payment_status: "pagada",
+        payment_method: payMethod,
+        paid_at: payDate ? new Date(`${payDate}T12:00:00`).toISOString() : new Date().toISOString(),
+      });
+      setPayDialog(null);
+      toast.success("Factura marcada como pagada.");
+      await loadData();
+    } catch (err) {
+      toast.error(err?.message || "No se pudo actualizar el cobro.");
+    } finally {
+      setPaySaving(false);
+    }
+  };
+
+  const markPending = async (inv) => {
+    try {
+      await appApi.entities.Invoice.update(inv.id, {
+        payment_status: "pendiente",
+        payment_method: "",
+        paid_at: null,
+      });
+      toast.success("Factura marcada como pendiente de cobro.");
+      await loadData();
+    } catch (err) {
+      toast.error(err?.message || "No se pudo actualizar el cobro.");
+    }
+  };
+
   const downloadCSV = () => {
     const rows = [
-      ["Número", "Serie", "Tipo", "Fecha", "Cliente", "NIF", "Base (€)", "IVA (€)", "Total (€)", "Estado VeriFactu", "Nº Parte", "Rectifica a"],
+      ["Número", "Serie", "Tipo", "Fecha", "Cliente", "NIF", "Base (€)", "IVA (€)", "Total (€)", "Estado VeriFactu", "Cobro", "Vencimiento", "Pagada el", "Método", "Nº Parte", "Rectifica a"],
     ];
     filtered.forEach((inv) => {
+      const pago = paymentInfo(inv);
       rows.push([
         inv.invoice_number || "",
         inv.serie || "",
@@ -112,6 +180,10 @@ export default function Invoices() {
         (Number(inv.iva_total) || 0).toFixed(2),
         (Number(inv.total) || 0).toFixed(2),
         VERIFACTU_STATUS[inv.verifactu_status]?.label || inv.verifactu_status || "",
+        pago.label,
+        inv.due_date ? moment(inv.due_date).format("DD/MM/YYYY") : "",
+        inv.paid_at ? moment(inv.paid_at).format("DD/MM/YYYY") : "",
+        inv.payment_method || "",
         inv.intervention_number || "",
         inv.factura_rectificada_number || "",
       ]);
@@ -164,18 +236,22 @@ export default function Invoices() {
           <div className="bg-card rounded-2xl border border-border p-4">
             <p className="text-xs text-muted-foreground">Facturas</p>
             <p className="text-xl font-bold">{totals.count}</p>
+            <p className="text-xs text-muted-foreground mt-1">Base {euro(totals.subtotal)} · IVA {euro(totals.iva)}</p>
           </div>
           <div className="bg-card rounded-2xl border border-border p-4">
-            <p className="text-xs text-muted-foreground">Base imponible</p>
-            <p className="text-xl font-bold">{euro(totals.subtotal)}</p>
-          </div>
-          <div className="bg-card rounded-2xl border border-border p-4">
-            <p className="text-xs text-muted-foreground">IVA</p>
-            <p className="text-xl font-bold">{euro(totals.iva)}</p>
-          </div>
-          <div className="bg-card rounded-2xl border border-border p-4">
-            <p className="text-xs text-muted-foreground">Total</p>
+            <p className="text-xs text-muted-foreground">Total facturado</p>
             <p className="text-xl font-bold text-accent">{euro(totals.total)}</p>
+          </div>
+          <div className="bg-card rounded-2xl border border-border p-4">
+            <p className="text-xs text-muted-foreground">Cobrado</p>
+            <p className="text-xl font-bold text-emerald-600">{euro(totals.cobrado)}</p>
+          </div>
+          <div className="bg-card rounded-2xl border border-border p-4">
+            <p className="text-xs text-muted-foreground">Pendiente de cobro</p>
+            <p className="text-xl font-bold text-amber-600">{euro(totals.pendiente)}</p>
+            {totals.vencido > 0 && (
+              <p className="text-xs font-medium text-red-600 mt-1">Vencido: {euro(totals.vencido)}</p>
+            )}
           </div>
         </div>
 
@@ -212,6 +288,17 @@ export default function Invoices() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={cobroFilter} onValueChange={setCobroFilter}>
+            <SelectTrigger className="w-full lg:w-44 rounded-xl bg-card">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todo el cobro</SelectItem>
+              <SelectItem value="pendiente">Pendientes</SelectItem>
+              <SelectItem value="vencida">Vencidas</SelectItem>
+              <SelectItem value="pagada">Pagadas</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Desktop table */}
@@ -226,12 +313,14 @@ export default function Invoices() {
                 <th className="p-3 font-medium text-right">Base</th>
                 <th className="p-3 font-medium text-right">Total</th>
                 <th className="p-3 font-medium">Estado VeriFactu</th>
+                <th className="p-3 font-medium">Cobro</th>
                 <th className="p-3 font-medium text-right">Parte</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((inv) => {
                 const st = VERIFACTU_STATUS[inv.verifactu_status] || VERIFACTU_STATUS.pendiente;
+                const pago = paymentInfo(inv);
                 return (
                   <tr key={inv.id} className="border-b border-border/80 hover:bg-muted/30">
                     <td className="p-3 font-mono text-xs">
@@ -262,6 +351,36 @@ export default function Invoices() {
                         )}
                       </span>
                     </td>
+                    <td className="p-3">
+                      <div className="space-y-1">
+                        <Badge variant="outline" className={`border text-xs font-normal ${pago.color}`}>{pago.label}</Badge>
+                        {pago.key === "pagada" && inv.paid_at && (
+                          <p className="text-[10px] text-muted-foreground">
+                            {moment(inv.paid_at).format("DD/MM/YYYY")}{inv.payment_method ? ` · ${inv.payment_method}` : ""}
+                          </p>
+                        )}
+                        {(pago.key === "pendiente" || pago.key === "vencida") && inv.due_date && (
+                          <p className={`text-[10px] ${pago.key === "vencida" ? "text-red-600" : "text-muted-foreground"}`}>
+                            Vence {moment(inv.due_date).format("DD/MM/YYYY")}
+                          </p>
+                        )}
+                        {canManagePayments && pago.key !== "no_aplica" && (
+                          pago.key === "pagada" ? (
+                            <button type="button" className="text-[10px] text-muted-foreground hover:text-accent hover:underline" onClick={() => markPending(inv)}>
+                              Deshacer cobro
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="text-[10px] text-accent hover:underline"
+                              onClick={() => { setPayDialog(inv); setPayMethod(PAYMENT_METHODS[0]); setPayDate(moment().format("YYYY-MM-DD")); }}
+                            >
+                              Marcar pagada
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </td>
                     <td className="p-3 text-right">
                       {inv.intervention_id ? (
                         <Link
@@ -290,25 +409,43 @@ export default function Invoices() {
         <div className="lg:hidden space-y-3">
           {filtered.map((inv) => {
             const st = VERIFACTU_STATUS[inv.verifactu_status] || VERIFACTU_STATUS.pendiente;
+            const pago = paymentInfo(inv);
             return (
               <div key={inv.id} className="rounded-2xl border border-border bg-card p-4 space-y-2">
                 <div className="flex justify-between gap-2">
                   <span className="font-mono text-xs">{inv.invoice_number}</span>
-                  <Badge variant="outline" className={`border text-xs font-normal ${st.color}`}>{st.label}</Badge>
+                  <span className="flex gap-1.5">
+                    <Badge variant="outline" className={`border text-xs font-normal ${pago.color}`}>{pago.label}</Badge>
+                    <Badge variant="outline" className={`border text-xs font-normal ${st.color}`}>{st.label}</Badge>
+                  </span>
                 </div>
                 <p className="font-medium">{inv.client_name}</p>
                 <p className="text-xs text-muted-foreground">
                   {inv.issue_date ? moment(inv.issue_date).format("DD/MM/YYYY") : ""} ·{" "}
                   {TIPO_LABELS[inv.tipo_factura] || "Factura"}
                   {inv.factura_rectificada_number ? ` · rectifica ${inv.factura_rectificada_number}` : ""}
+                  {(pago.key === "pendiente" || pago.key === "vencida") && inv.due_date
+                    ? ` · vence ${moment(inv.due_date).format("DD/MM/YYYY")}`
+                    : ""}
                 </p>
                 <div className="flex items-center justify-between pt-1">
                   <span className="font-bold">{euro(inv.total)}</span>
-                  {inv.intervention_id && (
-                    <Link to={`/interventions/${inv.intervention_id}`} className="text-accent text-xs hover:underline">
-                      Ver parte {inv.intervention_number || ""}
-                    </Link>
-                  )}
+                  <span className="flex items-center gap-3">
+                    {canManagePayments && (pago.key === "pendiente" || pago.key === "vencida") && (
+                      <button
+                        type="button"
+                        className="text-accent text-xs hover:underline"
+                        onClick={() => { setPayDialog(inv); setPayMethod(PAYMENT_METHODS[0]); setPayDate(moment().format("YYYY-MM-DD")); }}
+                      >
+                        Marcar pagada
+                      </button>
+                    )}
+                    {inv.intervention_id && (
+                      <Link to={`/interventions/${inv.intervention_id}`} className="text-accent text-xs hover:underline">
+                        Ver parte {inv.intervention_number || ""}
+                      </Link>
+                    )}
+                  </span>
                 </div>
               </div>
             );
@@ -318,6 +455,45 @@ export default function Invoices() {
           )}
         </div>
       </div>
+
+      {/* Dialog: marcar pagada */}
+      <Dialog open={!!payDialog} onOpenChange={(o) => !o && setPayDialog(null)}>
+        <DialogContent className="max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HandCoins className="h-5 w-5 text-emerald-600" /> Registrar cobro
+            </DialogTitle>
+          </DialogHeader>
+          <div className="min-w-0 space-y-4">
+            <div className="rounded-xl border border-border bg-muted/20 p-3 text-sm">
+              <p className="font-mono text-xs">{payDialog?.invoice_number}</p>
+              <p className="font-medium">{payDialog?.client_name}</p>
+              <p className="font-bold mt-1">{euro(payDialog?.total)}</p>
+            </div>
+            <div>
+              <Label className="text-xs">Método de pago</Label>
+              <Select value={payMethod} onValueChange={setPayMethod}>
+                <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {PAYMENT_METHODS.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Fecha de cobro</Label>
+              <Input type="date" value={payDate} onChange={(e) => setPayDate(e.target.value)} className="mt-1 rounded-xl" />
+            </div>
+            <Button
+              className="w-full rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+              onClick={markPaid}
+              disabled={paySaving}
+            >
+              {paySaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <HandCoins className="h-4 w-4 mr-2" />}
+              Confirmar cobro
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </PullToRefresh>
   );
 }

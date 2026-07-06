@@ -48,6 +48,9 @@ export default function AppSettings() {
   const [serieAnual, setSerieAnual] = useState(true);
   const [savingSerie, setSavingSerie] = useState(false);
   const [serieSaved, setSerieSaved] = useState(false);
+  const [facturaIban, setFacturaIban] = useState("");
+  const [facturaCondiciones, setFacturaCondiciones] = useState("");
+  const [facturaVencimientoDias, setFacturaVencimientoDias] = useState("30");
   const [lastInviteUrl, setLastInviteUrl] = useState("");
   const [copiedInviteUrl, setCopiedInviteUrl] = useState(false);
   const [smtpHost, setSmtpHost] = useState("");
@@ -155,6 +158,9 @@ export default function AppSettings() {
     setModoProduccion(me.verifactu_produccion === true);
     setSeriePrefijo(me.factura_serie_prefijo || "F");
     setSerieAnual(me.factura_serie_anual !== false);
+    setFacturaIban(me.factura_iban || "");
+    setFacturaCondiciones(me.factura_condiciones_pago || "");
+    setFacturaVencimientoDias(String(me.factura_vencimiento_dias ?? 30));
     if (me.is_hidden_owner === true) {
       const [emailSettings, overview] = await Promise.all([
         appApi.email.getSettings(),
@@ -727,7 +733,7 @@ export default function AppSettings() {
       {["admin", "superadmin", "oficina"].includes(user?.role) && (
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2">
-          <Hash className="h-4 w-4 text-accent" /> Numeración de facturas
+          <Hash className="h-4 w-4 text-accent" /> Facturación: numeración y cobro
         </h2>
         <p className="text-xs text-muted-foreground">
           Define la serie de las facturas de esta empresa. El cambio solo afecta a las facturas nuevas
@@ -757,17 +763,58 @@ export default function AppSettings() {
             {(seriePrefijo || "F") + (serieAnual ? `-${new Date().getFullYear()}-0001` : "-000001")}
           </span>
         </p>
+
+        <div className="border-t border-border pt-4 space-y-3">
+          <p className="text-sm font-medium">Cobro y condiciones de pago (aparecen en el PDF)</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">IBAN de cobro</Label>
+              <Input
+                value={facturaIban}
+                onChange={(e) => setFacturaIban(e.target.value.toUpperCase())}
+                placeholder="ES00 0000 0000 0000 0000 0000"
+                className="mt-1 rounded-xl font-mono"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Vencimiento (días desde emisión)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="365"
+                value={facturaVencimientoDias}
+                onChange={(e) => setFacturaVencimientoDias(e.target.value)}
+                placeholder="30"
+                className="mt-1 rounded-xl"
+              />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">Condiciones de pago (texto libre)</Label>
+            <Input
+              value={facturaCondiciones}
+              onChange={(e) => setFacturaCondiciones(e.target.value)}
+              placeholder="Ej: Transferencia bancaria a 30 días"
+              className="mt-1 rounded-xl"
+            />
+          </div>
+        </div>
+
         {serieSaved && (
           <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-            <span className="text-emerald-700 font-semibold text-sm">✓ Numeración guardada</span>
+            <span className="text-emerald-700 font-semibold text-sm">✓ Configuración de facturación guardada</span>
           </div>
         )}
         <Button
           onClick={async () => {
             setSavingSerie(true);
+            const dias = parseInt(facturaVencimientoDias, 10);
             await appApi.auth.updateMe({
               factura_serie_prefijo: seriePrefijo || "F",
               factura_serie_anual: serieAnual,
+              factura_iban: facturaIban.trim(),
+              factura_condiciones_pago: facturaCondiciones.trim(),
+              factura_vencimiento_dias: Number.isFinite(dias) && dias >= 0 && dias <= 365 ? dias : 30,
             });
             setSavingSerie(false);
             setSerieSaved(true);
@@ -777,7 +824,7 @@ export default function AppSettings() {
           className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
         >
           {savingSerie ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Hash className="h-4 w-4 mr-2" />}
-          Guardar numeración
+          Guardar facturación
         </Button>
       </div>
       )}

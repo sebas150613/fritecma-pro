@@ -45,6 +45,40 @@ const NON_DELETABLE_OPERATIONAL_ENTITIES = new Set([
 const OPERATIONAL_DELETE_FORBIDDEN_MESSAGE =
   "Esta entidad forma parte del histórico de la empresa y no puede eliminarse individualmente.";
 
+// Las facturas emitidas son inmutables (VeriFactu). Vía API de entidades solo
+// se pueden modificar los campos de cobro, y solo por roles de oficina; la
+// creación se hace exclusivamente desde el proceso Veri*factu.
+const INVOICE_PAYMENT_FIELDS = new Set([
+  "payment_status",
+  "payment_method",
+  "paid_at",
+  "payment_notes",
+  "due_date",
+]);
+const INVOICE_PAYMENT_STATUSES = new Set(["pendiente", "pagada", "no_aplica"]);
+
+const assertInvoicePaymentPatch = (req) => {
+  if (!canOperateOffice(req.currentUser?.role)) {
+    throw new HttpError(403, "Forbidden");
+  }
+
+  const keys = Object.keys(req.body || {});
+  const invalidKeys = keys.filter((key) => !INVOICE_PAYMENT_FIELDS.has(key));
+  if (invalidKeys.length > 0) {
+    throw new HttpError(
+      422,
+      "Una factura emitida es inmutable: solo pueden modificarse los campos de cobro."
+    );
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(req.body || {}, "payment_status") &&
+    !INVOICE_PAYMENT_STATUSES.has(String(req.body.payment_status))
+  ) {
+    throw new HttpError(422, "payment_status no válido (pendiente | pagada | no_aplica).");
+  }
+};
+
 const router = express.Router();
 const stores = new Map();
 const membershipStore = getOrganizationMembershipStore();
@@ -300,6 +334,10 @@ router.post(
     const store = getStore(entityName);
     const requestedRole = req.body?.role;
 
+    if (entityName === "Invoice") {
+      throw new HttpError(403, "Las facturas solo se emiten mediante el proceso Veri*factu.");
+    }
+
     if (isUserEntity(entityName) || isOrganizationMembershipEntity(entityName)) {
       assertCanManageUsers(req);
     }
@@ -366,6 +404,10 @@ router.patch(
     const existing = existingItems[0] || null;
 
     ensureEntityBelongsToCurrentOrganization(entityName, req, existing);
+
+    if (entityName === "Invoice") {
+      assertInvoicePaymentPatch(req);
+    }
 
     if (entityName === "OrganizationSettings") {
       assertCanWriteOrganizationSettings(req);

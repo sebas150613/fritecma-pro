@@ -455,6 +455,27 @@ const runSmoke = async () => {
       }
     );
 
+    // Un parte por escenario: el backend impide facturar dos veces el mismo parte
+    // y cada factura original solo puede rectificarse una vez.
+    const createSmokeIntervention = (number) =>
+      request("/api/entities/Intervention", {
+        method: "POST",
+        headers: HEADERS,
+        body: JSON.stringify({
+          number,
+          client_id: smokeClient.id,
+          client_name: smokeClient.name || "Cliente Smoke Mail",
+          subtotal: 100,
+          iva_total: 21,
+          total: 121,
+          materials_json: "[]",
+          status: "pendiente_revision",
+        }),
+      });
+
+    const interventionB = await createSmokeIntervention("SMOKE-INT-002");
+    const interventionC = await createSmokeIntervention("SMOKE-INT-003");
+
     const invoiceRun = await request("/api/functions/processVerifactu", {
       method: "POST",
       headers: HEADERS,
@@ -464,11 +485,20 @@ const runSmoke = async () => {
       }),
     });
 
+    const invoiceRunB = await request("/api/functions/processVerifactu", {
+      method: "POST",
+      headers: HEADERS,
+      body: JSON.stringify({
+        intervention_id: interventionB.id,
+        mode: "facturar",
+      }),
+    });
+
     const queuedRun = await request("/api/functions/processVerifactu", {
       method: "POST",
       headers: HEADERS,
       body: JSON.stringify({
-        intervention_id: intervention.id,
+        intervention_id: interventionC.id,
         mode: "facturar",
         force_pending_submission: true,
       }),
@@ -480,7 +510,7 @@ const runSmoke = async () => {
       body: JSON.stringify({
         intervention_id: intervention.id,
         mode: "rectificar",
-        original_invoice_id: queuedRun.data?.invoice_id,
+        original_invoice_id: invoiceRun.data?.invoice_id,
         rectificativa_motivo: "Smoke rectificativa",
       }),
     });
@@ -489,15 +519,30 @@ const runSmoke = async () => {
       method: "POST",
       headers: HEADERS,
       body: JSON.stringify({
-        intervention_id: intervention.id,
+        intervention_id: interventionB.id,
         mode: "rectificar_corregida",
-        original_invoice_id: queuedRun.data?.invoice_id,
+        original_invoice_id: invoiceRunB.data?.invoice_id,
         rectificativa_motivo: "Smoke rectificativa corregida",
         subtotal_corregida: 50,
         iva_corregida: 10.5,
         total_corregida: 60.5,
       }),
     });
+
+    // Regresión: facturar de nuevo un parte ya facturado debe rechazarse (409).
+    const doubleInvoiceAttempt = await requestExpectFailure("/api/functions/processVerifactu", {
+      method: "POST",
+      headers: HEADERS,
+      body: JSON.stringify({
+        intervention_id: interventionC.id,
+        mode: "facturar",
+      }),
+    });
+    if (doubleInvoiceAttempt.status !== 409) {
+      throw new Error(
+        `Expected 409 when re-invoicing an already invoiced intervention, got ${doubleInvoiceAttempt.status}`
+      );
+    }
 
     const retryRun = await request("/api/functions/retryVerifactuSubmissions", {
       method: "POST",

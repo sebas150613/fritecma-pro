@@ -93,6 +93,28 @@
       "type": "string",
       "title": "Conservar hasta (YYYY-MM-DD) \u2014 m\u00edn. 6 a\u00f1os"
     },
+    "payment_status": {
+      "type": "string",
+      "title": "Estado de cobro",
+      "enum": ["pendiente", "pagada", "no_aplica"],
+      "default": "pendiente"
+    },
+    "payment_method": {
+      "type": "string",
+      "title": "M\u00e9todo de pago"
+    },
+    "paid_at": {
+      "type": ["string", "null"],
+      "title": "Fecha de cobro (ISO)"
+    },
+    "payment_notes": {
+      "type": "string",
+      "title": "Notas de cobro"
+    },
+    "due_date": {
+      "type": ["string", "null"],
+      "title": "Vencimiento (YYYY-MM-DD)"
+    },
     "verifactu_status": {
       "type": "string",
       "title": "Estado Veri*factu",
