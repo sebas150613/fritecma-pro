@@ -69,6 +69,15 @@ export default function Invoices() {
   const [payMethod, setPayMethod] = useState(PAYMENT_METHODS[0]);
   const [payDate, setPayDate] = useState(moment().format("YYYY-MM-DD"));
   const [paySaving, setPaySaving] = useState(false);
+  const emptyFreeLine = () => ({ _id: Date.now() + Math.random(), material_name: "", quantity: 1, unit: "ud", unit_price: "", iva_percent: 21 });
+  const [freeOpen, setFreeOpen] = useState(false);
+  const [freeClientId, setFreeClientId] = useState("");
+  const [freeLines, setFreeLines] = useState([emptyFreeLine()]);
+  const [freeDescripcion, setFreeDescripcion] = useState("");
+  const [freeBusy, setFreeBusy] = useState(false);
+  const [annulDialog, setAnnulDialog] = useState(null);
+  const [annulMotivo, setAnnulMotivo] = useState("");
+  const [annulBusy, setAnnulBusy] = useState(false);
   const [groupOpen, setGroupOpen] = useState(false);
   const [groupClients, setGroupClients] = useState([]);
   const [groupClientId, setGroupClientId] = useState("");
@@ -118,6 +127,11 @@ export default function Invoices() {
     });
   }, [invoices, statusFilter, cobroFilter, monthFilter, search]);
 
+  const rectifiedIds = useMemo(
+    () => new Set(invoices.map((i) => i.factura_rectificada_id).filter(Boolean)),
+    [invoices]
+  );
+
   const totals = useMemo(() => {
     return filtered.reduce(
       (acc, inv) => {
@@ -153,6 +167,85 @@ export default function Invoices() {
       toast.error(err?.message || "No se pudo actualizar el cobro.");
     } finally {
       setPaySaving(false);
+    }
+  };
+
+  const openFreeDialog = async () => {
+    setFreeOpen(true);
+    setFreeClientId("");
+    setFreeLines([emptyFreeLine()]);
+    setFreeDescripcion("");
+    try {
+      const clients = await appApi.entities.Client.list("name", 500);
+      setGroupClients(clients || []);
+    } catch {
+      setGroupClients([]);
+    }
+  };
+
+  const updateFreeLine = (lineId, field, value) => {
+    setFreeLines((current) =>
+      current.map((l) => (l._id === lineId ? { ...l, [field]: value } : l))
+    );
+  };
+
+  const freeTotals = freeLines.reduce(
+    (acc, l) => {
+      const total = (Number(l.quantity) || 0) * (Number(l.unit_price) || 0);
+      const iva = total * ((Number(l.iva_percent) || 0) / 100);
+      return { subtotal: acc.subtotal + total, iva: acc.iva + iva, total: acc.total + total + iva };
+    },
+    { subtotal: 0, iva: 0, total: 0 }
+  );
+
+  const freeLinesValid = freeLines.some(
+    (l) => String(l.material_name).trim() && (Number(l.quantity) || 0) > 0
+  );
+
+  const createFreeInvoice = async () => {
+    setFreeBusy(true);
+    try {
+      const res = await appApi.functions.invoke("processVerifactu", {
+        mode: "facturar_libre",
+        client_id: freeClientId,
+        descripcion: freeDescripcion,
+        lines: freeLines
+          .filter((l) => String(l.material_name).trim() && (Number(l.quantity) || 0) > 0)
+          .map((l) => ({
+            material_name: l.material_name,
+            quantity: Number(l.quantity) || 0,
+            unit: l.unit || "ud",
+            unit_price: Number(l.unit_price) || 0,
+            iva_percent: Number(l.iva_percent) || 21,
+          })),
+      });
+      toast.success(`Factura emitida: ${res?.data?.invoice_number || ""}`);
+      setFreeOpen(false);
+      await loadData();
+    } catch (err) {
+      toast.error(err?.message || "No se pudo emitir la factura.");
+    } finally {
+      setFreeBusy(false);
+    }
+  };
+
+  const annulFreeInvoice = async () => {
+    if (!annulDialog) return;
+    setAnnulBusy(true);
+    try {
+      const res = await appApi.functions.invoke("processVerifactu", {
+        mode: "rectificar",
+        original_invoice_id: annulDialog.id,
+        rectificativa_motivo: annulMotivo || "Anulación desde Facturación",
+      });
+      toast.success(`Rectificativa emitida: ${res?.data?.invoice_number || ""}`);
+      setAnnulDialog(null);
+      setAnnulMotivo("");
+      await loadData();
+    } catch (err) {
+      toast.error(err?.message || "No se pudo anular la factura.");
+    } finally {
+      setAnnulBusy(false);
     }
   };
 
@@ -285,7 +378,15 @@ export default function Invoices() {
               Listado de todas las facturas emitidas (VeriFactu). Las facturas se emiten desde el parte de trabajo y son inalterables.
             </p>
           </div>
-          <div className="flex gap-2 shrink-0">
+          <div className="flex flex-wrap gap-2 shrink-0">
+            {canManagePayments && (
+              <Button
+                onClick={openFreeDialog}
+                className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+              >
+                <Receipt className="h-4 w-4 mr-2" /> Nueva factura
+              </Button>
+            )}
             {canManagePayments && (
               <Button
                 variant="outline"
@@ -464,7 +565,21 @@ export default function Invoices() {
                           {inv.intervention_number || "Ver parte"} <ExternalLink className="h-3 w-3" />
                         </Link>
                       ) : (
-                        <span className="text-muted-foreground text-xs">{inv.intervention_number || "—"}</span>
+                        <span className="text-muted-foreground text-xs">
+                          {inv.intervention_number || "—"}
+                          {canManagePayments &&
+                            !inv.intervention_ids_json &&
+                            (inv.tipo_factura || "F1") === "F1" &&
+                            !rectifiedIds.has(inv.id) && (
+                              <button
+                                type="button"
+                                className="block text-[10px] text-red-500 hover:underline mt-1"
+                                onClick={() => { setAnnulDialog(inv); setAnnulMotivo(""); }}
+                              >
+                                Anular
+                              </button>
+                            )}
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -529,6 +644,130 @@ export default function Invoices() {
           )}
         </div>
       </div>
+
+      {/* Dialog: nueva factura libre */}
+      <Dialog open={freeOpen} onOpenChange={(o) => !freeBusy && setFreeOpen(o)}>
+        <DialogContent className="max-w-2xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-accent" /> Nueva factura
+            </DialogTitle>
+          </DialogHeader>
+          <div className="min-w-0 space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Factura directa sin parte de trabajo: ventas de material, cuotas de mantenimiento, anticipos...
+              Se emite con Veri*factu y queda bloqueada como cualquier otra factura.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Cliente</Label>
+                <select
+                  className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                  value={freeClientId}
+                  onChange={(e) => setFreeClientId(e.target.value)}
+                >
+                  <option value="">Selecciona cliente...</option>
+                  {groupClients.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">Concepto (aparece en el registro AEAT)</Label>
+                <Input
+                  className="mt-1 rounded-xl"
+                  placeholder="Ej: Cuota mantenimiento julio 2026"
+                  value={freeDescripcion}
+                  onChange={(e) => setFreeDescripcion(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="grid grid-cols-12 gap-2 text-[10px] uppercase tracking-wide text-muted-foreground px-1">
+                <span className="col-span-5">Descripción</span>
+                <span className="col-span-2">Cant.</span>
+                <span className="col-span-2">Precio €</span>
+                <span className="col-span-2">IVA %</span>
+                <span className="col-span-1" />
+              </div>
+              {freeLines.map((l) => (
+                <div key={l._id} className="grid grid-cols-12 gap-2 items-center">
+                  <Input className="col-span-5 rounded-xl" placeholder="Concepto de la línea"
+                    value={l.material_name} onChange={(e) => updateFreeLine(l._id, "material_name", e.target.value)} />
+                  <Input className="col-span-2 rounded-xl" type="number" min="0" step="0.01"
+                    value={l.quantity} onChange={(e) => updateFreeLine(l._id, "quantity", e.target.value)} />
+                  <Input className="col-span-2 rounded-xl" type="number" min="0" step="0.01" placeholder="0,00"
+                    value={l.unit_price} onChange={(e) => updateFreeLine(l._id, "unit_price", e.target.value)} />
+                  <Input className="col-span-2 rounded-xl" type="number" min="0" max="21" step="1"
+                    value={l.iva_percent} onChange={(e) => updateFreeLine(l._id, "iva_percent", e.target.value)} />
+                  <button
+                    type="button"
+                    className="col-span-1 text-muted-foreground hover:text-red-500 text-sm"
+                    onClick={() => setFreeLines((cur) => cur.length > 1 ? cur.filter((x) => x._id !== l._id) : cur)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <Button type="button" variant="outline" className="rounded-xl w-full"
+                onClick={() => setFreeLines((cur) => [...cur, emptyFreeLine()])}>
+                + Añadir línea
+              </Button>
+            </div>
+            <div className="flex items-center justify-between rounded-xl bg-muted/30 border border-border px-4 py-2 text-sm">
+              <span className="text-muted-foreground">
+                Base {euro(freeTotals.subtotal)} · IVA {euro(freeTotals.iva)}
+              </span>
+              <span className="font-bold">{euro(freeTotals.total)}</span>
+            </div>
+            <Button
+              className="w-full rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+              onClick={createFreeInvoice}
+              disabled={freeBusy || !freeClientId || !freeLinesValid}
+            >
+              {freeBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Receipt className="h-4 w-4 mr-2" />}
+              Facturar con Veri*factu
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: anular factura sin parte */}
+      <Dialog open={!!annulDialog} onOpenChange={(o) => !annulBusy && !o && setAnnulDialog(null)}>
+        <DialogContent className="max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-red-600">Anular factura</DialogTitle>
+          </DialogHeader>
+          <div className="min-w-0 space-y-4">
+            <div className="rounded-xl border border-border bg-muted/20 p-3 text-sm">
+              <p className="font-mono text-xs">{annulDialog?.invoice_number}</p>
+              <p className="font-medium">{annulDialog?.client_name}</p>
+              <p className="font-bold mt-1">{euro(annulDialog?.total)}</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Se emitirá una factura rectificativa R1 en negativo. La factura original queda anulada de forma irreversible.
+            </p>
+            <div>
+              <Label className="text-xs">Motivo de anulación *</Label>
+              <Input
+                className="mt-1 rounded-xl"
+                placeholder="Ej: error en el importe, duplicada..."
+                value={annulMotivo}
+                onChange={(e) => setAnnulMotivo(e.target.value)}
+              />
+            </div>
+            <Button
+              variant="destructive"
+              className="w-full rounded-xl"
+              onClick={annulFreeInvoice}
+              disabled={annulBusy || !annulMotivo.trim()}
+            >
+              {annulBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Emitir rectificativa y anular
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog: factura agrupada */}
       <Dialog open={groupOpen} onOpenChange={(o) => !groupBusy && setGroupOpen(o)}>

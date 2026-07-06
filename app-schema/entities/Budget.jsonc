@@ -69,7 +69,8 @@
         "aceptado",
         "rechazado",
         "caducado",
-        "parte_generado"
+        "parte_generado",
+        "facturado"
       ],
       "default": "borrador"
     },
@@ -89,6 +90,14 @@
     "intervention_number": {
       "type": "string",
       "title": "Nº Parte generado"
+    },
+    "invoice_id": {
+      "type": ["string", "null"],
+      "title": "ID Factura emitida desde este presupuesto"
+    },
+    "invoice_number": {
+      "type": ["string", "null"],
+      "title": "Nº Factura emitida"
     },
     "created_by": {
       "type": "string",

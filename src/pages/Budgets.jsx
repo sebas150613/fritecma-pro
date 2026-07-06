@@ -28,6 +28,7 @@ const STATUS = {
   rechazado: { label: "Rechazado", color: "bg-red-100 text-red-700 border-red-200" },
   caducado: { label: "Caducado", color: "bg-orange-100 text-orange-700 border-orange-200" },
   parte_generado: { label: "Parte generado", color: "bg-violet-100 text-violet-700 border-violet-200" },
+  facturado: { label: "Facturado", color: "bg-teal-100 text-teal-700 border-teal-200" },
 };
 
 const euro = (n) =>
@@ -218,6 +219,38 @@ export default function Budgets() {
     navigate(`/interventions/new?budgetId=${budget.id}`);
   };
 
+  const [invoicingBudgetId, setInvoicingBudgetId] = useState(null);
+
+  const invoiceBudget = async (budget) => {
+    if (!window.confirm(`Se emitirá una factura Veri*factu con las líneas del presupuesto ${budget.number} por ${(Number(budget.total) || 0).toFixed(2)} €. ¿Continuar?`)) {
+      return;
+    }
+    setInvoicingBudgetId(budget.id);
+    try {
+      let lines = [];
+      try { lines = JSON.parse(budget.lines_json || "[]"); } catch { lines = []; }
+      const res = await appApi.functions.invoke("processVerifactu", {
+        mode: "facturar_libre",
+        client_id: budget.client_id,
+        budget_id: budget.id,
+        descripcion: budget.description || `Presupuesto ${budget.number}`,
+        lines: lines.map((l) => ({
+          material_name: l.material_name || l.description || "",
+          quantity: Number(l.quantity) || 0,
+          unit: l.unit || "ud",
+          unit_price: Number(l.unit_price) || 0,
+          iva_percent: Number(l.iva_percent) || 21,
+        })),
+      });
+      toast.success(`Factura emitida: ${res?.data?.invoice_number || ""}`);
+      await loadData();
+    } catch (err) {
+      toast.error(err?.message || "No se pudo facturar el presupuesto.");
+    } finally {
+      setInvoicingBudgetId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -256,13 +289,30 @@ export default function Budgets() {
         </>
       )}
       {b.status === "aceptado" && (
-        <Button size="sm" className="rounded-lg h-8 text-xs bg-accent hover:bg-accent/90 text-accent-foreground" onClick={() => generateParte(b)}>
-          <ClipboardList className="h-3.5 w-3.5 mr-1" /> Generar parte
-        </Button>
+        <>
+          <Button size="sm" className="rounded-lg h-8 text-xs bg-accent hover:bg-accent/90 text-accent-foreground" onClick={() => generateParte(b)}>
+            <ClipboardList className="h-3.5 w-3.5 mr-1" /> Generar parte
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-lg h-8 text-xs"
+            disabled={invoicingBudgetId === b.id}
+            onClick={() => invoiceBudget(b)}
+          >
+            <FileText className="h-3.5 w-3.5 mr-1" />
+            {invoicingBudgetId === b.id ? "Facturando..." : "Facturar"}
+          </Button>
+        </>
       )}
       {b.status === "parte_generado" && b.intervention_id && (
         <Link to={`/interventions/${b.intervention_id}`} className="inline-flex items-center gap-1 text-accent hover:underline text-xs">
           {b.intervention_number || "Ver parte"} <ExternalLink className="h-3 w-3" />
+        </Link>
+      )}
+      {b.status === "facturado" && b.invoice_number && (
+        <Link to="/invoices" className="inline-flex items-center gap-1 text-accent hover:underline text-xs">
+          {b.invoice_number} <ExternalLink className="h-3 w-3" />
         </Link>
       )}
     </div>

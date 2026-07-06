@@ -19,6 +19,8 @@ import {
 
 const invoiceStore = createJsonEntityStore("Invoice");
 const interventionStore = createJsonEntityStore("Intervention");
+const clientStore = createJsonEntityStore("Client");
+const budgetStore = createJsonEntityStore("Budget");
 const retryQueueStore = createJsonEntityStore("InvoiceRetryQueue");
 const counterStore = createJsonFileStore("function-counters.json", {});
 const organizationSettingsStore = getOrganizationSettingsStore();
@@ -379,8 +381,71 @@ const parseGroupedInterventionIds = (invoice) => {
   }
 };
 
+// Normaliza y valida las líneas de una factura libre (o de presupuesto).
+const buildFreeInvoiceInput = (payload) => {
+  const clientId = String(payload.client_id || "").trim();
+  if (!clientId) {
+    throw new HttpError(400, "client_id is required");
+  }
+
+  const rawLines = Array.isArray(payload.lines) ? payload.lines : [];
+  const lines = rawLines
+    .map((line) => {
+      const quantity = Number(line.quantity) || 0;
+      const unitPrice = Number(line.unit_price) || 0;
+      const ivaRaw = Number(line.iva_percent);
+      return {
+        material_name: String(line.material_name || line.description || "").trim().slice(0, 200),
+        quantity,
+        unit: String(line.unit || "ud").slice(0, 10),
+        unit_price: clampMoney(unitPrice),
+        total: clampMoney(quantity * unitPrice),
+        iva_percent: Number.isFinite(ivaRaw) && ivaRaw >= 0 && ivaRaw <= 21 ? ivaRaw : 21,
+      };
+    })
+    .filter((line) => line.material_name && line.quantity > 0);
+
+  if (lines.length === 0) {
+    throw new HttpError(422, "La factura necesita al menos una línea con descripción y cantidad.");
+  }
+
+  return {
+    clientId,
+    lines,
+    descripcion: String(payload.descripcion || "").trim().slice(0, 250),
+    budgetId: payload.budget_id ? String(payload.budget_id) : null,
+  };
+};
+
+const FREE_INVOICE_LOCK_KEY = "__factura_libre__";
+
 export const processVerifactu = async ({ payload = {}, currentUser }) => {
   const mode = payload.mode || "facturar";
+
+  // Factura libre (sin parte): venta directa, cuota o presupuesto aceptado.
+  // También rectificativas de facturas libres (original sin intervention_id).
+  const isFreeCreation = mode === "facturar_libre";
+  const isFreeRectification =
+    (mode === "rectificar" || mode === "rectificar_corregida") &&
+    !payload.intervention_id &&
+    payload.original_invoice_id;
+
+  if (isFreeCreation || isFreeRectification) {
+    const freeInvoice = isFreeCreation ? buildFreeInvoiceInput(payload) : null;
+    const release = await acquireInterventionLock(FREE_INVOICE_LOCK_KEY);
+    try {
+      return await _processVerifactuLocked({
+        payload,
+        currentUser,
+        interventionId: null,
+        mode: isFreeCreation ? "facturar" : mode,
+        freeInvoice,
+      });
+    } finally {
+      release();
+      interventionLocks.delete(FREE_INVOICE_LOCK_KEY);
+    }
+  }
 
   // Factura agrupada (recapitulativa): una sola factura para varios partes del
   // mismo cliente. Bloqueo de todos los partes en orden estable (anti-interbloqueo).
@@ -430,8 +495,10 @@ export const processVerifactu = async ({ payload = {}, currentUser }) => {
   }
 };
 
-const _processVerifactuLocked = async ({ payload, currentUser, interventionId, mode, groupInterventionIds = null }) => {
-  const intervention = await findById(interventionStore, interventionId, "Intervention");
+const _processVerifactuLocked = async ({ payload, currentUser, interventionId, mode, groupInterventionIds = null, freeInvoice = null }) => {
+  const intervention = interventionId
+    ? await findById(interventionStore, interventionId, "Intervention")
+    : null;
   const now = new Date().toISOString();
   const isRectificativaMode = mode === "rectificar" || mode === "rectificar_corregida";
 
@@ -443,12 +510,22 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
     throw new HttpError(400, "No se pudo determinar la organización del emisor para facturar.");
   }
 
+  // Factura libre: el cliente debe existir y pertenecer a la organización.
+  let freeClient = null;
+  if (freeInvoice) {
+    const clients = await clientStore.filter({ filter: { id: freeInvoice.clientId }, limit: 1 });
+    freeClient = clients[0] || null;
+    if (!freeClient || (freeClient.organization_id && freeClient.organization_id !== organizationId)) {
+      throw new HttpError(404, "Client not found");
+    }
+  }
+
   const groupInterventions = groupInterventionIds
     ? await Promise.all(
         groupInterventionIds.map((id) => findById(interventionStore, id, "Intervention"))
       )
     : null;
-  const invoiceTargets = groupInterventions || [intervention];
+  const invoiceTargets = groupInterventions || (intervention ? [intervention] : []);
 
   // Aislamiento multi-tenant: ningún parte de otra organización es visible aquí.
   const foreign = invoiceTargets.find(
@@ -517,7 +594,9 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
     const groupedOriginalIds = parseGroupedInterventionIds(originalInvoice);
     const belongsToOriginal = groupedOriginalIds
       ? groupedOriginalIds.includes(String(interventionId))
-      : originalInvoice.intervention_id === interventionId;
+      : originalInvoice.intervention_id
+        ? originalInvoice.intervention_id === interventionId
+        : !interventionId; // factura libre: se rectifica sin parte
     if (!belongsToOriginal) {
       throw new HttpError(400, "La factura original no pertenece a este parte.");
     }
@@ -552,15 +631,28 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
   );
   const chainIndex = Number(previousInvoice?.invoice_chain_index || 0) + 1;
 
-  const originalSubtotal = clampMoney(
-    invoiceTargets.reduce((acc, item) => acc + (Number(item.subtotal ?? item.total ?? 0) || 0), 0)
-  );
-  const originalIvaTotal = clampMoney(
-    invoiceTargets.reduce((acc, item) => acc + (Number(item.iva_total ?? 0) || 0), 0)
-  );
-  const originalTotal = clampMoney(
-    invoiceTargets.reduce((acc, item) => acc + (Number(item.total ?? 0) || 0), 0)
-  );
+  const freeSubtotal = freeInvoice
+    ? clampMoney(freeInvoice.lines.reduce((acc, line) => acc + line.total, 0))
+    : 0;
+  const freeIva = freeInvoice
+    ? clampMoney(freeInvoice.lines.reduce((acc, line) => acc + line.total * (line.iva_percent / 100), 0))
+    : 0;
+
+  const originalSubtotal = freeInvoice
+    ? freeSubtotal
+    : clampMoney(
+        invoiceTargets.reduce((acc, item) => acc + (Number(item.subtotal ?? item.total ?? 0) || 0), 0)
+      );
+  const originalIvaTotal = freeInvoice
+    ? freeIva
+    : clampMoney(
+        invoiceTargets.reduce((acc, item) => acc + (Number(item.iva_total ?? 0) || 0), 0)
+      );
+  const originalTotal = freeInvoice
+    ? clampMoney(freeSubtotal + freeIva)
+    : clampMoney(
+        invoiceTargets.reduce((acc, item) => acc + (Number(item.total ?? 0) || 0), 0)
+      );
 
   let subtotal = originalSubtotal;
   let ivaTotal = originalIvaTotal;
@@ -635,19 +727,25 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
     ? originalInvoice.lines_json
     : isGroupedInvoice
       ? buildGroupedLinesJson()
-      : intervention.materials_json || "[]";
+      : freeInvoice
+        ? JSON.stringify(freeInvoice.lines)
+        : intervention?.materials_json || "[]";
 
   const descripcionOperacion = isGroupedInvoice
     ? `Factura recapitulativa de ${groupInterventions.length} partes: ${groupInterventions
         .map((item) => item.number || item.id)
         .join(", ")}`.slice(0, 250)
-    : intervention.description ||
-      intervention.summary ||
-      intervention.notes ||
-      `Intervencion ${intervention.number || invoiceNumber}`;
+    : freeInvoice
+      ? freeInvoice.descripcion || `Factura de venta — ${freeClient?.name || ""}`.trim()
+      : intervention
+        ? intervention.description ||
+          intervention.summary ||
+          intervention.notes ||
+          `Intervencion ${intervention.number || invoiceNumber}`
+        : originalInvoice?.descripcion_operacion || `Factura ${invoiceNumber}`;
 
-  // Para el registro AEAT de una agrupada, la descripción es la recapitulativa.
-  const descriptionSourceIntervention = isGroupedInvoice
+  // Para el registro AEAT de agrupadas y libres, la descripción es la calculada.
+  const descriptionSourceIntervention = isGroupedInvoice || !intervention
     ? { description: descripcionOperacion, number: invoiceNumber }
     : intervention;
 
@@ -667,21 +765,34 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
     invoice_number: invoiceNumber,
     serie: serieKey,
     tipo_factura: tipoFactura,
-    intervention_id: isGroupedContext ? null : intervention.id,
+    intervention_id: isGroupedContext || !intervention ? null : intervention.id,
     intervention_number: isGroupedInvoice
       ? `${groupInterventions.length} partes`
       : groupedOriginalIds
         ? originalInvoice.intervention_number || `${groupedOriginalIds.length} partes`
-        : intervention.number,
+        : intervention?.number || (isRectificativa ? originalInvoice?.intervention_number || null : null),
     intervention_ids_json: isGroupedInvoice
       ? JSON.stringify(groupInterventions.map((item) => item.id))
       : groupedOriginalIds
         ? originalInvoice.intervention_ids_json
         : null,
-    client_id: intervention.client_id,
-    client_name: intervention.client_name,
-    client_nif: intervention.client_nif || "",
-    client_address: intervention.client_address || intervention.location_address || "",
+    client_id: freeClient
+      ? freeClient.id
+      : intervention?.client_id ?? originalInvoice?.client_id ?? null,
+    client_name: freeClient
+      ? freeClient.name || ""
+      : intervention?.client_name ?? originalInvoice?.client_name ?? "",
+    client_nif: freeClient
+      ? freeClient.nif || freeClient.cif || freeClient.tax_id || ""
+      : intervention?.client_nif || originalInvoice?.client_nif || "",
+    client_address: freeClient
+      ? [freeClient.address, [freeClient.postal_code, freeClient.city].filter(Boolean).join(" ")]
+          .filter(Boolean)
+          .join(", ")
+      : intervention?.client_address ||
+        intervention?.location_address ||
+        originalInvoice?.client_address ||
+        "",
     issue_date: now,
     subtotal,
     iva_total: ivaTotal,
@@ -734,7 +845,7 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
       issueDate: now,
       issuerNif,
       issuerName,
-      clientName: intervention.client_name,
+      clientName: freeClient?.name || intervention?.client_name || originalInvoice?.client_name || "",
       total,
       ivaTotal,
       hashHuella,
@@ -744,11 +855,14 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
   });
 
   // Partes afectados: los del grupo (facturación agrupada), los del grupo de la
-  // factura original (rectificativa de agrupada) o el parte único.
+  // factura original (rectificativa de agrupada), el parte único, o ninguno
+  // (factura libre y sus rectificativas).
   const affectedInterventions = groupInterventions
     || (groupedOriginalIds
       ? await Promise.all(groupedOriginalIds.map((id) => findById(interventionStore, id, "Intervention")))
-      : [intervention]);
+      : intervention
+        ? [intervention]
+        : []);
 
   for (const item of affectedInterventions) {
     await interventionStore.update(item.id, {
@@ -769,6 +883,20 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
   // La factura rectificada deja de ser cobrable: su cobro pasa a "no_aplica".
   if (isRectificativa && originalInvoice) {
     await invoiceStore.update(originalInvoice.id, { payment_status: "no_aplica" });
+  }
+
+  // Presupuesto → factura: el presupuesto queda enlazado y marcado como facturado.
+  if (freeInvoice?.budgetId) {
+    const budgets = await budgetStore.filter({ filter: { id: freeInvoice.budgetId }, limit: 1 });
+    const budget = budgets[0] || null;
+    if (budget && (!budget.organization_id || budget.organization_id === organizationId)) {
+      await budgetStore.update(budget.id, {
+        status: "facturado",
+        invoice_id: invoiceRecord.id,
+        invoice_number: invoiceNumber,
+        status_changed_at: now,
+      });
+    }
   }
 
   let responseInvoice = invoiceRecord;
