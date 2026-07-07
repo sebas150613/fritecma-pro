@@ -156,7 +156,7 @@
     },
     "gas_media": {
       "type": "array",
-      "title": "Evidencias de carga de gas (fotos/vídeos)",
+      "title": "Fotos y vídeos del parte",
       "items": {
         "type": "object",
         "properties": {

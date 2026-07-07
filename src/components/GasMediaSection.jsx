@@ -88,11 +88,12 @@ export default function GasMediaSection({ media, onChange }) {
   return (
     <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
       <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
-        Evidencias de la Carga de Gas
+        Fotos y Vídeos del Parte
       </h2>
       <p className="text-xs text-muted-foreground">
-        Añade fotos del pesaje de la botella (antes y después de la carga) y, si has
-        localizado la fuga, un vídeo corto donde se vea.
+        Añade evidencias visuales: matrícula de un mural para pedir el recambio, pesaje de
+        la botella de gas, la fuga localizada, el estado de una pieza rota... Lo que la
+        oficina necesite ver para entender la incidencia.
       </p>
 
       {media.length > 0 && (

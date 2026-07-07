@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import BackButton from "../components/BackButton";
 import RectificativaForm from "../components/RectificativaForm";
-import { FileText, Mail, Clock, Flame, User, Loader2, Package, CheckCircle2, Check, Pencil, Trash2, Plus, AlertTriangle, Wrench, Lock, Receipt, RotateCcw } from "lucide-react";
+import { FileText, Mail, Clock, Flame, User, Loader2, Package, CheckCircle2, Check, Pencil, Trash2, Plus, AlertTriangle, Wrench, Lock, Receipt, RotateCcw, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import MapLink from "../components/MapLink";
 import { GasMediaGallery } from "@/components/GasMediaSection";
@@ -914,14 +914,16 @@ export default function InterventionDetail() {
               <p className="font-semibold text-destructive">{intervention.gas_leak_kg} kg</p>
             </div>
           </div>
-          {intervention.gas_media?.length > 0 && (
-            <div className="space-y-2 pt-1">
-              <p className="text-xs text-muted-foreground font-medium">
-                Evidencias de la carga (pesajes / fuga)
-              </p>
-              <GasMediaGallery media={intervention.gas_media} />
-            </div>
-          )}
+        </div>
+      )}
+
+      {/* Fotos y vídeos del parte (independiente de si hay gas o no) */}
+      {intervention.gas_media?.length > 0 && (
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+            <ImageIcon className="h-4 w-4" /> Fotos y Vídeos
+          </h2>
+          <GasMediaGallery media={intervention.gas_media} />
         </div>
       )}
 

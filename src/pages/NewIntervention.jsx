@@ -1199,10 +1199,8 @@ export default function NewIntervention() {
         )}
       </div>
 
-      {/* Evidencias de carga de gas (fotos/vídeos) */}
-      {(resolvedGasType || form.gas_loaded_kg > 0 || form.gas_recovered_kg > 0) && (
-        <GasMediaSection media={gasMedia} onChange={setGasMedia} />
-      )}
+      {/* Fotos y vídeos del parte (matrícula de mural, gas, pieza rota...) */}
+      <GasMediaSection media={gasMedia} onChange={setGasMedia} />
 
       {/* Conformidad Cliente */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
