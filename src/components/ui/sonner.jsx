@@ -1,15 +1,15 @@
 "use client";
-import { useTheme } from "next-themes"
 import { Toaster as Sonner } from "sonner"
 
+// La app no tiene modo oscuro (sin ThemeProvider de next-themes en ningún sitio),
+// así que se fija tema claro en vez de depender de next-themes (causaba un
+// "Invalid hook call" al no haber Provider, y dejaba el Toaster sin montar).
 const Toaster = ({
   ...props
 }) => {
-  const { theme = "system" } = useTheme()
-
   return (
     (<Sonner
-      theme={theme}
+      theme="light"
       className="toaster group"
       toastOptions={{
         classNames: {

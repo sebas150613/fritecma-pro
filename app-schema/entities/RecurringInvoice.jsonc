@@ -1,0 +1,61 @@
+{
+  // Plantilla de factura recurrente (cuotas de mantenimiento, alquileres de equipos...).
+  // NO se factura sola: la app avisa cuando next_run_date vence y un usuario de
+  // oficina confirma la emisión (se emite como factura libre Veri*factu).
+  "name": "RecurringInvoice",
+  "type": "object",
+  "properties": {
+    "organization_id": {
+      "type": "string",
+      "title": "Organización"
+    },
+    "client_id": {
+      "type": "string",
+      "title": "ID Cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "title": "Cliente"
+    },
+    "descripcion": {
+      "type": "string",
+      "title": "Concepto (aparece en la factura)"
+    },
+    "lines_json": {
+      "type": "string",
+      "title": "Líneas (JSON)"
+    },
+    "periodicity": {
+      "type": "string",
+      "title": "Periodicidad",
+      "enum": ["mensual", "trimestral", "semestral", "anual"],
+      "default": "mensual"
+    },
+    "next_run_date": {
+      "type": "string",
+      "title": "Próxima emisión (YYYY-MM-DD)"
+    },
+    "active": {
+      "type": "boolean",
+      "title": "Activa",
+      "default": true
+    },
+    "last_run_date": {
+      "type": ["string", "null"],
+      "title": "Última emisión"
+    },
+    "last_invoice_id": {
+      "type": ["string", "null"],
+      "title": "ID última factura emitida"
+    },
+    "last_invoice_number": {
+      "type": ["string", "null"],
+      "title": "Nº última factura emitida"
+    },
+    "created_by": {
+      "type": "string",
+      "title": "Creada por (email)"
+    }
+  },
+  "required": ["client_id", "client_name", "lines_json", "periodicity", "next_run_date"]
+}
