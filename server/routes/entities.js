@@ -28,6 +28,14 @@ import {
 } from "../lib/roles.js";
 import { assertSeatAvailableForOrganization } from "../services/billing-service.js";
 import { assertLicenseAllowsWrite } from "../lib/license.js";
+import {
+  sanitizeEntityPricesForRole,
+  sanitizeOrgSettingsPricesForRole,
+} from "../lib/price-rbac.js";
+import {
+  applyServerPricing,
+  shouldApplyServerPricing,
+} from "../services/intervention-pricing.js";
 
 const NON_DELETABLE_OPERATIONAL_ENTITIES = new Set([
   "TimeRecord",
@@ -233,19 +241,26 @@ const sanitizeEntityPayload = async (entityName, value, req) => {
   }
 
   if (entityName === "OrganizationSettings") {
+    const viewerRole = req.currentUser?.role;
     if (Array.isArray(value)) {
       return value.map((item) =>
-        sanitizeOrganizationSettingsForClient(
-          decryptOrganizationSettingsFromStorage(item)
+        sanitizeOrgSettingsPricesForRole(
+          sanitizeOrganizationSettingsForClient(
+            decryptOrganizationSettingsFromStorage(item)
+          ),
+          viewerRole
         )
       );
     }
-    return sanitizeOrganizationSettingsForClient(
-      decryptOrganizationSettingsFromStorage(value)
+    return sanitizeOrgSettingsPricesForRole(
+      sanitizeOrganizationSettingsForClient(
+        decryptOrganizationSettingsFromStorage(value)
+      ),
+      viewerRole
     );
   }
 
-  return value;
+  return sanitizeEntityPricesForRole(entityName, value, req.currentUser?.role);
 };
 
 const buildScopedFilter = (entityName, req, filter = {}) => {
@@ -376,6 +391,13 @@ router.post(
       payload.organization_id = req.currentOrganization.id;
     }
 
+    if (shouldApplyServerPricing(entityName, payload)) {
+      payload = await applyServerPricing(entityName, payload, null, {
+        role: req.currentUser?.role,
+        organizationId: req.currentOrganization.id,
+      });
+    }
+
     if (entityName === "OrganizationSettings") {
       payload = encryptOrganizationSettingsForStorage(payload);
     }
@@ -465,6 +487,13 @@ router.patch(
 
     if (isTenantScopedEntity(entityName)) {
       patch.organization_id = req.currentOrganization.id;
+    }
+
+    if (shouldApplyServerPricing(entityName, patch)) {
+      patch = await applyServerPricing(entityName, patch, existing, {
+        role: req.currentUser?.role,
+        organizationId: req.currentOrganization.id,
+      });
     }
 
     if (entityName === "OrganizationSettings") {

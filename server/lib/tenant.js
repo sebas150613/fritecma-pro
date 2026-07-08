@@ -6,6 +6,7 @@ import {
   isEncryptedSecret,
   maybeDecryptSecret,
 } from "./secret-crypto.js";
+import { sanitizeOrgSettingsPricesForRole } from "./price-rbac.js";
 
 const organizationStore = createJsonEntityStore("Organization");
 const membershipStore = createJsonEntityStore("OrganizationMembership");
@@ -277,13 +278,19 @@ export const mergeOrganizationSettingsIntoUser = (
   user,
   organization,
   organizationSettings,
-  memberships = []
+  memberships = [],
+  viewerRole = null
 ) => {
   if (!user) {
     return null;
   }
 
-  const safeSettings = sanitizeOrganizationSettingsForClient(organizationSettings);
+  // Los roles de campo (tecnico/ayudante) no reciben tarifas ni configuración
+  // de facturación: la regla "el técnico no ve precios" se aplica en servidor.
+  const safeSettings = sanitizeOrgSettingsPricesForRole(
+    sanitizeOrganizationSettingsForClient(organizationSettings),
+    viewerRole ?? user.role
+  );
 
   // Los settings de organización NO deben pisar la identidad ni los metadatos
   // del usuario. La fila de OrganizationSettings tiene su propio id/created_date/

@@ -25,6 +25,7 @@
     "check:org-settings-encryption": "node scripts/org-settings-encryption-contract.mjs",
     "check:multitenant-isolation": "node scripts/multitenant-isolation-contract.mjs",
     "check:rbac": "node scripts/rbac-contract.mjs",
+    "check:price-rbac": "node scripts/price-rbac-contract.mjs",
     "migrate:org-settings-secrets": "node scripts/migrate-organization-settings-secrets.mjs",
     "check:production-env": "node scripts/production-env-check.mjs --production",
     "check:secrets": "node scripts/secrets-scan.mjs",

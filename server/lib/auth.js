@@ -631,7 +631,8 @@ const createResolvedAuthContext = async (user, preferredOrganizationId) => {
         stripSensitiveUserFields(user),
         organization,
         organizationSettings,
-        []
+        [],
+        resolvedRole
       ),
       role: resolvedRole,
       current_membership_id: membershipSnapshot.id,
@@ -681,7 +682,8 @@ const createResolvedAuthContext = async (user, preferredOrganizationId) => {
       stripSensitiveUserFields(user),
       organization,
       organizationSettings,
-      memberships
+      memberships,
+      resolvedRole
     ),
     role: resolvedRole,
     current_membership_id: selectedMembership.id,
