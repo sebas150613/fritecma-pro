@@ -7,6 +7,7 @@ import { Plus, Search, AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import InterventionCard from "../components/InterventionCard";
 
 export default function Interventions() {

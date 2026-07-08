@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Receipt, Download, Search, ExternalLink, QrCode, HandCoins, Loader2, Layers, FileStack, Repeat, FileCode2, Trash2 } from "lucide-react";
+import { Receipt, Download, Search, ExternalLink, QrCode, HandCoins, Loader2, FileStack, Repeat, FileCode2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import moment from "moment";
 import { downloadFacturaE } from "@/utils/generateFacturaE";

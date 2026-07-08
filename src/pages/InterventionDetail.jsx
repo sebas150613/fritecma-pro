@@ -145,7 +145,7 @@ export default function InterventionDetail() {
         const lines = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
         for (const line of lines) {
           if (line.material_id && line.material_id !== "__free_text__") {
-            const mat = await appApi.entities.Material.get(line.material_id).catch(() => null);
+            const [mat] = await appApi.entities.Material.filter({ id: line.material_id }, undefined, 1).catch(() => []);
             if (mat && mat.stock !== undefined) {
               const restoreQty = line.quantity || 0;
               await appApi.entities.Material.update(line.material_id, {
@@ -167,7 +167,7 @@ export default function InterventionDetail() {
         }
         // Restore gas bottle
         if (intervention.gas_bottle_id && intervention.gas_loaded_kg > 0) {
-          const bottle = await appApi.entities.GasBottle.get(intervention.gas_bottle_id).catch(() => null);
+          const [bottle] = await appApi.entities.GasBottle.filter({ id: intervention.gas_bottle_id }, undefined, 1).catch(() => []);
           if (bottle) {
             const newKg = (bottle.carga_actual || 0) + intervention.gas_loaded_kg;
             await appApi.entities.GasBottle.update(intervention.gas_bottle_id, {

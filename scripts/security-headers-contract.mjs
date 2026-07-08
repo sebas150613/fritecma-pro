@@ -1,9 +1,9 @@
 /**
- * Contract checks for centralized REST security headers + CSP Report-Only.
+ * Contract checks for centralized REST security headers + enforced CSP.
  */
 import assert from "node:assert/strict";
 import {
-  CONTENT_SECURITY_POLICY_REPORT_ONLY,
+  CONTENT_SECURITY_POLICY,
   applySecurityHeaders,
 } from "../server/lib/security-headers.js";
 
@@ -22,31 +22,53 @@ function assertBaseline(headers) {
   assert.equal(headers["x-frame-options"], "DENY");
   assert.equal(headers["referrer-policy"], "no-referrer");
   assert.ok(
-    headers["permissions-policy"]?.includes("geolocation=()"),
-    "Permissions-Policy must disable geolocation"
+    headers["permissions-policy"]?.includes("geolocation=(self)"),
+    "Permissions-Policy must restrict geolocation to self"
   );
   assert.ok(
     headers["permissions-policy"]?.includes("microphone=()"),
     "Permissions-Policy must disable microphone"
   );
   assert.ok(
-    headers["permissions-policy"]?.includes("camera=()"),
-    "Permissions-Policy must disable camera"
-  );
-  assert.ok(
-    headers["content-security-policy-report-only"],
-    "Content-Security-Policy-Report-Only must be present"
+    headers["permissions-policy"]?.includes("camera=(self)"),
+    "Permissions-Policy must restrict camera to self"
   );
   assert.equal(
     headers["content-security-policy"],
-    undefined,
-    "blocking Content-Security-Policy must not be set yet"
+    CONTENT_SECURITY_POLICY,
+    "blocking Content-Security-Policy must be enforced"
   );
-  assert.ok(
-    CONTENT_SECURITY_POLICY_REPORT_ONLY.includes("default-src 'self'"),
-    "CSP RO must include default-src"
+  assert.equal(
+    headers["content-security-policy-report-only"],
+    undefined,
+    "report-only CSP must not be set anymore (CSP is enforced)"
   );
 }
+
+const REQUIRED_CSP_DIRECTIVES = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "object-src 'none'",
+  "frame-ancestors 'none'",
+  "script-src 'self'",
+  "form-action 'self'",
+  "upgrade-insecure-requests",
+  "report-uri /api/csp-report",
+];
+for (const directive of REQUIRED_CSP_DIRECTIVES) {
+  assert.ok(
+    CONTENT_SECURITY_POLICY.includes(directive),
+    `CSP must include "${directive}"`
+  );
+}
+assert.ok(
+  !/script-src[^;]*'unsafe-inline'/.test(CONTENT_SECURITY_POLICY),
+  "CSP script-src must not allow 'unsafe-inline'"
+);
+assert.ok(
+  !/'unsafe-eval'/.test(CONTENT_SECURITY_POLICY),
+  "CSP must not allow 'unsafe-eval'"
+);
 
 const dev = mockResponse();
 applySecurityHeaders(dev, { isProduction: false });

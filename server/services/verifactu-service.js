@@ -409,6 +409,12 @@ const buildFreeInvoiceInput = (payload) => {
     throw new HttpError(422, "La factura necesita al menos una línea con descripción y cantidad.");
   }
 
+  // Los importes negativos se corrigen con una rectificativa, nunca con una
+  // factura de venta en negativo.
+  if (lines.some((line) => line.unit_price < 0)) {
+    throw new HttpError(422, "El precio unitario no puede ser negativo. Usa una factura rectificativa para abonos.");
+  }
+
   return {
     clientId,
     lines,

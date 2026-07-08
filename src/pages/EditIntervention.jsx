@@ -242,7 +242,7 @@ export default function EditIntervention() {
         const newQty = line.quantity || 0;
         const delta = newQty - origQty;
         if (delta !== 0) {
-          const mat = await appApi.entities.Material.get(line.material_id).catch(() => null);
+          const [mat] = await appApi.entities.Material.filter({ id: line.material_id }, undefined, 1).catch(() => []);
           if (mat && mat.stock !== undefined) {
             const newStock = (mat.stock || 0) - delta;
             await appApi.entities.Material.update(line.material_id, { stock: newStock });
@@ -265,7 +265,7 @@ export default function EditIntervention() {
       for (const orig of originalLines) {
         if (!orig.material_id || orig.material_id === "__free_text__" || orig._isLabor || orig._isDisplacementLine) continue;
         if (!newById.has(orig.material_id)) {
-          const mat = await appApi.entities.Material.get(orig.material_id).catch(() => null);
+          const [mat] = await appApi.entities.Material.filter({ id: orig.material_id }, undefined, 1).catch(() => []);
           if (mat && mat.stock !== undefined) {
             const restoreQty = orig.quantity || 0;
             await appApi.entities.Material.update(orig.material_id, { stock: (mat.stock || 0) + restoreQty });

@@ -50,6 +50,14 @@ const aiRateLimiter = createRateLimiter({
   max: 30,
 });
 
+// El endpoint de reporte CSP es público (los navegadores no mandan credenciales):
+// sin límite permitiría inundar los logs del servidor.
+const cspReportRateLimiter = createRateLimiter({
+  namespace: "csp-report",
+  windowMs: 60 * 1000,
+  max: 30,
+});
+
 const ensureRuntimeDirs = async () => {
   await fs.mkdir(serverConfig.dataDir, { recursive: true });
   await fs.mkdir(serverConfig.publicUploadsDir, { recursive: true });
@@ -180,7 +188,7 @@ app.use("/api/business", businessNotificationRoutes);
 app.use("/api/functions", functionRoutes);
 app.use("/api/billing", billingRoutes);
 app.use("/api/purchase-orders", purchaseOrderRoutes);
-app.use("/api/csp-report", cspReportRoutes);
+app.use("/api/csp-report", cspReportRateLimiter, cspReportRoutes);
 app.use("/api/backups", backupRoutes);
 app.use("/api/breakdowns", breakdownRoutes);
 

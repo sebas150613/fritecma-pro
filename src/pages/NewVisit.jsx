@@ -333,6 +333,9 @@ export default function NewVisit() {
         materials={materials}
         isAdmin={canEditPrices}
         onLaborLines={setLaborLines}
+        onHelperSelect={({ email, name }) => {
+          setForm(f => ({ ...f, helper_email: email, helper_name: name }));
+        }}
         currentUser={user}
         allUsers={users}
         organizationTarifas={buildOrganizationTariffProfile(user)}
