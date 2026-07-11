@@ -108,6 +108,8 @@ const createServerProcess = ({ dataDir, uploadsDir }) => {
        * to true, so anonymous requests resolve as a visible demo user (GET /api/auth/me → 200).
        */
       NODE_ENV: "test",
+      // Hermético: almacén JSON local, sin heredar DATABASE_URL del entorno. Ver A-3.
+      DATABASE_URL: "",
       APP_ALLOW_AUTH_BYPASS: "false",
       APP_DEV_TOKEN: "local-dev-token",
       APP_ALLOWED_ORIGINS: "",

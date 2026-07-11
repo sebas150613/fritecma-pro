@@ -226,6 +226,8 @@ const smokeServerEnv = (base, overrides = {}) => ({
   ...base,
   ...overrides,
   NODE_ENV: "development",
+  // Hermético: almacén JSON local, sin heredar DATABASE_URL del entorno. Ver A-3.
+  DATABASE_URL: "",
   APP_DEV_TOKEN: "local-dev-token",
   APP_ALLOW_AUTH_BYPASS: "false",
 });

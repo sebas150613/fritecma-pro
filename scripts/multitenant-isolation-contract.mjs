@@ -113,6 +113,10 @@ const createServerProcess = ({ dataDir, uploadsDir }) => {
        * Owner flows use Bearer local-dev-token + X-Smoke-Owner — must match APP_DEV_TOKEN.
        */
       NODE_ENV: "test",
+      // Hermético: usar siempre el almacén JSON local, sin heredar un
+      // DATABASE_URL del entorno (que rompería el contrato en CI o en la
+      // máquina de despliegue si Postgres no es alcanzable). Ver A-3.
+      DATABASE_URL: "",
       APP_ALLOW_AUTH_BYPASS: "false",
       APP_DEV_TOKEN: "local-dev-token",
       APP_ALLOWED_ORIGINS: "",

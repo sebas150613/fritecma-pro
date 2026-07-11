@@ -54,6 +54,10 @@ import {
 } from "../lib/invite-activation-page.js";
 import { canOperateOffice } from "../lib/roles.js";
 import { createRateLimiter, getClientIp } from "../lib/rate-limit.js";
+import {
+  isSafeRedirectUri as isSafeRedirectUriBase,
+  resolveSafeRedirectUri as resolveSafeRedirectUriBase,
+} from "../lib/redirect-safety.js";
 
 const router = express.Router();
 
@@ -122,6 +126,22 @@ const organizationSubscriptionStore = getOrganizationSubscriptionStore();
 
 const DEFAULT_REDIRECT_URI = "http://127.0.0.1:5173/";
 
+// Validación de redirect_uri (open-redirect / fuga de token, hallazgo A-1).
+// La lógica vive en lib/redirect-safety.js (testeable de forma aislada); aquí
+// se enlaza con la configuración del servidor y el destino por defecto.
+const isSafeRedirectUri = (candidate) =>
+  isSafeRedirectUriBase(candidate, {
+    allowedOrigins: serverConfig.allowedOrigins,
+    isProduction: serverConfig.isProduction,
+  });
+
+const resolveSafeRedirectUri = (candidate) =>
+  resolveSafeRedirectUriBase(candidate, {
+    allowedOrigins: serverConfig.allowedOrigins,
+    isProduction: serverConfig.isProduction,
+    fallback: DEFAULT_REDIRECT_URI,
+  });
+
 const escapeHtml = (value = "") =>
   String(value)
     .replace(/&/g, "&amp;")
@@ -131,9 +151,11 @@ const escapeHtml = (value = "") =>
     .replace(/'/g, "&#39;");
 
 const buildRedirectWithToken = (redirectUri, token) => {
-  const url = new URL(redirectUri);
+  // Defensa en profundidad: nunca anexar el token a un destino no validado.
+  const safeRedirect = resolveSafeRedirectUri(redirectUri);
+  const url = new URL(safeRedirect);
   url.searchParams.set("access_token", token);
-  url.searchParams.set("from_url", redirectUri);
+  url.searchParams.set("from_url", safeRedirect);
   return url.toString();
 };
 
@@ -225,16 +247,19 @@ const buildServerBaseUrl = (req) => {
 
 const buildAppRedirectUri = (req, explicitRedirectUri) => {
   const candidate = String(explicitRedirectUri || "").trim();
-  if (candidate) {
+  if (candidate && isSafeRedirectUri(candidate)) {
     return candidate;
   }
 
   const origin = String(req.headers.origin || "").trim();
   if (origin) {
-    return `${origin.replace(/\/+$/, "")}/`;
+    const originRedirect = `${origin.replace(/\/+$/, "")}/`;
+    if (isSafeRedirectUri(originRedirect)) {
+      return originRedirect;
+    }
   }
 
-  return DEFAULT_REDIRECT_URI;
+  return resolveSafeRedirectUri(candidate);
 };
 
 const findUserByEmail = async (email) => {
@@ -1199,8 +1224,7 @@ const renderPasswordResetPage = ({
 router.get(
   "/login",
   asyncHandler(async (req, res) => {
-    const redirectUri =
-      req.query.redirect_uri?.toString() || DEFAULT_REDIRECT_URI;
+    const redirectUri = resolveSafeRedirectUri(req.query.redirect_uri);
     const errorMessage = req.query.error?.toString() || "";
     const mode = req.query.mode?.toString() || "login";
 
@@ -1217,8 +1241,7 @@ router.get(
 router.get(
   "/signup",
   asyncHandler(async (req, res) => {
-    const redirectUri =
-      req.query.redirect_uri?.toString() || DEFAULT_REDIRECT_URI;
+    const redirectUri = resolveSafeRedirectUri(req.query.redirect_uri);
     res.redirect(buildAuthViewUrl("/api/auth/login", { redirectUri, mode: "login" }));
   })
 );
@@ -1226,8 +1249,7 @@ router.get(
 router.get(
   "/private-login",
   asyncHandler(async (req, res) => {
-    const redirectUri =
-      req.query.redirect_uri?.toString() || DEFAULT_REDIRECT_URI;
+    const redirectUri = resolveSafeRedirectUri(req.query.redirect_uri);
     const errorMessage = req.query.error?.toString() || "";
 
     res.type("html").send(`<!doctype html>
@@ -1321,8 +1343,7 @@ router.post(
   "/login",
   authLoginRateLimiter,
   asyncHandler(async (req, res) => {
-    const redirectUri =
-      req.body?.redirect_uri?.toString() || DEFAULT_REDIRECT_URI;
+    const redirectUri = resolveSafeRedirectUri(req.body?.redirect_uri);
     const userId = req.body?.user_id?.toString();
     const email = req.body?.email?.toString();
     const password = req.body?.password?.toString();
@@ -1460,8 +1481,7 @@ router.post(
   "/signup",
   express.urlencoded({ extended: true }),
   asyncHandler(async (req, res) => {
-    const redirectUri =
-      req.body?.redirect_uri?.toString() || DEFAULT_REDIRECT_URI;
+    const redirectUri = resolveSafeRedirectUri(req.body?.redirect_uri);
 
     try {
       const session = await createOrganizationSignup({
@@ -1504,8 +1524,7 @@ router.post(
   authLoginRateLimiter,
   express.urlencoded({ extended: true }),
   asyncHandler(async (req, res) => {
-    const redirectUri =
-      req.body?.redirect_uri?.toString() || DEFAULT_REDIRECT_URI;
+    const redirectUri = resolveSafeRedirectUri(req.body?.redirect_uri);
     const email = req.body?.email?.toString();
     const password = req.body?.password?.toString();
 
@@ -1525,8 +1544,7 @@ router.post(
 router.get(
   "/accept-invite",
   asyncHandler(async (req, res) => {
-    const redirectUri =
-      req.query.redirect_uri?.toString() || DEFAULT_REDIRECT_URI;
+    const redirectUri = resolveSafeRedirectUri(req.query.redirect_uri);
     const token = req.query.token?.toString() || "";
     const errorMessage = req.query.error?.toString() || "";
 
@@ -1622,8 +1640,7 @@ router.post(
   "/accept-invite",
   express.urlencoded({ extended: true }),
   asyncHandler(async (req, res) => {
-    const redirectUri =
-      req.body?.redirect_uri?.toString() || DEFAULT_REDIRECT_URI;
+    const redirectUri = resolveSafeRedirectUri(req.body?.redirect_uri);
     const token = req.body?.token?.toString() || "";
 
     try {
@@ -1663,8 +1680,7 @@ router.post(
 router.get(
   "/forgot-password",
   asyncHandler(async (req, res) => {
-    const redirectUri =
-      req.query.redirect_uri?.toString() || DEFAULT_REDIRECT_URI;
+    const redirectUri = resolveSafeRedirectUri(req.query.redirect_uri);
     const errorMessage = req.query.error?.toString() || "";
 
     res.type("html").send(
@@ -1680,8 +1696,7 @@ router.post(
   "/forgot-password",
   express.urlencoded({ extended: true }),
   asyncHandler(async (req, res) => {
-    const redirectUri =
-      req.body?.redirect_uri?.toString() || DEFAULT_REDIRECT_URI;
+    const redirectUri = resolveSafeRedirectUri(req.body?.redirect_uri);
 
     try {
       await requestPasswordReset(req, req.body?.email, redirectUri);
@@ -1715,8 +1730,7 @@ router.post(
 router.get(
   "/reset-password",
   asyncHandler(async (req, res) => {
-    const redirectUri =
-      req.query.redirect_uri?.toString() || DEFAULT_REDIRECT_URI;
+    const redirectUri = resolveSafeRedirectUri(req.query.redirect_uri);
     const token = req.query.token?.toString() || "";
     const errorMessage = req.query.error?.toString() || "";
 
@@ -1734,8 +1748,7 @@ router.post(
   "/reset-password",
   express.urlencoded({ extended: true }),
   asyncHandler(async (req, res) => {
-    const redirectUri =
-      req.body?.redirect_uri?.toString() || DEFAULT_REDIRECT_URI;
+    const redirectUri = resolveSafeRedirectUri(req.body?.redirect_uri);
     const token = req.body?.token?.toString() || "";
 
     try {
@@ -1770,8 +1783,7 @@ router.post(
 router.get(
   "/verify-email",
   asyncHandler(async (req, res) => {
-    const redirectUri =
-      req.query.redirect_uri?.toString() || DEFAULT_REDIRECT_URI;
+    const redirectUri = resolveSafeRedirectUri(req.query.redirect_uri);
     const token = req.query.token?.toString() || "";
 
     try {
@@ -1955,7 +1967,10 @@ router.post(
 router.get(
   "/logout-page",
   asyncHandler(async (req, res) => {
-    const redirectUri = req.query.redirect_uri?.toString() || "/";
+    const rawRedirect = req.query.redirect_uri?.toString() || "/";
+    const redirectUri = rawRedirect === "/" || isSafeRedirectUri(rawRedirect)
+      ? rawRedirect
+      : "/";
     res.type("html").send(`<!doctype html>
 <html lang="en">
   <head>
