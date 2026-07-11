@@ -25,8 +25,22 @@
     "machine_type": {
       "type": "string",
       "title": "Tipo",
-      "enum": ["camara", "vitrina", "compresor", "clima", "otro"],
+      "enum": ["camara", "vitrina", "compresor", "clima", "central_frio", "otro"],
       "default": "otro"
+    },
+    "installation_mode": {
+      "type": "string",
+      "title": "Tipo de Instalación",
+      "enum": ["autonoma", "a_distancia"],
+      "default": "autonoma"
+    },
+    "central_machine_id": {
+      "type": "string",
+      "title": "ID Central de Frío"
+    },
+    "central_machine_name": {
+      "type": "string",
+      "title": "Central de Frío"
     },
     "brand": {
       "type": "string",
@@ -47,6 +61,35 @@
     "gas_charge_kg": {
       "type": "number",
       "title": "Carga de Gas (kg)"
+    },
+    "condenser_brand": {
+      "type": "string",
+      "title": "Marca Condensador/Gas Cooler"
+    },
+    "condenser_model": {
+      "type": "string",
+      "title": "Modelo Condensador/Gas Cooler"
+    },
+    "condenser_serial_number": {
+      "type": "string",
+      "title": "Nº de Serie Condensador/Gas Cooler"
+    },
+    "has_desuperheater": {
+      "type": "boolean",
+      "title": "Incorpora Desrecalentador",
+      "default": false
+    },
+    "desuperheater_brand": {
+      "type": "string",
+      "title": "Marca Desrecalentador"
+    },
+    "desuperheater_model": {
+      "type": "string",
+      "title": "Modelo Desrecalentador"
+    },
+    "desuperheater_serial_number": {
+      "type": "string",
+      "title": "Nº de Serie Desrecalentador"
     },
     "installed_at": {
       "type": "string",

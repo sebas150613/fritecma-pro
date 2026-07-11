@@ -461,6 +461,15 @@ export default function NewBreakdown() {
                       </option>
                     ))}
                   </select>
+                  {(() => {
+                    const selected = machines.find(m => m.id === form.machine_id);
+                    if (!selected?.central_machine_name) return null;
+                    return (
+                      <p className="mt-1.5 text-xs text-accent">
+                        ⚠ Conectada a la central: <strong>{selected.central_machine_name}</strong> — si el problema es de temperatura/rendimiento, revisa también la central.
+                      </p>
+                    );
+                  })()}
                 </div>
               )}
 
