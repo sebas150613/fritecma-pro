@@ -1,0 +1,24 @@
+{
+  "name": "Warehouse",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Nombre del Almacén"
+    },
+    "address": {
+      "type": "string",
+      "title": "Dirección"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notas"
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Activo",
+      "default": true
+    }
+  },
+  "required": ["name"]
+}

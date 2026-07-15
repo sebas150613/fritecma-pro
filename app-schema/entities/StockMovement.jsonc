@@ -38,7 +38,8 @@
         "entrada_albaran",
         "traspaso_a_vehiculo",
         "traspaso_a_almacen",
-        "salida_parte_vehiculo"
+        "salida_parte_vehiculo",
+        "traspaso_entre_almacenes"
       ]
     },
     "vehicle_id": {
@@ -48,6 +49,22 @@
     "vehicle_name": {
       "type": "string",
       "title": "Vehículo"
+    },
+    "warehouse_id": {
+      "type": "string",
+      "title": "ID Almacén (vacío = principal)"
+    },
+    "warehouse_name": {
+      "type": "string",
+      "title": "Almacén"
+    },
+    "from_location_name": {
+      "type": "string",
+      "title": "Origen del traspaso"
+    },
+    "to_location_name": {
+      "type": "string",
+      "title": "Destino del traspaso"
     },
     "albaran_number": {
       "type": "string",

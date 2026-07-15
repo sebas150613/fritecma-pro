@@ -193,6 +193,18 @@ export const appApi = {
   functions: {
     invoke: withProviderMethod((provider) => provider.appApi.functions?.invoke),
   },
+  stock: {
+    entry: withProviderMethod((provider) => provider.appApi.stock?.entry),
+    validateEntry: withProviderMethod(
+      (provider) => provider.appApi.stock?.validateEntry
+    ),
+    deductIntervention: withProviderMethod(
+      (provider) => provider.appApi.stock?.deductIntervention
+    ),
+    transfer: withProviderMethod((provider) => provider.appApi.stock?.transfer),
+    adjust: withProviderMethod((provider) => provider.appApi.stock?.adjust),
+    project: withProviderMethod((provider) => provider.appApi.stock?.project),
+  },
   purchaseOrders: {
     list: withProviderMethod((provider) => provider.appApi.purchaseOrders?.list),
     send: withProviderMethod((provider) => provider.appApi.purchaseOrders?.send),

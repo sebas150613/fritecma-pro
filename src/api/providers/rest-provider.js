@@ -609,6 +609,20 @@ export const createRestProvider = () => {
           body: payload,
         }),
     },
+    stock: {
+      entry: (payload) =>
+        http.request("/api/stock/entry", { method: "POST", body: payload }),
+      validateEntry: (payload) =>
+        http.request("/api/stock/validate-entry", { method: "POST", body: payload }),
+      deductIntervention: (payload) =>
+        http.request("/api/stock/deduct-intervention", { method: "POST", body: payload }),
+      transfer: (payload) =>
+        http.request("/api/stock/transfer", { method: "POST", body: payload }),
+      adjust: (payload) =>
+        http.request("/api/stock/adjust", { method: "POST", body: payload }),
+      project: (payload) =>
+        http.request("/api/stock/project", { method: "POST", body: payload }),
+    },
     purchaseOrders: {
       list: () => http.request("/api/purchase-orders"),
       send: (payload) =>

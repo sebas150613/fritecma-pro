@@ -7,13 +7,18 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import moment from "moment";
 
-export default function PendingStockPanel({ user }) {
+export default function PendingStockPanel() {
   const [entries, setEntries] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [targetWarehouseId, setTargetWarehouseId] = useState("");
   const [validating, setValidating] = useState(null);
 
   const load = () => {
     appApi.entities.StockEntry.filter({ status: "pendiente" }, "-created_date", 20)
       .then(setEntries).catch(() => toast.error("Error al cargar entradas de stock pendientes"));
+    appApi.entities.Warehouse.filter({ is_active: true }, "name", 50)
+      .then((rows) => setWarehouses(rows || []))
+      .catch(() => setWarehouses([]));
   };
 
   useEffect(() => { load(); }, []);
@@ -22,38 +27,18 @@ export default function PendingStockPanel({ user }) {
 
   const handleValidate = async (entry) => {
     setValidating(entry.id);
-    const mats = await appApi.entities.Material.filter({ id: entry.material_id });
-    const currentStock = mats[0]?.stock_quantity || 0;
-    const newStock = currentStock + entry.quantity;
-
-    await appApi.entities.Material.update(entry.material_id, { stock_quantity: newStock });
-
-    await appApi.entities.StockMovement.create({
-      material_id: entry.material_id,
-      material_name: entry.material_name,
-      material_code: entry.material_code,
-      quantity: entry.quantity,
-      stock_before: currentStock,
-      stock_after: newStock,
-      movement_type: "entrada_albaran",
-      albaran_number: entry.albaran_number,
-      technician_email: entry.technician_email,
-      technician_name: entry.technician_name,
-      notes: `Albarán ${entry.albaran_number} — Validado por ${user?.full_name}`,
-      supplier_id: entry.supplier_id,
-      supplier_name: entry.supplier_name,
-    });
-
-    await appApi.entities.StockEntry.update(entry.id, {
-      status: "validado",
-      validated_by: user?.email,
-      validated_by_name: user?.full_name,
-      validated_at: new Date().toISOString(),
-    });
-
-    toast.success(`Entrada validada: ${entry.material_name} +${entry.quantity} ${entry.unit}`);
-    setValidating(null);
-    load();
+    try {
+      await appApi.stock.validateEntry({
+        entry_id: entry.id,
+        warehouse_id: targetWarehouseId || undefined,
+      });
+      toast.success(`Entrada validada: ${entry.material_name} +${entry.quantity} ${entry.unit}`);
+      load();
+    } catch (err) {
+      toast.error(err?.message || "Error al validar la entrada");
+    } finally {
+      setValidating(null);
+    }
   };
 
   return (
@@ -68,6 +53,21 @@ export default function PendingStockPanel({ user }) {
           Ver módulo <ChevronRight className="h-3 w-3" />
         </Link>
       </div>
+      {warehouses.length > 0 && (
+        <div className="mb-3 flex items-center gap-2">
+          <label className="text-xs text-muted-foreground shrink-0">Almacén destino:</label>
+          <select
+            value={targetWarehouseId}
+            onChange={(e) => setTargetWarehouseId(e.target.value)}
+            className="h-8 rounded-lg border border-input bg-card px-2 text-xs"
+          >
+            <option value="">Almacén principal</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={w.id}>{w.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="space-y-2">
         {entries.map(e => (
           <div key={e.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 flex-wrap">
@@ -95,4 +95,3 @@ export default function PendingStockPanel({ user }) {
     </div>
   );
 }
-

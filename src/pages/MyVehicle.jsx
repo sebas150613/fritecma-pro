@@ -111,7 +111,7 @@ export default function MyVehicle() {
       if (qty > (addMaterial.stock_quantity || 0)) {
         toast.warning(`En el almacén solo constan ${addMaterial.stock_quantity || 0} ${addMaterial.unit || "ud"}. Se traspasa igualmente; revisa el inventario.`, { duration: 6000 });
       }
-      await transferToVehicle({ vehicle: selectedVehicle, material: addMaterial, quantity: qty, user });
+      await transferToVehicle({ vehicle: selectedVehicle, material: addMaterial, quantity: qty });
       toast.success(`${qty} ${addMaterial.unit || "ud"} de ${addMaterial.name} traspasado a ${selectedVehicle.name}`);
       setAddDialog(false); setAddMaterial(null); setAddQty(""); setAddSearch("");
       await Promise.all([loadStock(selectedId), loadData()]);
@@ -130,7 +130,7 @@ export default function MyVehicle() {
     try {
       const mat = materials.find(m => m.id === returnDialog.material_id)
         || { id: returnDialog.material_id, name: returnDialog.material_name, code: returnDialog.material_code, unit: returnDialog.unit, stock_quantity: 0 };
-      await transferToWarehouse({ vehicle: selectedVehicle, material: mat, quantity: qty, user });
+      await transferToWarehouse({ vehicle: selectedVehicle, material: mat, quantity: qty });
       toast.success(`${qty} ${returnDialog.unit || "ud"} de ${returnDialog.material_name} devuelto al almacén`);
       setReturnDialog(null); setReturnQty("");
       await Promise.all([loadStock(selectedId), loadData()]);

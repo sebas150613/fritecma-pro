@@ -149,7 +149,7 @@ export default function Dashboard() {
       {isAdmin && <PendingRequestsPanel />}
 
       {/* Pending Stock Entries (encargado/admin/oficina) */}
-      {(isAdmin || isOficina) && <PendingStockPanel user={user} />}
+      {(isAdmin || isOficina) && <PendingStockPanel />}
 
       {/* Fichaje */}
       {!isAdmin && !isOficina && (

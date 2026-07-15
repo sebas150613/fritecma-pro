@@ -69,6 +69,14 @@ export type AppApi = {
   functions: {
     invoke: (name: string, payload?: any) => Promise<any>;
   };
+  stock: {
+    entry: (payload: any) => Promise<any>;
+    validateEntry: (payload: any) => Promise<any>;
+    deductIntervention: (payload: any) => Promise<any>;
+    transfer: (payload: any) => Promise<any>;
+    adjust: (payload: any) => Promise<any>;
+    project: (payload: any) => Promise<any>;
+  };
   purchaseOrders: {
     list: () => Promise<{ orders: any[] }>;
     send: (payload: any) => Promise<any>;

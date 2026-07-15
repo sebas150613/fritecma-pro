@@ -1,10 +1,27 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { AlertTriangle, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { appApi } from "@/api/app-api";
 
 export default function LowStockPanel({ materials }) {
+  const [warehouseStocks, setWarehouseStocks] = useState([]);
+
+  useEffect(() => {
+    appApi.entities.WarehouseStock.list("material_name", 2000)
+      .then((rows) => setWarehouseStocks(rows || []))
+      .catch(() => setWarehouseStocks([]));
+  }, []);
+
+  // Stock total = almacén principal + almacenes secundarios
+  const totalStockFor = (m) =>
+    (m.stock_quantity || 0) +
+    warehouseStocks
+      .filter((r) => r.material_id === m.id)
+      .reduce((sum, r) => sum + (r.quantity || 0), 0);
+
   const lowStock = materials.filter(
-    m => m.is_active !== false && m.min_stock > 0 && (m.stock_quantity || 0) <= m.min_stock
+    m => m.is_active !== false && m.min_stock > 0 && totalStockFor(m) <= m.min_stock
   );
 
   if (lowStock.length === 0) return null;
@@ -26,7 +43,7 @@ export default function LowStockPanel({ materials }) {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{m.name}</p>
               <p className="text-xs text-amber-700">
-                Stock: <strong>{m.stock_quantity || 0} {m.unit || "ud"}</strong>
+                Stock: <strong>{totalStockFor(m)} {m.unit || "ud"}</strong>
                 {" "}· Mínimo: <strong>{m.min_stock} {m.unit || "ud"}</strong>
                 {m.code && <span className="ml-2 text-muted-foreground">({m.code})</span>}
               </p>

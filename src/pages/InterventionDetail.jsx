@@ -18,6 +18,7 @@ import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { cn } from "@/lib/utils";
 import moment from "moment";
 import { generateInvoicePdf } from "../utils/generateInvoicePdf";
+import { deductStockForIntervention } from "../lib/stockUtils";
 import {
   parseTramosJson,
   ensureTramoIds,
@@ -140,30 +141,24 @@ export default function InterventionDetail() {
     if (!intervention || !user) return;
     setDeleting(true);
     try {
-      // Restore stock before deleting
+      // Restore stock before deleting (el servidor aplica la reposición)
       try {
         const lines = intervention.materials_json ? JSON.parse(intervention.materials_json) : [];
-        for (const line of lines) {
-          if (line.material_id && line.material_id !== "__free_text__") {
-            const [mat] = await appApi.entities.Material.filter({ id: line.material_id }, undefined, 1).catch(() => []);
-            if (mat && mat.stock !== undefined) {
-              const restoreQty = line.quantity || 0;
-              await appApi.entities.Material.update(line.material_id, {
-                stock: (mat.stock || 0) + restoreQty,
-              });
-              await appApi.entities.StockMovement.create({
-                material_id: line.material_id,
-                material_name: line.material_name || mat.name,
-                movement_type: "entrada_ajuste",
-                quantity: restoreQty,
-                stock_before: mat.stock || 0,
-                stock_after: (mat.stock || 0) + restoreQty,
-                intervention_number: intervention.number,
-                notes: `Reposición por eliminación de parte ${intervention.number}`,
-                timestamp: new Date().toISOString(),
-              }).catch(() => {});
-            }
-          }
+        const restoreLines = lines
+          .filter(l => l.material_id && l.material_id !== "__free_text__" && !l._isLabor && !l._isDisplacementLine && (l.quantity || 0) > 0)
+          .map(l => ({
+            material_id: l.material_id,
+            quantity: -(l.quantity || 0),
+            source_vehicle_id: l.source_vehicle_id,
+            source_warehouse_id: l.source_warehouse_id,
+          }));
+        if (restoreLines.length > 0) {
+          await deductStockForIntervention({
+            lines: restoreLines,
+            interventionId: id,
+            interventionNumber: intervention.number,
+            notes: `Reposición por eliminación de parte ${intervention.number}`,
+          });
         }
         // Restore gas bottle
         if (intervention.gas_bottle_id && intervention.gas_loaded_kg > 0) {

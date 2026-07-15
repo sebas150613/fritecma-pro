@@ -30,11 +30,16 @@ export default function StockBatchEntry() {
   const [openOrders, setOpenOrders] = useState([]);
   const [selectedOrderId, setSelectedOrderId] = useState("");
   const [markDelivered, setMarkDelivered] = useState(true);
+  const [warehouses, setWarehouses] = useState([]);
+  const [targetWarehouseId, setTargetWarehouseId] = useState("");
 
   useEffect(() => {
     appApi.auth.me().then(setUser).catch(() => toast.error("Error al cargar tu perfil"));
     appApi.entities.Material.filter({ is_active: true }).then(setMaterials).catch(() => toast.error("Error al cargar materiales"));
     appApi.entities.Supplier.filter({ is_active: true }).then(setSuppliers).catch(() => toast.error("Error al cargar proveedores"));
+    appApi.entities.Warehouse.filter({ is_active: true }, "name", 50)
+      .then((rows) => setWarehouses(rows || []))
+      .catch(() => setWarehouses([]));
     // Pedidos pendientes de entrega, para recepcionar contra pedido (solo roles con acceso a pedidos)
     appApi.purchaseOrders
       .list()
@@ -130,71 +135,57 @@ export default function StockBatchEntry() {
 
     setSaving(true);
     try {
+      const orderRef = selectedOrder
+        ? { purchase_order_id: selectedOrder.id, purchase_order_number: selectedOrder.number || "" }
+        : {};
+      const orderNote = selectedOrder ? ` — Pedido ${selectedOrder.number}` : "";
+
+      if (!savePending) {
+        // Admin/Encargado: el servidor aplica el stock y registra los movimientos.
+        await appApi.stock.entry({
+          lines: validLines.map((line) => ({
+            material_id: line.materialId,
+            quantity: parseFloat(line.quantity),
+            supplier_id: line.supplierId || undefined,
+            supplier_name: line.supplierName || undefined,
+            notes:
+              (line.supplierName
+                ? `Albarán ${albaran.trim()} — Proveedor: ${line.supplierName}`
+                : `Albarán ${albaran.trim()} — Entrada lote manual`) + orderNote,
+          })),
+          albaran_number: albaran.trim(),
+          warehouse_id: targetWarehouseId || undefined,
+          movement_type: "entrada_albaran",
+          ...orderRef,
+        });
+      }
+
       for (const line of validLines) {
         const qty = parseFloat(line.quantity);
-        const mat = materials.find(m => m.id === line.materialId);
-
-        const orderRef = selectedOrder
-          ? { purchase_order_id: selectedOrder.id, purchase_order_number: selectedOrder.number || "" }
-          : {};
-        const orderNote = selectedOrder ? ` — Pedido ${selectedOrder.number}` : "";
-
-        if (savePending) {
-          // Técnico: guardar como pendiente, sin tocar el stock todavía
-          await appApi.entities.StockEntry.create({
-            albaran_number: albaran.trim(),
-            material_id: line.materialId,
-            material_name: line.materialName,
-            material_code: line.materialCode || "",
-            quantity: qty,
-            unit: line.unit || "ud",
-            supplier_id: line.supplierId || undefined,
-            supplier_name: line.supplierName || undefined,
-            technician_email: user?.email || "",
-            technician_name: user?.full_name || "",
-            status: "pendiente",
-            notes: `Albarán ${albaran.trim()}${orderNote}`,
-            ...orderRef,
-          });
-        } else {
-          // Admin/Encargado: actualizar stock directamente y marcar como validado
-          const newStock = (mat?.stock_quantity || 0) + qty;
-          await appApi.entities.Material.update(line.materialId, { stock_quantity: newStock });
-          await appApi.entities.StockMovement.create({
-            material_id: line.materialId,
-            material_name: line.materialName,
-            material_code: line.materialCode,
-            quantity: qty,
-            stock_before: mat?.stock_quantity || 0,
-            stock_after: newStock,
-            movement_type: "entrada_albaran",
-            albaran_number: albaran.trim(),
-            technician_email: user?.email || "",
-            technician_name: user?.full_name || "",
-            notes: (line.supplierName ? `Albarán ${albaran.trim()} — Proveedor: ${line.supplierName}` : `Albarán ${albaran.trim()} — Entrada lote manual`) + orderNote,
-            supplier_id: line.supplierId || undefined,
-            supplier_name: line.supplierName || undefined,
-            ...orderRef,
-          });
-          await appApi.entities.StockEntry.create({
-            albaran_number: albaran.trim(),
-            material_id: line.materialId,
-            material_name: line.materialName,
-            material_code: line.materialCode || "",
-            quantity: qty,
-            unit: line.unit || "ud",
-            supplier_id: line.supplierId || undefined,
-            supplier_name: line.supplierName || undefined,
-            technician_email: user?.email || "",
-            technician_name: user?.full_name || "",
-            status: "validado",
-            validated_by: user?.email,
-            validated_by_name: user?.full_name,
-            validated_at: new Date().toISOString(),
-            notes: `Albarán ${albaran.trim()}${orderNote}`,
-            ...orderRef,
-          });
-        }
+        // Registro de recepción (StockEntry): pendiente para técnicos,
+        // validado para oficina/encargado (el stock ya se aplicó arriba).
+        await appApi.entities.StockEntry.create({
+          albaran_number: albaran.trim(),
+          material_id: line.materialId,
+          material_name: line.materialName,
+          material_code: line.materialCode || "",
+          quantity: qty,
+          unit: line.unit || "ud",
+          supplier_id: line.supplierId || undefined,
+          supplier_name: line.supplierName || undefined,
+          technician_email: user?.email || "",
+          technician_name: user?.full_name || "",
+          status: savePending ? "pendiente" : "validado",
+          ...(savePending
+            ? {}
+            : {
+                validated_by: user?.email,
+                validated_by_name: user?.full_name,
+                validated_at: new Date().toISOString(),
+              }),
+          notes: `Albarán ${albaran.trim()}${orderNote}`,
+          ...orderRef,
+        });
       }
 
       // Marcar el pedido como entregado si se recepcionó contra pedido
@@ -295,7 +286,7 @@ export default function StockBatchEntry() {
       )}
 
       {/* Albaran number */}
-      <div className="mb-4 flex items-center gap-3 p-4 bg-card border border-border rounded-xl">
+      <div className="mb-4 flex items-center gap-3 p-4 bg-card border border-border rounded-xl flex-wrap">
         <label className="text-sm font-semibold whitespace-nowrap">Nº Albarán <span className="text-destructive">*</span></label>
         <Input
           placeholder="Ej: ALB-2024-001"
@@ -304,6 +295,21 @@ export default function StockBatchEntry() {
           className="max-w-xs"
         />
         {albaran.trim() && <span className="text-xs text-emerald-600 font-medium">✓ Registrado</span>}
+        {!savePending && warehouses.length > 0 && (
+          <div className="flex items-center gap-2 ml-auto">
+            <label className="text-sm font-semibold whitespace-nowrap">Almacén destino</label>
+            <select
+              value={targetWarehouseId}
+              onChange={(e) => setTargetWarehouseId(e.target.value)}
+              className="h-9 rounded-md border border-input bg-card px-3 text-sm"
+            >
+              <option value="">Almacén principal</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Table header */}
@@ -408,8 +414,8 @@ export default function StockBatchEntry() {
                 </div>
               </div>
 
-              {/* Stock preview after entry — only for non-pending */}
-              {!savePending && line.materialId && Number(line.quantity) > 0 && (
+              {/* Stock preview after entry — only for non-pending, main warehouse */}
+              {!savePending && !targetWarehouseId && line.materialId && Number(line.quantity) > 0 && (
                 <div className="mt-1 ml-1 text-xs text-muted-foreground">
                   Stock resultante: <span className="font-semibold text-green-600">{(line.currentStock + Number(line.quantity || 0)).toFixed(2)} {line.unit}</span>
                 </div>

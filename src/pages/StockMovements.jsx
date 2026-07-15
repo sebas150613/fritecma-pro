@@ -18,6 +18,7 @@ const TYPE_LABELS = {
   traspaso_a_vehiculo: { label: "Traspaso a Furgoneta", color: "bg-indigo-100 text-indigo-700 border-indigo-200", icon: TrendingDown },
   traspaso_a_almacen: { label: "Devolución de Furgoneta", color: "bg-cyan-100 text-cyan-700 border-cyan-200", icon: TrendingUp },
   salida_parte_vehiculo: { label: "Salida Parte (Furgoneta)", color: "bg-purple-100 text-purple-700 border-purple-200", icon: TrendingDown },
+  traspaso_entre_almacenes: { label: "Traspaso entre Almacenes", color: "bg-sky-100 text-sky-700 border-sky-200", icon: ArrowUpDown },
 };
 
 export default function StockMovements() {
@@ -27,17 +28,25 @@ export default function StockMovements() {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState("all");
 
+  const [warehouseStocks, setWarehouseStocks] = useState([]);
+
   const loadData = () => Promise.all([
     appApi.entities.StockMovement.list("-created_date", 500),
     appApi.entities.Material.list("name", 500),
-  ]).then(([m, mats]) => {
-    setMovements(m); setMaterials(mats); setLoading(false);
+    appApi.entities.WarehouseStock.list("material_name", 2000).catch(() => []),
+  ]).then(([m, mats, whStocks]) => {
+    setMovements(m); setMaterials(mats); setWarehouseStocks(whStocks || []); setLoading(false);
   });
 
   useEffect(() => { loadData(); }, []);
 
-  // Low stock alerts
-  const lowStockItems = materials.filter(m => m.is_active && m.min_stock > 0 && (m.stock_quantity || 0) <= m.min_stock);
+  // Low stock alerts (stock total = principal + almacenes secundarios)
+  const totalStockFor = (m) =>
+    (m.stock_quantity || 0) +
+    warehouseStocks
+      .filter(r => r.material_id === m.id)
+      .reduce((sum, r) => sum + (r.quantity || 0), 0);
+  const lowStockItems = materials.filter(m => m.is_active && m.min_stock > 0 && totalStockFor(m) <= m.min_stock);
 
   const filtered = movements.filter(m => {
     const matchSearch = !search || m.material_name?.toLowerCase().includes(search.toLowerCase()) || m.intervention_number?.toLowerCase().includes(search.toLowerCase()) || m.albaran_number?.toLowerCase().includes(search.toLowerCase()) || m.vehicle_name?.toLowerCase().includes(search.toLowerCase());
@@ -70,7 +79,7 @@ export default function StockMovements() {
                   <p className="text-xs text-muted-foreground">{m.code || "-"}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold text-destructive">{m.stock_quantity || 0} {m.unit}</p>
+                  <p className="text-sm font-bold text-destructive">{totalStockFor(m)} {m.unit}</p>
                   <p className="text-xs text-muted-foreground">mín: {m.min_stock}</p>
                 </div>
               </div>
@@ -110,6 +119,9 @@ export default function StockMovements() {
                     {mv.intervention_number ? ` · Parte: ${mv.intervention_number}` : ""}
                     {mv.albaran_number ? ` · Albarán: ${mv.albaran_number}` : ""}
                     {mv.vehicle_name ? ` · Furgoneta: ${mv.vehicle_name}` : ""}
+                    {mv.movement_type === "traspaso_entre_almacenes" && mv.from_location_name
+                      ? ` · ${mv.from_location_name} → ${mv.to_location_name}`
+                      : mv.warehouse_name ? ` · Almacén: ${mv.warehouse_name}` : ""}
                   </p>
                 </div>
               </div>

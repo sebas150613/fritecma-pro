@@ -161,9 +161,10 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
     setApplying(true);
     let count = 0;
 
+    const entryLines = [];
     for (const line of linesToApply) {
       if (line.is_new) {
-        // Create new material
+        // Alta del material sin stock: la entrada la registra el servidor.
         const newMat = await appApi.entities.Material.create({
           code: line.code || "",
           name: line.description,
@@ -171,50 +172,45 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
           unit: line.unit || "ud",
           cost_price: line.new_cost_price || 0,
           sell_price: line.new_sell_price || 0,
-          stock_quantity: line.quantity || 0,
+          stock_quantity: 0,
           min_stock: 0,
           iva_percent: 21,
           is_active: true,
           ...(albaranMeta.supplier_id ? { supplier_id: albaranMeta.supplier_id, supplier_name: albaranMeta.supplier } : {}),
         });
-        await appApi.entities.StockMovement.create({
+        entryLines.push({
           material_id: newMat.id,
-          material_name: line.description,
-          material_code: line.code || "",
           quantity: line.quantity || 0,
-          stock_before: 0,
-          stock_after: line.quantity || 0,
-          movement_type: "ajuste_manual",
-          technician_email: user.email,
-          technician_name: user.full_name,
           notes: `Alta por albarán OCR: ${albaranMeta.supplier} ${albaranMeta.reference}`,
         });
       } else {
-        // Update existing material stock
         const mat = materials.find(m => m.id === line.matched_id);
         if (!mat) continue;
-        const newStock = (mat.stock_quantity || 0) + (line.quantity || 0);
-        const updateData = { stock_quantity: newStock };
         // Auto-link supplier if not already set
         if (albaranMeta.supplier_id && !mat.supplier_id) {
-          updateData.supplier_id = albaranMeta.supplier_id;
-          updateData.supplier_name = albaranMeta.supplier;
+          await appApi.entities.Material.update(mat.id, {
+            supplier_id: albaranMeta.supplier_id,
+            supplier_name: albaranMeta.supplier,
+          });
         }
-        await appApi.entities.Material.update(mat.id, updateData);
-        await appApi.entities.StockMovement.create({
+        entryLines.push({
           material_id: mat.id,
-          material_name: mat.name,
-          material_code: mat.code || "",
           quantity: line.quantity || 0,
-          stock_before: mat.stock_quantity || 0,
-          stock_after: newStock,
-          movement_type: "ajuste_manual",
-          technician_email: user.email,
-          technician_name: user.full_name,
           notes: `Entrada albarán OCR: ${albaranMeta.supplier} ${albaranMeta.reference}`,
         });
       }
       count++;
+    }
+
+    if (entryLines.length > 0) {
+      await appApi.stock.entry({
+        lines: entryLines.filter((l) => (l.quantity || 0) > 0),
+        albaran_number: albaranMeta.reference || "",
+        movement_type: "entrada_albaran",
+        ...(albaranMeta.supplier_id
+          ? { notes: `Proveedor: ${albaranMeta.supplier}` }
+          : {}),
+      });
     }
 
     setDoneCount(count);

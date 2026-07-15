@@ -187,8 +187,6 @@ export default function NewVisit() {
         lines: materialOnlyLines,
         interventionId: id,
         interventionNumber: `${intervention.number}-V${visitNumber}`,
-        technicianEmail: user.email,
-        technicianName: user.full_name,
       });
 
       // Update intervention incident_status

@@ -79,6 +79,7 @@ export default function NewIntervention() {
   const [gasBottles, setGasBottles] = useState([]);
   const [users, setUsers] = useState([]);
   const [vehicles, setVehicles] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [workCenters, setWorkCenters] = useState([]);
   const [machines, setMachines] = useState([]);
   const [saving, setSaving] = useState(false);
@@ -171,18 +172,20 @@ export default function NewIntervention() {
         setCheckedIn(true);
       }
 
-      const [clientList, materialList, bottleList, userList, vehicleList] = await Promise.all([
+      const [clientList, materialList, bottleList, userList, vehicleList, warehouseList] = await Promise.all([
         appApi.entities.Client.list("name", 500).catch(() => []),
         appApi.entities.Material.filter({ is_active: true }, "name", 500).catch(() => []),
         appApi.entities.GasBottle.list("-created_date", 200).catch(() => []),
         appApi.entities.User.list("full_name", 100).catch(() => []),
         appApi.entities.Vehicle.filter({ is_active: true }, "name", 100).catch(() => []),
+        appApi.entities.Warehouse.filter({ is_active: true }, "name", 50).catch(() => []),
       ]);
       setClients(clientList || []);
       setMaterials(materialList || []);
       setGasBottles(bottleList || []);
       setUsers(userList || []);
       setVehicles(vehicleList || []);
+      setWarehouses(warehouseList || []);
 
       // If coming from a breakdown, prefill form
       if (breakdownId) {
@@ -645,8 +648,6 @@ export default function NewIntervention() {
           lines: materialOnlyLinesPersisted,
           interventionId: created.id,
           interventionNumber,
-          technicianEmail: user.email,
-          technicianName: user.full_name,
         });
 
         if (finalGasType && form.gas_bottle_id && form.gas_loaded_kg > 0) {
@@ -1178,6 +1179,7 @@ export default function NewIntervention() {
                 onRemove={removeLine}
                 isAdmin={canSeeBillingTotals}
                 vehicles={vehicles}
+                warehouses={warehouses}
               />
             ))}
           </div>

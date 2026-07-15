@@ -1,5 +1,4 @@
 import { appApi } from "@/api/app-api";
-import { deductFromVehicle } from "./vehicleStockUtils";
 
 /**
  * Validates lines against current stock and returns warnings.
@@ -39,6 +38,23 @@ export async function validateStockAvailability(lines) {
       }
       continue;
     }
+    if (line.source_warehouse_id) {
+      // Stock de un almacén secundario
+      const rows = await appApi.entities.WarehouseStock.filter(
+        { warehouse_id: line.source_warehouse_id, material_id: mat.id },
+        "-updated_at",
+        1
+      ).catch(() => []);
+      const availableWh = rows[0]?.quantity || 0;
+      if ((line.quantity || 0) > availableWh) {
+        warnings.push({
+          material_name: `${mat.name} (almacén ${line.source_warehouse_name || ""})`,
+          requested: line.quantity,
+          available: availableWh,
+        });
+      }
+      continue;
+    }
     const available = mat.stock_quantity || 0;
     if ((line.quantity || 0) > available) {
       warnings.push({ material_name: mat.name, requested: line.quantity, available });
@@ -49,55 +65,24 @@ export async function validateStockAvailability(lines) {
 
 /**
  * Deducts stock for all lines of a saved intervention and logs movements.
+ * La resta y el registro del movimiento los hace el servidor de forma atómica.
+ * Cantidades negativas = reposición (edición/eliminación del parte).
  */
-export async function deductStockForIntervention({ lines, interventionId, interventionNumber, technicianEmail, technicianName }) {
-  const materialIds = [...new Set(lines.filter(l => l.material_id).map(l => l.material_id))];
-  if (materialIds.length === 0) return;
+export async function deductStockForIntervention({ lines, interventionId, interventionNumber, notes = "" }) {
+  const stockLines = (lines || [])
+    .filter(l => l.material_id && l.material_id !== "__free_text__" && (l.quantity || 0) !== 0)
+    .map(l => ({
+      material_id: l.material_id,
+      quantity: l.quantity,
+      source_vehicle_id: l.source_vehicle_id || undefined,
+      source_warehouse_id: l.source_warehouse_id || undefined,
+    }));
+  if (stockLines.length === 0) return;
 
-  const materials = await Promise.all(
-    materialIds.map(id => appApi.entities.Material.filter({ id }, "name", 1).then(r => r[0]).catch(() => null))
-  );
-
-  for (const line of lines) {
-    if (!line.material_id || !line.quantity) continue;
-    const mat = materials.find(m => m?.id === line.material_id);
-    if (!mat) continue;
-    if (mat.category === "mano_de_obra" || mat.category === "desplazamiento") continue;
-    if (mat.category === "gas_refrigerante") continue;
-
-    if (line.source_vehicle_id) {
-      // Sale de la furgoneta: no toca el stock del almacén
-      await deductFromVehicle({
-        vehicle: { id: line.source_vehicle_id, name: line.source_vehicle_name || "" },
-        material: mat,
-        quantity: line.quantity || 0,
-        interventionId,
-        interventionNumber,
-        user: { email: technicianEmail, full_name: technicianName },
-      });
-      continue;
-    }
-
-    const stockBefore = mat.stock_quantity || 0;
-    const stockAfter = stockBefore - (line.quantity || 0);
-
-    // Update stock
-    await appApi.entities.Material.update(mat.id, { stock_quantity: stockAfter });
-
-    // Log movement
-    await appApi.entities.StockMovement.create({
-      material_id: mat.id,
-      material_name: mat.name,
-      material_code: mat.code || "",
-      quantity: -(line.quantity || 0),
-      stock_before: stockBefore,
-      stock_after: stockAfter,
-      movement_type: "salida_parte",
-      intervention_id: interventionId,
-      intervention_number: interventionNumber,
-      technician_email: technicianEmail,
-      technician_name: technicianName,
-    });
-  }
+  await appApi.stock.deductIntervention({
+    lines: stockLines,
+    intervention_id: interventionId,
+    intervention_number: interventionNumber,
+    ...(notes ? { notes } : {}),
+  });
 }
-

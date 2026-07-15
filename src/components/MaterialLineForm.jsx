@@ -94,7 +94,7 @@ function MaterialCommandContent({ line, index, gasItems, otherItems, isFreeText,
 
 const GAS_CATEGORY = "gas_refrigerante";
 
-export default function MaterialLineForm({ line, index, materials, onUpdate, onRemove, isAdmin, vehicles = [] }) {
+export default function MaterialLineForm({ line, index, materials, onUpdate, onRemove, isAdmin, vehicles = [], warehouses = [] }) {
   const [open, setOpen] = useState(false);
   const isMobile = useIsMobile();
 
@@ -239,27 +239,59 @@ export default function MaterialLineForm({ line, index, materials, onUpdate, onR
         )}
       </div>
 
-      {/* Origen del material: almacén (por defecto) o furgoneta */}
-      {vehicles.length > 0 && selectedMaterial &&
+      {/* Origen del material: almacén principal (por defecto), otro almacén o furgoneta */}
+      {(vehicles.length > 0 || warehouses.length > 0) && selectedMaterial &&
         !["mano_de_obra", "desplazamiento", "gas_refrigerante"].includes(selectedMaterial.category) && (
         <div>
           <label className="text-xs text-muted-foreground">Origen del material</label>
           <select
-            value={line.source_vehicle_id || ""}
+            value={
+              line.source_vehicle_id
+                ? `vehiculo:${line.source_vehicle_id}`
+                : line.source_warehouse_id
+                  ? `almacen:${line.source_warehouse_id}`
+                  : ""
+            }
             onChange={(e) => {
-              const vid = e.target.value;
-              const v = vehicles.find(x => x.id === vid);
-              onUpdate(index, {
-                ...line,
-                source_vehicle_id: vid || undefined,
-                source_vehicle_name: v?.name || undefined,
-              });
+              const value = e.target.value;
+              if (value.startsWith("vehiculo:")) {
+                const vid = value.slice(9);
+                const v = vehicles.find(x => x.id === vid);
+                onUpdate(index, {
+                  ...line,
+                  source_vehicle_id: vid,
+                  source_vehicle_name: v?.name || "",
+                  source_warehouse_id: undefined,
+                  source_warehouse_name: undefined,
+                });
+              } else if (value.startsWith("almacen:")) {
+                const wid = value.slice(8);
+                const w = warehouses.find(x => x.id === wid);
+                onUpdate(index, {
+                  ...line,
+                  source_warehouse_id: wid,
+                  source_warehouse_name: w?.name || "",
+                  source_vehicle_id: undefined,
+                  source_vehicle_name: undefined,
+                });
+              } else {
+                onUpdate(index, {
+                  ...line,
+                  source_vehicle_id: undefined,
+                  source_vehicle_name: undefined,
+                  source_warehouse_id: undefined,
+                  source_warehouse_name: undefined,
+                });
+              }
             }}
             className="w-full h-9 rounded-md border border-input bg-card px-3 text-sm"
           >
-            <option value="">Almacén / Taller</option>
+            <option value="">Almacén principal / Taller</option>
+            {warehouses.map(w => (
+              <option key={w.id} value={`almacen:${w.id}`}>Almacén: {w.name}</option>
+            ))}
             {vehicles.map(v => (
-              <option key={v.id} value={v.id}>Furgoneta: {v.name}{v.plate ? ` (${v.plate})` : ""}</option>
+              <option key={v.id} value={`vehiculo:${v.id}`}>Furgoneta: {v.name}{v.plate ? ` (${v.plate})` : ""}</option>
             ))}
           </select>
         </div>

@@ -45,6 +45,8 @@ const NON_DELETABLE_OPERATIONAL_ENTITIES = new Set([
   "AuditLog",
   "GasTransfer",
   "StockMovement",
+  "VehicleStock",
+  "WarehouseStock",
   "MaterialRequest",
   "Visit",
   "PurchaseOrder",
@@ -52,6 +54,16 @@ const NON_DELETABLE_OPERATIONAL_ENTITIES = new Set([
 
 const OPERATIONAL_DELETE_FORBIDDEN_MESSAGE =
   "Esta entidad forma parte del histórico de la empresa y no puede eliminarse individualmente.";
+
+// El stock se opera exclusivamente desde /api/stock (movimientos atómicos y
+// con registro coherente). Estas entidades no admiten escritura directa.
+const STOCK_LEDGER_ENTITIES = new Set([
+  "StockMovement",
+  "VehicleStock",
+  "WarehouseStock",
+]);
+const STOCK_LEDGER_FORBIDDEN_MESSAGE =
+  "El stock se modifica desde las operaciones de stock de la aplicación, no editando esta entidad directamente.";
 
 // Las facturas emitidas son inmutables (VeriFactu). Vía API de entidades solo
 // se pueden modificar los campos de cobro, y solo por roles de oficina; la
@@ -353,6 +365,10 @@ router.post(
       throw new HttpError(403, "Las facturas solo se emiten mediante el proceso Veri*factu.");
     }
 
+    if (STOCK_LEDGER_ENTITIES.has(entityName)) {
+      throw new HttpError(403, STOCK_LEDGER_FORBIDDEN_MESSAGE);
+    }
+
     if (isUserEntity(entityName) || isOrganizationMembershipEntity(entityName)) {
       assertCanManageUsers(req);
     }
@@ -426,6 +442,23 @@ router.patch(
     const existing = existingItems[0] || null;
 
     ensureEntityBelongsToCurrentOrganization(entityName, req, existing);
+
+    if (STOCK_LEDGER_ENTITIES.has(entityName)) {
+      throw new HttpError(403, STOCK_LEDGER_FORBIDDEN_MESSAGE);
+    }
+
+    if (
+      entityName === "Material" &&
+      existing &&
+      existing.category !== "gas_refrigerante" &&
+      Object.prototype.hasOwnProperty.call(req.body || {}, "stock_quantity") &&
+      Number(req.body.stock_quantity) !== Number(existing.stock_quantity || 0)
+    ) {
+      throw new HttpError(
+        422,
+        "El stock de un material se modifica desde las operaciones de stock (entradas, traspasos o ajuste por recuento), no editando la ficha."
+      );
+    }
 
     if (entityName === "Invoice") {
       assertInvoicePaymentPatch(req);

@@ -1,0 +1,42 @@
+{
+  "name": "WarehouseStock",
+  "type": "object",
+  "properties": {
+    "warehouse_id": {
+      "type": "string",
+      "title": "ID Almacén"
+    },
+    "warehouse_name": {
+      "type": "string",
+      "title": "Almacén"
+    },
+    "material_id": {
+      "type": "string",
+      "title": "ID Material"
+    },
+    "material_name": {
+      "type": "string",
+      "title": "Material"
+    },
+    "material_code": {
+      "type": "string",
+      "title": "Código Material"
+    },
+    "unit": {
+      "type": "string",
+      "title": "Unidad",
+      "default": "ud"
+    },
+    "quantity": {
+      "type": "number",
+      "title": "Cantidad",
+      "default": 0
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Última Actualización"
+    }
+  },
+  "required": ["warehouse_id", "material_id"]
+}

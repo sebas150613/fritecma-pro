@@ -9,8 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Package, Edit, Trash2, AlertTriangle, History, ScanLine, Layers, FlaskConical } from "lucide-react";
+import { Plus, Search, Package, Edit, Trash2, AlertTriangle, History, ScanLine, Layers, FlaskConical, Warehouse as WarehouseIcon } from "lucide-react";
+import { toast } from "sonner";
 import FamiliesManager from "../components/FamiliesManager";
+import WarehousesManager from "../components/WarehousesManager";
 import AlbaranScanner from "../components/AlbaranScanner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -57,13 +59,15 @@ export default function Materials() {
   const [loadingMovements, setLoadingMovements] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [familiesOpen, setFamiliesOpen] = useState(false);
+  const [warehousesOpen, setWarehousesOpen] = useState(false);
+  const [warehouses, setWarehouses] = useState([]);
+  const [warehouseStocks, setWarehouseStocks] = useState([]);
   const [families, setFamilies] = useState([]);
   const [subfamilies, setSubfamilies] = useState([]);
   const [familyFilter, setFamilyFilter] = useState("all");
   const [gasBottles, setGasBottles] = useState([]);
   const [gasDetailMaterial, setGasDetailMaterial] = useState(null);
   const [materialToDelete, setMaterialToDelete] = useState(null);
-  const [movementToDelete, setMovementToDelete] = useState(null);
 
   const openHistory = async (mat) => {
     setHistoryMaterial(mat);
@@ -80,18 +84,22 @@ export default function Materials() {
   const loadData = async () => {
     const me = await appApi.auth.me();
     setUser(me);
-    const [items, sups, fams, subs, bottles] = await Promise.all([
+    const [items, sups, fams, subs, bottles, whs, whStocks] = await Promise.all([
       appApi.entities.Material.list("name", 500),
       appApi.entities.Supplier.list("name", 200),
       appApi.entities.MaterialFamily.list("name", 200),
       appApi.entities.MaterialSubfamily.list("name", 500),
       appApi.entities.GasBottle.list("-created_date", 500).catch(() => []),
+      appApi.entities.Warehouse.list("name", 50).catch(() => []),
+      appApi.entities.WarehouseStock.list("material_name", 2000).catch(() => []),
     ]);
     setMaterials(items);
     setGasBottles(bottles || []);
     setSuppliers(sups);
     setFamilies(fams);
     setSubfamilies(subs);
+    setWarehouses((whs || []).filter(w => w.is_active !== false));
+    setWarehouseStocks(whStocks || []);
     setLoading(false);
   };
 
@@ -123,20 +131,31 @@ export default function Materials() {
   };
 
   const handleSave = async () => {
-    if (editingMaterial) {
-      if (editingMaterial.category === "gas_refrigerante") {
-        const { stock_quantity: _sq, ...rest } = form;
+    try {
+      if (editingMaterial) {
+        const { stock_quantity: nextStock, ...rest } = form;
         await appApi.entities.Material.update(editingMaterial.id, rest);
-        const label = gasDisplayLabelFromMaterial(editingMaterial);
-        if (label) await syncGasMaterialStock(label);
+        if (editingMaterial.category === "gas_refrigerante") {
+          const label = gasDisplayLabelFromMaterial(editingMaterial);
+          if (label) await syncGasMaterialStock(label);
+        } else if (
+          Number(nextStock ?? 0) !== Number(editingMaterial.stock_quantity || 0)
+        ) {
+          // El stock no se edita directamente: queda registrado como ajuste de recuento.
+          await appApi.stock.adjust({
+            material_id: editingMaterial.id,
+            new_quantity: Number(nextStock) || 0,
+            notes: "Ajuste por recuento (ficha de material)",
+          });
+        }
       } else {
-        await appApi.entities.Material.update(editingMaterial.id, form);
+        await appApi.entities.Material.create(form);
       }
-    } else {
-      await appApi.entities.Material.create(form);
+      setDialogOpen(false);
+      loadData();
+    } catch (err) {
+      toast.error(err?.message || "Error al guardar el material");
     }
-    setDialogOpen(false);
-    loadData();
   };
 
   const handleDelete = (material) => {
@@ -161,8 +180,13 @@ export default function Materials() {
   function renderCard(m) {
     const isGas = m.category === "gas_refrigerante";
     const syncedKg = isGas ? getSyncedKgForGasMaterial(m, gasBottles) : null;
-    const stockShow = isGas ? syncedKg : m.stock_quantity || 0;
-    const stockLow = isGas ? false : m.stock_quantity <= m.min_stock;
+    const whRows = isGas
+      ? []
+      : warehouseStocks.filter(r => r.material_id === m.id && (r.quantity || 0) !== 0);
+    const whTotal = whRows.reduce((sum, r) => sum + (r.quantity || 0), 0);
+    const totalStock = (m.stock_quantity || 0) + whTotal;
+    const stockShow = isGas ? syncedKg : totalStock;
+    const stockLow = isGas ? false : totalStock <= m.min_stock;
 
     return (
       <div
@@ -214,6 +238,12 @@ export default function Materials() {
               {stockLow && <AlertTriangle className="inline h-3 w-3 ml-1" />}
             </span>
           </div>
+          {whRows.length > 0 && (
+            <p className="text-xs text-muted-foreground leading-snug">
+              Principal: {m.stock_quantity || 0}
+              {whRows.map(r => ` · ${r.warehouse_name}: ${r.quantity}`).join("")}
+            </p>
+          )}
           {isGas && (
             <p className="text-xs text-muted-foreground leading-snug">
               Stock gestionado desde Trazabilidad de Gases
@@ -300,6 +330,9 @@ export default function Materials() {
             </Link>
             <Button onClick={() => setFamiliesOpen(true)} variant="outline" className="rounded-xl px-4 gap-2">
               <Layers className="h-4 w-4" /> Familias
+            </Button>
+            <Button onClick={() => setWarehousesOpen(true)} variant="outline" className="rounded-xl px-4 gap-2">
+              <WarehouseIcon className="h-4 w-4" /> Almacenes
             </Button>
           </div>
         )}
@@ -459,16 +492,6 @@ export default function Materials() {
                     </Link>
                   )}
                   <span className="text-xs text-muted-foreground">{new Date(mv.created_date).toLocaleDateString("es")}</span>
-                  {isAdmin && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive rounded-xl h-7 w-7 p-0"
-                      onClick={() => setMovementToDelete(mv)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
                 </div>
               );
             })}
@@ -553,12 +576,7 @@ export default function Materials() {
             )}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>
-                  Stock Actual{" "}
-                  {isTecnico && form.category !== "gas_refrigerante" && (
-                    <span className="text-accent font-medium">(editable)</span>
-                  )}
-                </Label>
+                <Label>Stock Actual{editingMaterial ? " (almacén principal)" : ""}</Label>
                 <Input
                   type="number"
                   value={form.stock_quantity ?? ""}
@@ -566,6 +584,11 @@ export default function Materials() {
                   className="mt-1"
                   disabled={form.category === "gas_refrigerante"}
                 />
+                {editingMaterial && form.category !== "gas_refrigerante" && (
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Si lo cambias, quedará registrado como ajuste por recuento.
+                  </p>
+                )}
               </div>
               <div>
                 <Label>Stock Mínimo</Label>
@@ -653,36 +676,14 @@ export default function Materials() {
         }}
       />
 
-      <ConfirmModal
-        icon={null}
-        open={!!movementToDelete}
-        onOpenChange={(open) => {
-          if (!open) setMovementToDelete(null);
-        }}
-        title="Eliminar movimiento"
-        description={
-          <>
-            Vas a eliminar este movimiento de historial
-            {historyMaterial?.name ? (
-              <>
-                {" "}de <strong>{historyMaterial.name}</strong>
-              </>
-            ) : null}
-            .
-          </>
-        }
-        note="El movimiento se quitará del historial visible. No se modificará ningún otro material desde esta acción."
-        confirmText="Eliminar movimiento"
-        variant="danger"
-        onConfirm={async () => {
-          if (!movementToDelete) return;
-          await appApi.entities.StockMovement.delete(movementToDelete.id);
-          setMovements((prev) => prev.filter((x) => x.id !== movementToDelete.id));
-          setMovementToDelete(null);
-        }}
-      />
-
       <FamiliesManager open={familiesOpen} onClose={() => { setFamiliesOpen(false); loadData(); }} />
+      <WarehousesManager
+        open={warehousesOpen}
+        onClose={() => { setWarehousesOpen(false); loadData(); }}
+        materials={materials}
+        warehouses={warehouses}
+        warehouseStocks={warehouseStocks}
+      />
       <AlbaranScanner
         open={scannerOpen}
         onClose={() => setScannerOpen(false)}

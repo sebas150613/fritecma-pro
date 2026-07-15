@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import BackButton from "../components/BackButton";
 import { Save, Loader2, Plus } from "lucide-react";
 import MaterialLineForm from "../components/MaterialLineForm";
+import { deductStockForIntervention } from "../lib/stockUtils";
 import moment from "moment";
 import GasTypeCombobox from "@/components/GasTypeCombobox";
 import {
@@ -232,56 +233,43 @@ export default function EditIntervention() {
       ...dispPatch,
     });
 
-    // Adjust stock for changed material quantities
+    // Adjust stock for changed material quantities (el servidor aplica los deltas)
     try {
+      const stockDeltas = [];
       const origById = new Map(originalLines.filter(l => l.material_id && l.material_id !== "__free_text__").map(l => [l.material_id, l]));
       for (const line of outLines) {
         if (!line.material_id || line.material_id === "__free_text__" || line._isLabor || line._isDisplacementLine) continue;
         const orig = origById.get(line.material_id);
-        const origQty = orig?.quantity || 0;
-        const newQty = line.quantity || 0;
-        const delta = newQty - origQty;
+        const delta = (line.quantity || 0) - (orig?.quantity || 0);
         if (delta !== 0) {
-          const [mat] = await appApi.entities.Material.filter({ id: line.material_id }, undefined, 1).catch(() => []);
-          if (mat && mat.stock !== undefined) {
-            const newStock = (mat.stock || 0) - delta;
-            await appApi.entities.Material.update(line.material_id, { stock: newStock });
-            await appApi.entities.StockMovement.create({
-              material_id: line.material_id,
-              material_name: line.material_name || mat.name,
-              movement_type: delta > 0 ? "salida_parte" : "entrada_ajuste",
-              quantity: Math.abs(delta),
-              stock_before: mat.stock || 0,
-              stock_after: newStock,
-              intervention_number: original.number,
-              notes: `Ajuste por edición de parte ${original.number}`,
-              timestamp: new Date().toISOString(),
-            }).catch(() => {});
-          }
+          stockDeltas.push({
+            material_id: line.material_id,
+            quantity: delta,
+            source_vehicle_id: line.source_vehicle_id || orig?.source_vehicle_id,
+            source_warehouse_id: line.source_warehouse_id || orig?.source_warehouse_id,
+          });
         }
       }
-      // Handle removed materials
+      // Handle removed materials (reposición completa de la línea)
       const newById = new Map(outLines.map(l => [l.material_id, l]));
       for (const orig of originalLines) {
         if (!orig.material_id || orig.material_id === "__free_text__" || orig._isLabor || orig._isDisplacementLine) continue;
-        if (!newById.has(orig.material_id)) {
-          const [mat] = await appApi.entities.Material.filter({ id: orig.material_id }, undefined, 1).catch(() => []);
-          if (mat && mat.stock !== undefined) {
-            const restoreQty = orig.quantity || 0;
-            await appApi.entities.Material.update(orig.material_id, { stock: (mat.stock || 0) + restoreQty });
-            await appApi.entities.StockMovement.create({
-              material_id: orig.material_id,
-              material_name: orig.material_name || mat.name,
-              movement_type: "entrada_ajuste",
-              quantity: restoreQty,
-              stock_before: mat.stock || 0,
-              stock_after: (mat.stock || 0) + restoreQty,
-              intervention_number: original.number,
-              notes: `Reposición por edición de parte ${original.number} (línea eliminada)`,
-              timestamp: new Date().toISOString(),
-            }).catch(() => {});
-          }
+        if (!newById.has(orig.material_id) && (orig.quantity || 0) > 0) {
+          stockDeltas.push({
+            material_id: orig.material_id,
+            quantity: -(orig.quantity || 0),
+            source_vehicle_id: orig.source_vehicle_id,
+            source_warehouse_id: orig.source_warehouse_id,
+          });
         }
+      }
+      if (stockDeltas.length > 0) {
+        await deductStockForIntervention({
+          lines: stockDeltas,
+          interventionId: id,
+          interventionNumber: original.number,
+          notes: `Ajuste por edición de parte ${original.number}`,
+        });
       }
     } catch (stockErr) {
       console.error("[EditIntervention] Error adjusting stock:", stockErr);

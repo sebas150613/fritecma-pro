@@ -114,19 +114,12 @@ export default function Projects() {
       notes: valeForm.notes,
     });
 
-    // Deduct stock
-    await appApi.entities.Material.update(mat.id, { stock_quantity: (mat.stock_quantity || 0) - qty });
-    await appApi.entities.StockMovement.create({
+    // Deduct stock (el servidor aplica la salida y registra el movimiento)
+    await appApi.stock.project({
       material_id: mat.id,
-      material_name: mat.name,
-      material_code: mat.code || "",
-      quantity: -qty,
-      stock_before: mat.stock_quantity || 0,
-      stock_after: (mat.stock_quantity || 0) - qty,
-      movement_type: "salida_obra",
-      technician_email: user.email,
-      technician_name: user.full_name,
-      notes: `Obra: ${selectedProject.name}`,
+      quantity: qty,
+      direction: "salida",
+      project_name: selectedProject.name,
     });
 
     await reload(); setSaving(false); setValeModal(false);
@@ -171,20 +164,13 @@ export default function Projects() {
       movement_type: "devolucion",
     });
 
-    // Restore stock
+    // Restore stock (el servidor aplica la entrada y registra el movimiento)
     if (mat) {
-      await appApi.entities.Material.update(mat.id, { stock_quantity: (mat.stock_quantity || 0) + qty });
-      await appApi.entities.StockMovement.create({
+      await appApi.stock.project({
         material_id: mat.id,
-        material_name: mat.name,
-        material_code: mat.code || "",
         quantity: qty,
-        stock_before: mat.stock_quantity || 0,
-        stock_after: (mat.stock_quantity || 0) + qty,
-        movement_type: "entrada_obra",
-        technician_email: user.email,
-        technician_name: user.full_name,
-        notes: `Retorno obra: ${selectedProject.name}`,
+        direction: "entrada",
+        project_name: selectedProject.name,
       });
     }
 
