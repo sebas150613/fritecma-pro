@@ -436,13 +436,18 @@ router.post(
     if (!selectedPlan || selectedPlan.is_active === false) {
       throw new HttpError(404, "El plan seleccionado no está disponible.");
     }
+    // Stripe solo es imprescindible cuando el cobro se hará con tarjeta/Stripe;
+    // con transferencia, domiciliación, manual o pendiente el pago es externo a FriGest.
+    const expectedPaymentMethod =
+      parsed.profilePatch.owner_profile_payment_method || "pendiente";
     if (
       selectedPlan.code !== "starter" &&
+      expectedPaymentMethod === "tarjeta_stripe" &&
       (!selectedPlan.stripe_price_id || !process.env.STRIPE_SECRET_KEY)
     ) {
       throw new HttpError(
         422,
-        "El plan de pago seleccionado no está disponible hasta configurar Stripe en el servidor."
+        "El cobro con tarjeta/Stripe no está disponible hasta configurar Stripe en el servidor. Elige otro método de pago previsto o configura Stripe."
       );
     }
 
