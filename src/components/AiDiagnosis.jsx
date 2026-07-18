@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { CONTROLLER_KNOWLEDGE_BASE } from "@/lib/controller-knowledge";
 
 const STEPS = { UPLOAD: "upload", PROCESSING: "processing", RESULT: "result" };
 
@@ -86,7 +87,12 @@ INSTRUCCIONES:
 
 HONESTIDAD OBLIGATORIA: si NO reconoces el controlador o el display no se lee, devuelve "reconocido": false y explica en "info_adicional" qué necesitas (p. ej. foto de la etiqueta del modelo). NUNCA inventes un modelo o un significado del que no estés seguro; ajusta "confianza" con criterio.
 
-Responde en español, dirigido a un técnico profesional. Devuelve SOLO el JSON pedido.`;
+Responde en español, dirigido a un técnico profesional. Devuelve SOLO el JSON pedido.
+
+BASE DE CONOCIMIENTO DE FABRICANTES (tablas de alarmas y parámetros extraídas de manuales oficiales de Eliwell, Danfoss, AKO e Intarcon, separadas por "---"):
+Si la marca que identificas en la foto coincide con alguna de estas, usa su sección para precisar el código, su significado exacto y las causas típicas. Si la marca no aparece aquí, ignora esta base y usa tu conocimiento general del sector.
+
+${CONTROLLER_KNOWLEDGE_BASE}`;
 }
 
 function buildSummaryText(result) {
