@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useFormDraft, isNetworkError } from "../hooks/useFormDraft";
 import { useNavigate } from "react-router-dom";
 import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
@@ -179,6 +180,35 @@ export default function NewBreakdown() {
   // confirmed new-client data (null = existing client mode)
   const [newClient, setNewClient]   = useState(null); // saved after dialog confirm
   const [newCenter, setNewCenter]   = useState(null);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+
+  const draftData = useMemo(
+    () => ({ form, newClient, newCenter }),
+    [form, newClient, newCenter]
+  );
+
+  const restoreDraft = async (d) => {
+    if (d?.form) setForm((f) => ({ ...f, ...d.form }));
+    setNewClient(d?.newClient || null);
+    setNewCenter(d?.newCenter || null);
+    if (d?.form?.client_id) {
+      const [centers, machineList] = await Promise.all([
+        appApi.entities.WorkCenter.filter({ client_id: d.form.client_id }, "name", 100).catch(() => []),
+        appApi.entities.Machine.filter({ client_id: d.form.client_id }, "name", 200).catch(() => []),
+      ]);
+      setWorkCenters(centers || []);
+      setMachines((machineList || []).filter(m => m.status !== "retirada"));
+    }
+    toast.success("Borrador recuperado.");
+  };
+
+  const { clearDraft } = useFormDraft({
+    storageKey: `new-breakdown:${user?.email || "anon"}`,
+    ready: initialLoadDone,
+    data: draftData,
+    onRestore: restoreDraft,
+    label: "una avería",
+  });
 
   // ── load ──────────────────────────────────────────────────────────────────
   useEffect(() => { loadData(); }, []);
@@ -200,6 +230,7 @@ export default function NewBreakdown() {
       ]);
       setClients(clientList || []);
       setUsers((userList || []).filter(u => u.is_active !== false));
+      setInitialLoadDone(true);
     } catch {
       toast.error("Error al cargar los datos");
     }
@@ -337,6 +368,7 @@ export default function NewBreakdown() {
           },
         });
         toast.success(`Avería ${result.breakdown.number} creada`);
+        clearDraft();
         navigate(`/breakdowns/${result.breakdown.id}`, { replace: true });
       } else {
         const created = await appApi.breakdowns.create({
@@ -356,10 +388,18 @@ export default function NewBreakdown() {
           status: "abierta",
         });
         toast.success(`Avería ${created.number} creada`);
+        clearDraft();
         navigate(`/breakdowns/${created.id}`, { replace: true });
       }
     } catch (err) {
-      toast.error(err?.message || "Error al crear la avería");
+      if (isNetworkError(err)) {
+        toast.error(
+          "Sin conexión: la avería NO se ha creado. Los datos siguen en pantalla y hay una copia local — reintenta cuando vuelva la cobertura.",
+          { duration: 10000 }
+        );
+      } else {
+        toast.error(err?.message || "Error al crear la avería");
+      }
     } finally {
       setSaving(false);
     }

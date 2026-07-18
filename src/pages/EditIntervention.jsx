@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useFormDraft, isNetworkError } from "../hooks/useFormDraft";
 import { useParams, useNavigate } from "react-router-dom";
 import { appApi } from "@/api/app-api";
 import { toast } from "sonner";
@@ -75,6 +76,34 @@ export default function EditIntervention() {
   const [originalLines, setOriginalLines] = useState([]);
   const [depCantidad, setDepCantidad] = useState(0);
   const [depTramoId, setDepTramoId] = useState("");
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+
+  const draftData = useMemo(
+    () => ({ form, lines, depCantidad, depTramoId }),
+    [form, lines, depCantidad, depTramoId]
+  );
+
+  const restoreDraft = async (d) => {
+    if (d?.form) setForm((f) => ({ ...f, ...d.form }));
+    if (Array.isArray(d?.lines)) setLines(d.lines);
+    if (d?.depCantidad !== undefined) setDepCantidad(d.depCantidad);
+    if (d?.depTramoId !== undefined) setDepTramoId(d.depTramoId);
+    if (d?.form?.client_id) {
+      const centers = await appApi.entities.WorkCenter.filter(
+        { client_id: d.form.client_id }, "name", 100
+      ).catch(() => []);
+      setWorkCenters(centers || []);
+    }
+    toast.success("Borrador recuperado.");
+  };
+
+  const { clearDraft } = useFormDraft({
+    storageKey: `edit-intervention:${id}:${user?.email || "anon"}`,
+    ready: initialLoadDone,
+    data: draftData,
+    onRestore: restoreDraft,
+    label: "la edición de este parte",
+  });
 
   useEffect(() => {
     loadData();
@@ -133,6 +162,10 @@ export default function EditIntervention() {
       setOriginalLines(parsedLines);
       setDepCantidad(inv.desplazamientos_cantidad ?? 0);
       setDepTramoId(inv.desplazamiento_tramo_id || "");
+      // El borrador solo aplica a partes editables (los bloqueados por Veri*factu no)
+      if (!["facturado", "completado", "anulado"].includes(inv.status)) {
+        setInitialLoadDone(true);
+      }
     }
     } catch (err) {
       console.error("[EditIntervention] Error loading data:", err);
@@ -157,6 +190,7 @@ export default function EditIntervention() {
       : resolveCanonicalGasLabel(form.gas_type, gasBottleLegacy);
 
     setSaving(true);
+    try {
     const tramosOrg = ensureTramoIds(parseTramosJson(user?.desplazamiento_tramos_json));
     const tramoSel = depTramoId ? findTramoById(tramosOrg, depTramoId) : null;
     let outLines = [...lines];
@@ -300,8 +334,24 @@ export default function EditIntervention() {
       }
     }
 
-    setSaving(false);
+    clearDraft();
     navigate(`/interventions/${id}`);
+    } catch (error) {
+      console.error("[EditIntervention] Error guardando cambios:", error);
+      if (isNetworkError(error)) {
+        toast.error(
+          "Sin conexión: los cambios NO se han guardado. Siguen en pantalla y hay una copia local — reintenta cuando vuelva la cobertura.",
+          { duration: 10000 }
+        );
+      } else {
+        toast.error(
+          `No se pudieron guardar los cambios: ${error?.message || "error desconocido"}. Siguen en pantalla.`,
+          { duration: 10000 }
+        );
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const canEditPrices =

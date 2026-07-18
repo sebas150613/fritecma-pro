@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useFormDraft, isNetworkError } from "../hooks/useFormDraft";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
@@ -128,6 +129,43 @@ export default function NewIntervention() {
   const [lines, setLines] = useState([]);
   const [laborLines, setLaborLines] = useState([]);
   const [gasMedia, setGasMedia] = useState([]);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+
+  // Borrador local: la geolocalización se excluye porque se recaptura al montar
+  // y generaría borradores fantasma; los adjuntos guardan solo la referencia
+  // al fichero ya subido (el blob de previsualización no sobrevive un reload).
+  const draftData = useMemo(() => {
+    const { location_lat, location_lng, location_address, ...formRest } = form;
+    return {
+      form: formRest,
+      lines,
+      laborLines,
+      gasMedia: gasMedia.map(({ _previewUrl, ...rest }) => rest),
+    };
+  }, [form, lines, laborLines, gasMedia]);
+
+  const restoreDraft = async (d) => {
+    if (d?.form) setForm((f) => ({ ...f, ...d.form }));
+    if (Array.isArray(d?.lines)) setLines(d.lines);
+    if (Array.isArray(d?.laborLines)) setLaborLines(d.laborLines);
+    if (Array.isArray(d?.gasMedia)) setGasMedia(d.gasMedia);
+    if (d?.form?.client_id) {
+      const centers = await appApi.entities.WorkCenter.filter(
+        { client_id: d.form.client_id }, "name", 100
+      ).catch(() => []);
+      setWorkCenters(centers || []);
+      loadMachinesForClient(d.form.client_id);
+    }
+    toast.success("Borrador recuperado.");
+  };
+
+  const { clearDraft } = useFormDraft({
+    storageKey: `new-intervention:${user?.email || "anon"}:${breakdownId || "-"}:${budgetId || "-"}`,
+    ready: initialLoadDone,
+    data: draftData,
+    onRestore: restoreDraft,
+    label: "un parte de trabajo",
+  });
 
   useEffect(() => {
     loadInitialData();
@@ -261,6 +299,8 @@ export default function NewIntervention() {
     } catch (error) {
       console.error("Error loading initial data:", error);
       setCheckedIn(true);
+    } finally {
+      setInitialLoadDone(true);
     }
   };
 
@@ -693,7 +733,21 @@ export default function NewIntervention() {
         }
       }
 
+      clearDraft();
       navigate(`/interventions/${created.id}`, { replace: true });
+    } catch (error) {
+      console.error("[NewIntervention] Error guardando el parte:", error);
+      if (isNetworkError(error)) {
+        toast.error(
+          "Sin conexión: el parte NO se ha guardado. Tus datos siguen en pantalla y hay una copia local — reintenta cuando vuelva la cobertura.",
+          { duration: 10000 }
+        );
+      } else {
+        toast.error(
+          `No se pudo guardar el parte: ${error?.message || "error desconocido"}. Tus datos siguen en pantalla.`,
+          { duration: 10000 }
+        );
+      }
     } finally {
       setSaving(false);
     }
