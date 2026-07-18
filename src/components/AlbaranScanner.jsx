@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const CATEGORIES = {
   gas_refrigerante: "Gas Refrigerante", repuesto: "Repuesto", consumible: "Consumible",
@@ -19,12 +20,13 @@ const UNITS = { ud: "Unidad", kg: "Kg", m: "Metro", l: "Litro", h: "Hora" };
 
 const STEPS = { UPLOAD: "upload", PROCESSING: "processing", REVIEW: "review", DONE: "done" };
 
-export default function AlbaranScanner({ open, onClose, materials, suppliers = [], user, onStockUpdated }) {
+export default function AlbaranScanner({ open, onClose, materials, suppliers = [], warehouses = [], user, onStockUpdated }) {
   const [step, setStep] = useState(STEPS.UPLOAD);
   const [imagePreview, setImagePreview] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [extractedLines, setExtractedLines] = useState([]);
   const [albaranMeta, setAlbaranMeta] = useState({ supplier: "", supplier_id: "", date: "", reference: "" });
+  const [targetWarehouseId, setTargetWarehouseId] = useState("");
   const [processingMsg, setProcessingMsg] = useState("");
   const [applying, setApplying] = useState(false);
   const [doneCount, setDoneCount] = useState(0);
@@ -37,6 +39,7 @@ export default function AlbaranScanner({ open, onClose, materials, suppliers = [
     setImageFile(null);
     setExtractedLines([]);
     setAlbaranMeta({ supplier: "", supplier_id: "", date: "", reference: "" });
+    setTargetWarehouseId("");
     setProcessingMsg("");
   };
 
@@ -53,6 +56,7 @@ export default function AlbaranScanner({ open, onClose, materials, suppliers = [
     setStep(STEPS.PROCESSING);
     setProcessingMsg("Subiendo imagen...");
 
+    try {
     // Upload image
     const { file_url } = await appApi.files.uploadPublic({ file: imageFile });
 
@@ -144,7 +148,22 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
     });
 
     setExtractedLines(enriched);
+    if (enriched.length === 0) {
+      toast.warning(
+        "No se ha podido extraer ninguna línea del albarán. Revisa que la foto sea nítida y legible, o introduce las líneas manualmente desde «Recepción de material».",
+        { duration: 8000 }
+      );
+    }
     setStep(STEPS.REVIEW);
+    } catch (err) {
+      console.error("[AlbaranScanner] Error al analizar el albarán:", err);
+      toast.error(
+        "No se pudo analizar el albarán: " + (err?.message || "error desconocido") +
+          ". Puedes introducir la entrada manualmente desde «Recepción de material».",
+        { duration: 8000 }
+      );
+      setStep(STEPS.UPLOAD);
+    }
   };
 
   const updateLine = (i, field, value) => {
@@ -206,6 +225,7 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
       await appApi.stock.entry({
         lines: entryLines.filter((l) => (l.quantity || 0) > 0),
         albaran_number: albaranMeta.reference || "",
+        warehouse_id: targetWarehouseId || undefined,
         movement_type: "entrada_albaran",
         ...(albaranMeta.supplier_id
           ? { notes: `Proveedor: ${albaranMeta.supplier}` }
@@ -320,11 +340,37 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
               </div>
             </div>
 
+            {/* Almacén destino (solo si hay almacenes secundarios) */}
+            {warehouses.length > 0 && (
+              <div className="bg-muted/50 rounded-xl p-4">
+                <p className="text-xs text-muted-foreground mb-1">Almacén destino</p>
+                <Select value={targetWarehouseId || "__main__"} onValueChange={v => setTargetWarehouseId(v === "__main__" ? "" : v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__main__">Almacén principal</SelectItem>
+                    {warehouses.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <p className="text-sm font-semibold">
               {extractedLines.length} línea{extractedLines.length !== 1 ? "s" : ""} extraída{extractedLines.length !== 1 ? "s" : ""}
               {" "}· {extractedLines.filter(l => l.is_new).length} nueva{extractedLines.filter(l => l.is_new).length !== 1 ? "s" : ""}
               {" "}· {extractedLines.filter(l => !l.is_new).length} coincidencia{extractedLines.filter(l => !l.is_new).length !== 1 ? "s" : ""}
             </p>
+
+            {extractedLines.length === 0 && (
+              <div className="border border-dashed border-border rounded-xl p-6 text-center space-y-2">
+                <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto" />
+                <p className="text-sm font-medium">No se detectaron líneas en el albarán</p>
+                <p className="text-xs text-muted-foreground">
+                  La foto puede no ser legible o el análisis por IA no está disponible.
+                  Vuelve a intentarlo con una imagen más nítida o registra la entrada
+                  manualmente desde «Recepción de material».
+                </p>
+              </div>
+            )}
 
             <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
               {extractedLines.map((line, i) => (
@@ -374,9 +420,13 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
                       </div>
                     ) : (
                       <div>
-                        <p className="text-xs text-muted-foreground mb-1">Stock actual</p>
+                        <p className="text-xs text-muted-foreground mb-1">
+                          {targetWarehouseId ? "Entrada" : "Stock actual"}
+                        </p>
                         <div className="h-8 flex items-center text-sm font-medium text-muted-foreground px-3 bg-muted/50 rounded-md">
-                          {line.matched_stock} → {line.matched_stock + (line.quantity || 0)}
+                          {targetWarehouseId
+                            ? `+${line.quantity || 0}`
+                            : `${line.matched_stock} → ${line.matched_stock + (line.quantity || 0)}`}
                         </div>
                       </div>
                     )}

@@ -689,6 +689,7 @@ export default function Materials() {
         onClose={() => setScannerOpen(false)}
         materials={materials}
         suppliers={suppliers}
+        warehouses={warehouses}
         user={user}
         onStockUpdated={loadData}
       />
