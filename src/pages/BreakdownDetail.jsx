@@ -4,10 +4,11 @@ import { appApi } from "@/api/app-api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Phone, ClipboardList, User, Calendar, CheckCircle2, Clock } from "lucide-react";
+import { Loader2, Phone, ClipboardList, User, Calendar, CheckCircle2, Clock, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import BackButton from "../components/BackButton";
+import AiDiagnosis from "../components/AiDiagnosis";
 import { PRIORITY_COLORS, PRIORITY_LABELS, BREAKDOWN_STATUS_COLORS, BREAKDOWN_STATUS_LABELS } from "@/lib/status-constants";
 
 const STATUS_COLORS = BREAKDOWN_STATUS_COLORS;
@@ -30,6 +31,7 @@ export default function BreakdownDetail() {
   const [loading, setLoading] = useState(true);
   const [showActionDialog, setShowActionDialog] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [showAiDiagnosis, setShowAiDiagnosis] = useState(false);
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -134,6 +136,17 @@ export default function BreakdownDetail() {
         <div className="bg-muted/40 rounded-xl p-3">
           <p className="text-sm leading-relaxed">{breakdown.description}</p>
         </div>
+
+        {!isTerminada && (
+          <Button
+            variant="outline"
+            onClick={() => setShowAiDiagnosis(true)}
+            className="w-full rounded-xl gap-2 border-accent/40 text-accent hover:bg-accent/5"
+          >
+            <Sparkles className="h-4 w-4" />
+            Diagnóstico IA — foto del controlador
+          </Button>
+        )}
 
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div className="flex items-center gap-2">
@@ -264,6 +277,17 @@ export default function BreakdownDetail() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog: diagnóstico IA por foto del controlador */}
+      <AiDiagnosis
+        open={showAiDiagnosis}
+        onClose={() => setShowAiDiagnosis(false)}
+        context={{
+          clientName: breakdown.client_name,
+          machineName: breakdown.machine_name,
+          description: breakdown.description,
+        }}
+      />
     </div>
   );
 }

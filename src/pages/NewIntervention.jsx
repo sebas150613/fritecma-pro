@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
-import { Plus, MapPin, Loader2, Save, LogIn, AlertTriangle } from "lucide-react";
+import { Plus, MapPin, Loader2, Save, LogIn, AlertTriangle, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import BackButton from "../components/BackButton";
 import MaterialLineForm from "../components/MaterialLineForm";
@@ -20,6 +20,7 @@ import { validateStockAvailability, deductStockForIntervention } from "../lib/st
 import moment from "moment";
 import GasTypeCombobox from "@/components/GasTypeCombobox";
 import GasMediaSection from "@/components/GasMediaSection";
+import AiDiagnosis from "@/components/AiDiagnosis";
 import {
   resolveCanonicalGasLabel,
   normalizeGasCompareKey,
@@ -91,6 +92,7 @@ export default function NewIntervention() {
   const [sinFichaje, setSinFichaje] = useState(false);
   const [stockWarningConfirm, setStockWarningConfirm] = useState(null);
   const [gasBillingPreview, setGasBillingPreview] = useState(null);
+  const [showAiDiagnosis, setShowAiDiagnosis] = useState(false);
 
   const [organizationTarifas, setOrganizationTarifas] = useState(null);
 
@@ -1102,7 +1104,19 @@ export default function NewIntervention() {
 
       {/* Description */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
-        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Descripción</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Descripción</h2>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAiDiagnosis(true)}
+            className="rounded-xl gap-1.5 border-accent/40 text-accent hover:bg-accent/5"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Diagnóstico IA
+          </Button>
+        </div>
         <Textarea
           placeholder="Descripción del trabajo realizado..."
           value={form.description}
@@ -1118,6 +1132,22 @@ export default function NewIntervention() {
           className="rounded-xl"
         />
       </div>
+
+      <AiDiagnosis
+        open={showAiDiagnosis}
+        onClose={() => setShowAiDiagnosis(false)}
+        context={{
+          clientName: form.client_name,
+          machineName: form.machine_name,
+          description: breakdown?.description || form.description,
+        }}
+        onInsert={(text) =>
+          setForm((f) => ({
+            ...f,
+            technician_notes: f.technician_notes ? `${f.technician_notes}\n\n${text}` : text,
+          }))
+        }
+      />
 
       {/* Labor Section */}
       {!adjuntoPresupuesto && (
