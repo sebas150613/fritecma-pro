@@ -165,9 +165,9 @@ export const serverConfig = {
   anthropicBaseUrl: stripTrailingSlashes(
     process.env.APP_ANTHROPIC_BASE_URL || "https://api.anthropic.com/v1"
   ),
-  anthropicModel: process.env.APP_ANTHROPIC_MODEL || "claude-3-5-haiku-latest",
+  anthropicModel: process.env.APP_ANTHROPIC_MODEL || "claude-haiku-4-5-20251001",
   anthropicVisionModel:
-    process.env.APP_ANTHROPIC_VISION_MODEL || "claude-3-5-sonnet-latest",
+    process.env.APP_ANTHROPIC_VISION_MODEL || "claude-sonnet-4-5-20250929",
   // DeepSeek (Chat Completions, compatible OpenAI) — SOLO texto, sin visión
   deepseekApiKeys: parseAiApiKeys("DEEPSEEK_API_KEY"),
   deepseekBaseUrl: stripTrailingSlashes(
