@@ -41,23 +41,26 @@ const parseCsvEnv = (value = "") =>
     .map((item) => item.trim())
     .filter(Boolean);
 
-// Claves de IA con conmutación por error: se pueden definir varias en
-// OPENAI_API_KEY separadas por comas/espacios, y/o en OPENAI_API_KEY_2..9.
-// Si una falla (sin saldo, inválida, rate-limit...) el servicio prueba la
-// siguiente. Las claves de OpenAI no contienen comas ni espacios, así que el
-// split es seguro.
-const parseAiApiKeys = () => {
+// Claves de IA con conmutación por error. Cada proveedor (OpenAI, Anthropic,
+// DeepSeek) puede tener varias claves: en la variable principal separadas por
+// comas/espacios, y/o en variantes numeradas _2.._9. Si una clave falla (sin
+// saldo, inválida, rate-limit...) se prueba la siguiente; si fallan todas las
+// de un proveedor, se pasa al siguiente proveedor. Las claves no contienen
+// comas ni espacios, así que el split es seguro.
+const parseAiApiKeys = (primaryVar) => {
   const keys = [];
-  for (const raw of String(process.env.OPENAI_API_KEY || "").split(/[\s,]+/)) {
+  for (const raw of String(process.env[primaryVar] || "").split(/[\s,]+/)) {
     const trimmed = raw.trim();
     if (trimmed) keys.push(trimmed);
   }
   for (let i = 2; i <= 9; i += 1) {
-    const extra = String(process.env[`OPENAI_API_KEY_${i}`] || "").trim();
+    const extra = String(process.env[`${primaryVar}_${i}`] || "").trim();
     if (extra) keys.push(extra);
   }
   return [...new Set(keys)];
 };
+
+const stripTrailingSlashes = (value) => String(value).replace(/\/+$/, "");
 
 const parsePositiveNumberEnv = (value, fallback) => {
   const parsed = Number(value);
@@ -143,17 +146,34 @@ export const serverConfig = {
   publicSignupEnabled: process.env.APP_PUBLIC_SIGNUP_ENABLED !== "false",
   requireEmailVerification: process.env.APP_REQUIRE_EMAIL_VERIFICATION === "true",
   appId: process.env.APP_ID || process.env.VITE_APP_ID || "local-app",
-  aiProvider: process.env.APP_AI_PROVIDER || "openai",
-  aiBaseUrl: (process.env.APP_AI_BASE_URL || "https://api.openai.com/v1").replace(
-    /\/+$/,
-    ""
-  ),
-  aiApiKeys: parseAiApiKeys(),
+  // Orden de conmutación entre proveedores. Solo participan los que tengan
+  // clave(s) configurada(s). Para peticiones con imagen (OCR de albaranes) se
+  // omiten los proveedores sin visión (DeepSeek).
+  aiProviderOrder: parseCsvEnv(
+    process.env.APP_AI_PROVIDER_ORDER || "openai,anthropic,deepseek"
+  ).map((id) => id.toLowerCase()),
+  // OpenAI (Responses API)
+  aiBaseUrl: stripTrailingSlashes(process.env.APP_AI_BASE_URL || "https://api.openai.com/v1"),
+  aiApiKeys: parseAiApiKeys("OPENAI_API_KEY"),
   aiModel: process.env.APP_AI_MODEL || "gpt-4o-mini",
   aiVisionModel:
     process.env.APP_AI_VISION_MODEL ||
     process.env.APP_AI_MODEL ||
     "gpt-4o-mini",
+  // Anthropic (Messages API) — con visión y salida estructurada via tool-use
+  anthropicApiKeys: parseAiApiKeys("ANTHROPIC_API_KEY"),
+  anthropicBaseUrl: stripTrailingSlashes(
+    process.env.APP_ANTHROPIC_BASE_URL || "https://api.anthropic.com/v1"
+  ),
+  anthropicModel: process.env.APP_ANTHROPIC_MODEL || "claude-3-5-haiku-latest",
+  anthropicVisionModel:
+    process.env.APP_ANTHROPIC_VISION_MODEL || "claude-3-5-sonnet-latest",
+  // DeepSeek (Chat Completions, compatible OpenAI) — SOLO texto, sin visión
+  deepseekApiKeys: parseAiApiKeys("DEEPSEEK_API_KEY"),
+  deepseekBaseUrl: stripTrailingSlashes(
+    process.env.APP_DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1"
+  ),
+  deepseekModel: process.env.APP_DEEPSEEK_MODEL || "deepseek-chat",
   aiTimeoutMs: Number(process.env.APP_AI_TIMEOUT_MS || 90000),
   smtpHost: process.env.APP_SMTP_HOST || "",
   smtpPort: Number(process.env.APP_SMTP_PORT || 587),

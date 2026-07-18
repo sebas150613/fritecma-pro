@@ -230,6 +230,12 @@ const smokeServerEnv = (base, overrides = {}) => ({
   DATABASE_URL: "",
   APP_DEV_TOKEN: "local-dev-token",
   APP_ALLOW_AUTH_BYPASS: "false",
+  // Hermético también para IA: el smoke valida el contrato de fallback local
+  // (sin proveedores), no debe heredar claves reales del entorno del dev ni
+  // hacer llamadas de pago. Ver contrato assertAiTextInvokeContract.
+  OPENAI_API_KEY: "",
+  ANTHROPIC_API_KEY: "",
+  DEEPSEEK_API_KEY: "",
 });
 
 const createServerProcess = ({ dataDir, uploadsDir }) => {
