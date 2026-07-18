@@ -216,10 +216,22 @@ const resolveModel = ({ requestedModel, hasVisionInput }) => {
 };
 
 const isConfigured = () =>
-  serverConfig.aiProvider === "openai" && Boolean(serverConfig.aiApiKey);
+  serverConfig.aiProvider === "openai" && serverConfig.aiApiKeys.length > 0;
 
 const buildFallbackText = () =>
   "La IA del backend REST no esta configurada todavia. Define OPENAI_API_KEY para activar respuestas reales.";
+
+// Mensaje único que ve el usuario cuando la IA no responde con ninguna clave.
+const AI_UNAVAILABLE_MESSAGE =
+  "El servicio con IA no está disponible en estos momentos. Inténtelo de nuevo más tarde.";
+
+// Un 400/404/422 es un problema de NUESTRA petición (schema, imagen no
+// soportada, etc.): reintentar con otra clave daría el mismo error, así que se
+// propaga tal cual. Cualquier otro fallo (401/403 clave inválida, 429 sin
+// saldo o rate-limit, 5xx, red/timeout) es específico de la clave o transitorio
+// y justifica probar la siguiente clave.
+const isOurRequestError = (status) =>
+  status === 400 || status === 404 || status === 422;
 
 export const invokeAi = async (payload = {}, context = {}) => {
   const prompt = typeof payload.prompt === "string" ? payload.prompt.trim() : "";
@@ -271,29 +283,61 @@ export const invokeAi = async (payload = {}, context = {}) => {
       : undefined,
   };
 
-  const response = await fetch(`${serverConfig.aiBaseUrl}/responses`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${serverConfig.aiApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(requestBody),
-    signal: AbortSignal.timeout(serverConfig.aiTimeoutMs),
-  });
+  // Conmutación por error entre claves: se prueban en orden y se salta a la
+  // siguiente ante fallos de clave o transitorios. Si ninguna responde, se
+  // devuelve un 503 con un mensaje único para el usuario.
+  const keys = serverConfig.aiApiKeys;
+  let lastError = null;
 
-  const responseBody = await response.json().catch(() => null);
+  for (let index = 0; index < keys.length; index += 1) {
+    let response;
+    try {
+      response = await fetch(`${serverConfig.aiBaseUrl}/responses`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${keys[index]}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(serverConfig.aiTimeoutMs),
+      });
+    } catch (networkError) {
+      // Red caída o timeout: intentar con la siguiente clave.
+      lastError = networkError;
+      continue;
+    }
 
-  if (!response.ok) {
-    throw new HttpError(
-      response.status >= 500 ? 502 : response.status,
-      responseBody?.error?.message ||
-        responseBody?.message ||
-        "The AI provider rejected the request.",
+    const responseBody = await response.json().catch(() => null);
+
+    if (response.ok) {
+      return responseJsonSchema
+        ? extractStructuredResponse(responseBody, responseJsonSchema)
+        : extractResponseText(responseBody) || buildFallbackText();
+    }
+
+    // Error de nuestra petición: reintentar con otra clave no ayudaría.
+    if (isOurRequestError(response.status)) {
+      throw new HttpError(
+        response.status,
+        responseBody?.error?.message ||
+          responseBody?.message ||
+          "The AI provider rejected the request.",
+        responseBody
+      );
+    }
+
+    // Fallo específico de la clave (401/403/429) o del proveedor (5xx):
+    // registrar y probar la siguiente clave disponible.
+    lastError = new HttpError(
+      response.status,
+      responseBody?.error?.message || responseBody?.message || "AI provider error",
       responseBody
     );
   }
 
-  return responseJsonSchema
-    ? extractStructuredResponse(responseBody, responseJsonSchema)
-    : extractResponseText(responseBody) || buildFallbackText();
+  console.error(
+    `[ai-service] Todas las claves de IA fallaron (${keys.length}).`,
+    lastError?.message || lastError
+  );
+  throw new HttpError(503, AI_UNAVAILABLE_MESSAGE);
 };

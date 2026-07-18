@@ -196,9 +196,18 @@ ${history}
 
 Asistente:`;
 
-    const response = await appApi.ai.invoke({ prompt: fullPrompt });
-    setMessages(prev => [...prev, { role: "assistant", content: response }]);
-    setLoading(false);
+    try {
+      const response = await appApi.ai.invoke({ prompt: fullPrompt });
+      setMessages(prev => [...prev, { role: "assistant", content: response }]);
+    } catch (err) {
+      console.error("[AIChat] Error al invocar la IA:", err);
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: "⚠️ El servicio con IA no está disponible en estos momentos. Inténtelo de nuevo más tarde.",
+      }]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleKey = (e) => {

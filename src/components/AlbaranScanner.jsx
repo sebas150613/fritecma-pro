@@ -157,9 +157,13 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
     setStep(STEPS.REVIEW);
     } catch (err) {
       console.error("[AlbaranScanner] Error al analizar el albarán:", err);
+      // 503 = ninguna clave de IA respondió → mensaje de servicio no disponible.
+      const base =
+        err?.status === 503
+          ? err.message
+          : "No se pudo analizar el albarán: " + (err?.message || "error desconocido") + ".";
       toast.error(
-        "No se pudo analizar el albarán: " + (err?.message || "error desconocido") +
-          ". Puedes introducir la entrada manualmente desde «Recepción de material».",
+        base + " Puedes introducir la entrada manualmente desde «Recepción de material».",
         { duration: 8000 }
       );
       setStep(STEPS.UPLOAD);

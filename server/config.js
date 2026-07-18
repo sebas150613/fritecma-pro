@@ -41,6 +41,24 @@ const parseCsvEnv = (value = "") =>
     .map((item) => item.trim())
     .filter(Boolean);
 
+// Claves de IA con conmutación por error: se pueden definir varias en
+// OPENAI_API_KEY separadas por comas/espacios, y/o en OPENAI_API_KEY_2..9.
+// Si una falla (sin saldo, inválida, rate-limit...) el servicio prueba la
+// siguiente. Las claves de OpenAI no contienen comas ni espacios, así que el
+// split es seguro.
+const parseAiApiKeys = () => {
+  const keys = [];
+  for (const raw of String(process.env.OPENAI_API_KEY || "").split(/[\s,]+/)) {
+    const trimmed = raw.trim();
+    if (trimmed) keys.push(trimmed);
+  }
+  for (let i = 2; i <= 9; i += 1) {
+    const extra = String(process.env[`OPENAI_API_KEY_${i}`] || "").trim();
+    if (extra) keys.push(extra);
+  }
+  return [...new Set(keys)];
+};
+
 const parsePositiveNumberEnv = (value, fallback) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -130,7 +148,7 @@ export const serverConfig = {
     /\/+$/,
     ""
   ),
-  aiApiKey: process.env.OPENAI_API_KEY || "",
+  aiApiKeys: parseAiApiKeys(),
   aiModel: process.env.APP_AI_MODEL || "gpt-4o-mini",
   aiVisionModel:
     process.env.APP_AI_VISION_MODEL ||
