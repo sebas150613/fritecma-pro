@@ -1,0 +1,84 @@
+{
+  "name": "CalendarEvent",
+  "type": "object",
+  "properties": {
+    "asignado_a": {
+      "type": "string",
+      "title": "Asignado a (Email Usuario)"
+    },
+    "asignado_a_name": {
+      "type": "string",
+      "title": "Nombre Usuario Asignado"
+    },
+    "creado_por": {
+      "type": "string",
+      "title": "Creado por (Email Usuario)"
+    },
+    "creado_por_name": {
+      "type": "string",
+      "title": "Nombre Usuario Creador"
+    },
+    "title": {
+      "type": "string",
+      "title": "T\u00edtulo del Evento"
+    },
+    "description": {
+      "type": "string",
+      "title": "Descripci\u00f3n"
+    },
+    "start_date": {
+      "type": "string",
+      "title": "Fecha y Hora Inicio",
+      "format": "date-time"
+    },
+    "end_date": {
+      "type": "string",
+      "title": "Fecha y Hora Fin",
+      "format": "date-time"
+    },
+    "event_type": {
+      "type": "string",
+      "title": "Tipo de Evento",
+      "enum": [
+        "tarea",
+        "cita",
+        "recordatorio",
+        "mantenimiento",
+        "otro"
+      ],
+      "default": "tarea"
+    },
+    "priority": {
+      "type": "string",
+      "title": "Prioridad",
+      "enum": [
+        "baja",
+        "normal",
+        "alta",
+        "urgente"
+      ],
+      "default": "normal"
+    },
+    "color": {
+      "type": "string",
+      "title": "Color (hex)",
+      "default": "#3b82f6"
+    },
+    "location": {
+      "type": "string",
+      "title": "Ubicaci\u00f3n"
+    },
+    "completed": {
+      "type": "boolean",
+      "title": "Completado",
+      "default": false
+    }
+  },
+  "required": [
+    "asignado_a",
+    "creado_por",
+    "title",
+    "start_date",
+    "event_type"
+  ]
+}

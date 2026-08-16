@@ -1,0 +1,26 @@
+{
+  "name": "User",
+  "type": "object",
+  "properties": {
+    "role": {
+      "type": "string",
+      "title": "Rol",
+      "enum": [
+        "superadmin",
+        "admin",
+        "encargado",
+        "oficina",
+        "ayudante",
+        "user"
+      ]
+    },
+    "is_active": {
+      "type": "boolean",
+      "title": "Activo",
+      "default": true
+    }
+  },
+  "required": [
+    "role"
+  ]
+}

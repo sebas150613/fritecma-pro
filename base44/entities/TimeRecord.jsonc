@@ -1,0 +1,51 @@
+{
+  "name": "TimeRecord",
+  "type": "object",
+  "properties": {
+    "technician_email": {
+      "type": "string",
+      "title": "Email T\u00e9cnico"
+    },
+    "technician_name": {
+      "type": "string",
+      "title": "Nombre T\u00e9cnico"
+    },
+    "type": {
+      "type": "string",
+      "title": "Tipo",
+      "enum": [
+        "entrada",
+        "pausa",
+        "reanudacion",
+        "salida"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "title": "Timestamp",
+      "format": "date-time"
+    },
+    "work_date": {
+      "type": "string",
+      "title": "Fecha (YYYY-MM-DD)"
+    },
+    "location_lat": {
+      "type": "number",
+      "title": "Latitud"
+    },
+    "location_lng": {
+      "type": "number",
+      "title": "Longitud"
+    },
+    "location_address": {
+      "type": "string",
+      "title": "Direcci\u00f3n"
+    }
+  },
+  "required": [
+    "technician_email",
+    "type",
+    "timestamp",
+    "work_date"
+  ]
+}

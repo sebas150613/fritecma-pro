@@ -1,0 +1,50 @@
+{
+  "name": "AuditLog",
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "title": "Acci\u00f3n",
+      "enum": [
+        "modificacion",
+        "eliminacion"
+      ]
+    },
+    "entity_type": {
+      "type": "string",
+      "title": "Entidad"
+    },
+    "entity_id": {
+      "type": "string",
+      "title": "ID Entidad"
+    },
+    "entity_reference": {
+      "type": "string",
+      "title": "Referencia (n\u00ba parte, etc.)"
+    },
+    "user_email": {
+      "type": "string",
+      "title": "Email Usuario"
+    },
+    "user_name": {
+      "type": "string",
+      "title": "Nombre Usuario"
+    },
+    "changes_summary": {
+      "type": "string",
+      "title": "Resumen de Cambios"
+    },
+    "timestamp": {
+      "type": "string",
+      "title": "Fecha/Hora",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "action",
+    "entity_type",
+    "entity_id",
+    "user_email",
+    "timestamp"
+  ]
+}

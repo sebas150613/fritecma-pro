@@ -1,0 +1,141 @@
+{
+  "name": "Visit",
+  "type": "object",
+  "properties": {
+    "intervention_id": {
+      "type": "string",
+      "title": "ID Incidencia"
+    },
+    "intervention_number": {
+      "type": "string",
+      "title": "N\u00ba Incidencia"
+    },
+    "visit_number": {
+      "type": "number",
+      "title": "N\u00ba Visita"
+    },
+    "client_id": {
+      "type": "string",
+      "title": "ID Cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "title": "Nombre Cliente"
+    },
+    "technician_email": {
+      "type": "string",
+      "title": "Email T\u00e9cnico"
+    },
+    "technician_name": {
+      "type": "string",
+      "title": "Nombre T\u00e9cnico"
+    },
+    "helper_email": {
+      "type": "string",
+      "title": "Email Ayudante"
+    },
+    "helper_name": {
+      "type": "string",
+      "title": "Nombre Ayudante"
+    },
+    "date": {
+      "type": "string",
+      "title": "Fecha",
+      "format": "date-time"
+    },
+    "saved_at": {
+      "type": "string",
+      "title": "Fecha/Hora Guardado",
+      "format": "date-time"
+    },
+    "location_lat": {
+      "type": "number",
+      "title": "Latitud"
+    },
+    "location_lng": {
+      "type": "number",
+      "title": "Longitud"
+    },
+    "location_address": {
+      "type": "string",
+      "title": "Direcci\u00f3n GPS"
+    },
+    "gas_type": {
+      "type": "string",
+      "title": "Tipo de Gas"
+    },
+    "gas_bottle_id": {
+      "type": "string",
+      "title": "ID Botella"
+    },
+    "gas_bottle_serial": {
+      "type": "string",
+      "title": "N\u00ba Serie Botella"
+    },
+    "gas_loaded_kg": {
+      "type": "number",
+      "title": "Kg Cargados",
+      "default": 0
+    },
+    "gas_recovered_kg": {
+      "type": "number",
+      "title": "Kg Recuperados",
+      "default": 0
+    },
+    "gas_leak_kg": {
+      "type": "number",
+      "title": "Fuga (kg)",
+      "default": 0
+    },
+    "description": {
+      "type": "string",
+      "title": "Descripci\u00f3n del Trabajo"
+    },
+    "technician_notes": {
+      "type": "string",
+      "title": "Notas del T\u00e9cnico"
+    },
+    "materials_json": {
+      "type": "string",
+      "title": "Materiales (JSON)"
+    },
+    "subtotal": {
+      "type": "number",
+      "title": "Subtotal (\u20ac)",
+      "default": 0
+    },
+    "iva_total": {
+      "type": "number",
+      "title": "Total IVA (\u20ac)",
+      "default": 0
+    },
+    "total": {
+      "type": "number",
+      "title": "Total (\u20ac)",
+      "default": 0
+    },
+    "discount_percent": {
+      "type": "number",
+      "title": "Descuento (%)",
+      "default": 0
+    },
+    "receptor_name": {
+      "type": "string",
+      "title": "Nombre Receptor"
+    },
+    "receptor_dni": {
+      "type": "string",
+      "title": "DNI / C\u00f3digo Trabajador"
+    },
+    "client_conformidad": {
+      "type": "boolean",
+      "title": "Conformidad Cliente",
+      "default": false
+    }
+  },
+  "required": [
+    "intervention_id",
+    "technician_email",
+    "date"
+  ]
+}

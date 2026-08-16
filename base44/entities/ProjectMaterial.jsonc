@@ -1,0 +1,71 @@
+{
+  "name": "ProjectMaterial",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "title": "ID Obra"
+    },
+    "project_name": {
+      "type": "string",
+      "title": "Nombre Obra"
+    },
+    "material_id": {
+      "type": "string",
+      "title": "ID Material"
+    },
+    "material_name": {
+      "type": "string",
+      "title": "Nombre Material"
+    },
+    "material_code": {
+      "type": "string",
+      "title": "C\u00f3digo Material"
+    },
+    "unit": {
+      "type": "string",
+      "title": "Unidad"
+    },
+    "unit_price": {
+      "type": "number",
+      "title": "Precio Ud. (\u20ac)"
+    },
+    "quantity_out": {
+      "type": "number",
+      "title": "Cantidad Enviada",
+      "default": 0
+    },
+    "quantity_returned": {
+      "type": "number",
+      "title": "Cantidad Devuelta",
+      "default": 0
+    },
+    "technician_email": {
+      "type": "string",
+      "title": "Email T\u00e9cnico"
+    },
+    "technician_name": {
+      "type": "string",
+      "title": "Nombre T\u00e9cnico"
+    },
+    "movement_type": {
+      "type": "string",
+      "title": "Tipo",
+      "enum": [
+        "salida",
+        "devolucion"
+      ],
+      "default": "salida"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notas"
+    }
+  },
+  "required": [
+    "project_id",
+    "material_id",
+    "quantity_out",
+    "movement_type"
+  ]
+}

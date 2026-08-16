@@ -1,0 +1,75 @@
+{
+  "name": "WorkDay",
+  "type": "object",
+  "properties": {
+    "technician_email": {
+      "type": "string",
+      "title": "Email T\u00e9cnico"
+    },
+    "technician_name": {
+      "type": "string",
+      "title": "Nombre T\u00e9cnico"
+    },
+    "work_date": {
+      "type": "string",
+      "title": "Fecha (YYYY-MM-DD)"
+    },
+    "segments_json": {
+      "type": "string",
+      "title": "Tramos (JSON)"
+    },
+    "total_minutes": {
+      "type": "number",
+      "title": "Total Minutos (sin comida)",
+      "default": 0
+    },
+    "total_hours": {
+      "type": "number",
+      "title": "Total Horas",
+      "default": 0
+    },
+    "has_lunch_break": {
+      "type": "boolean",
+      "title": "Incluye Comida",
+      "default": false
+    },
+    "hours_extra": {
+      "type": "number",
+      "title": "Horas Extra",
+      "default": 0
+    },
+    "hours_nocturnas": {
+      "type": "number",
+      "title": "Horas Nocturnas",
+      "default": 0
+    },
+    "hours_sabado": {
+      "type": "number",
+      "title": "Horas S\u00e1bado",
+      "default": 0
+    },
+    "hours_domingo": {
+      "type": "number",
+      "title": "Horas Domingo",
+      "default": 0
+    },
+    "notes": {
+      "type": "string",
+      "title": "Observaciones"
+    },
+    "status": {
+      "type": "string",
+      "title": "Estado",
+      "enum": [
+        "borrador",
+        "enviado",
+        "validado"
+      ],
+      "default": "borrador"
+    }
+  },
+  "required": [
+    "technician_email",
+    "work_date"
+  ]
+}

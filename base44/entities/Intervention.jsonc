@@ -1,0 +1,227 @@
+{
+  "name": "Intervention",
+  "type": "object",
+  "properties": {
+    "number": {
+      "type": "string",
+      "title": "N\u00ba Incidencia"
+    },
+    "client_id": {
+      "type": "string",
+      "title": "ID Cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "title": "Nombre Cliente"
+    },
+    "work_center_id": {
+      "type": "string",
+      "title": "ID Centro de Trabajo"
+    },
+    "work_center_name": {
+      "type": "string",
+      "title": "Centro de Trabajo"
+    },
+    "technician_email": {
+      "type": "string",
+      "title": "Email T\u00e9cnico"
+    },
+    "technician_name": {
+      "type": "string",
+      "title": "Nombre T\u00e9cnico"
+    },
+    "helper_email": {
+      "type": "string",
+      "title": "Email Ayudante"
+    },
+    "helper_name": {
+      "type": "string",
+      "title": "Nombre Ayudante"
+    },
+    "date": {
+      "type": "string",
+      "title": "Fecha",
+      "format": "date-time"
+    },
+    "end_date": {
+      "type": "string",
+      "title": "Fecha Fin",
+      "format": "date-time"
+    },
+    "saved_at": {
+      "type": "string",
+      "title": "Fecha/Hora Guardado",
+      "format": "date-time"
+    },
+    "incident_status": {
+      "type": "string",
+      "title": "Estado de la Incidencia",
+      "enum": [
+        "finalizado",
+        "pendiente_operativa",
+        "pendiente_parada"
+      ],
+      "default": "finalizado"
+    },
+    "status": {
+      "type": "string",
+      "title": "Estado Administrativo",
+      "enum": [
+        "en_curso",
+        "pendiente_revision",
+        "validado",
+        "completado",
+        "facturado",
+        "anulado"
+      ],
+      "default": "pendiente_revision"
+    },
+    "validated_by": {
+      "type": "string",
+      "title": "Validado por (email)"
+    },
+    "validated_at": {
+      "type": "string",
+      "title": "Fecha Validaci\u00f3n",
+      "format": "date-time"
+    },
+    "location_lat": {
+      "type": "number",
+      "title": "Latitud"
+    },
+    "location_lng": {
+      "type": "number",
+      "title": "Longitud"
+    },
+    "location_address": {
+      "type": "string",
+      "title": "Direcci\u00f3n GPS"
+    },
+    "gas_type": {
+      "type": "string",
+      "title": "Tipo de Gas",
+      "enum": [
+        "R449A",
+        "R134a",
+        "R404A",
+        "R410A",
+        "R407C",
+        "R22",
+        "R32",
+        "R290",
+        "R600a",
+        "R744",
+        "otro"
+      ]
+    },
+    "gas_bottle_id": {
+      "type": "string",
+      "title": "ID Botella Utilizada"
+    },
+    "gas_bottle_serial": {
+      "type": "string",
+      "title": "N\u00ba Serie Botella"
+    },
+    "gas_loaded_kg": {
+      "type": "number",
+      "title": "Kilos Cargados",
+      "default": 0
+    },
+    "gas_recovered_kg": {
+      "type": "number",
+      "title": "Kilos Recuperados",
+      "default": 0
+    },
+    "gas_leak_kg": {
+      "type": "number",
+      "title": "Fuga Estimada (kg)",
+      "default": 0
+    },
+    "description": {
+      "type": "string",
+      "title": "Descripci\u00f3n del Trabajo"
+    },
+    "technician_notes": {
+      "type": "string",
+      "title": "Notas del T\u00e9cnico"
+    },
+    "materials_json": {
+      "type": "string",
+      "title": "Materiales (JSON)"
+    },
+    "tipo_horario": {
+      "type": "string",
+      "title": "Tipo de Horario MO",
+      "enum": [
+        "normal",
+        "extra",
+        "nocturno",
+        "festivo"
+      ],
+      "default": "normal"
+    },
+    "tarifa_aplicada": {
+      "type": "number",
+      "title": "Tarifa MO aplicada (\u20ac/h)"
+    },
+    "subtotal": {
+      "type": "number",
+      "title": "Subtotal (\u20ac)",
+      "default": 0
+    },
+    "iva_total": {
+      "type": "number",
+      "title": "Total IVA (\u20ac)",
+      "default": 0
+    },
+    "total": {
+      "type": "number",
+      "title": "Total (\u20ac)",
+      "default": 0
+    },
+    "discount_percent": {
+      "type": "number",
+      "title": "Descuento (%)",
+      "default": 0
+    },
+    "receptor_name": {
+      "type": "string",
+      "title": "Nombre Receptor"
+    },
+    "receptor_dni": {
+      "type": "string",
+      "title": "DNI / C\u00f3digo Trabajador"
+    },
+    "client_conformidad": {
+      "type": "boolean",
+      "title": "Conformidad del Cliente",
+      "default": false
+    },
+    "pdf_url": {
+      "type": "string",
+      "title": "PDF URL"
+    },
+    "email_sent": {
+      "type": "boolean",
+      "title": "Email Enviado",
+      "default": false
+    },
+    "auto_send_email": {
+      "type": "boolean",
+      "title": "Enviar Email Autom\u00e1tico",
+      "default": false
+    },
+    "rectified_by_info": {
+      "type": "string",
+      "title": "Informaci\u00f3n de Rectificaci\u00f3n",
+      "description": "Log de usuario y fecha de la rectificaci\u00f3n (Solo lectura - escrito por el sistema)",
+      "readOnly": true
+    }
+  },
+  "required": [
+    "client_id",
+    "client_name",
+    "technician_email",
+    "date"
+  ]
+}

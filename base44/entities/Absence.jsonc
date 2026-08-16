@@ -1,0 +1,54 @@
+{
+  "name": "Absence",
+  "type": "object",
+  "properties": {
+    "user_email": {
+      "type": "string",
+      "title": "Email Usuario"
+    },
+    "user_name": {
+      "type": "string",
+      "title": "Nombre Usuario"
+    },
+    "start_date": {
+      "type": "string",
+      "title": "Fecha Inicio",
+      "format": "date"
+    },
+    "end_date": {
+      "type": "string",
+      "title": "Fecha Fin",
+      "format": "date"
+    },
+    "type": {
+      "type": "string",
+      "title": "Tipo de Ausencia",
+      "enum": [
+        "vacaciones",
+        "asuntos_propios",
+        "baja_medica",
+        "otro"
+      ],
+      "default": "vacaciones"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Observaciones"
+    },
+    "created_by_email": {
+      "type": "string",
+      "title": "Creado por (email)"
+    },
+    "created_by_name": {
+      "type": "string",
+      "title": "Creado por (nombre)"
+    }
+  },
+  "required": [
+    "user_email",
+    "user_name",
+    "start_date",
+    "end_date",
+    "type"
+  ]
+}

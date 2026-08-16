@@ -1,0 +1,78 @@
+{
+  "name": "StockEntry",
+  "type": "object",
+  "properties": {
+    "albaran_number": {
+      "type": "string",
+      "title": "N\u00ba Albar\u00e1n"
+    },
+    "material_id": {
+      "type": "string",
+      "title": "ID Material"
+    },
+    "material_name": {
+      "type": "string",
+      "title": "Nombre Material"
+    },
+    "material_code": {
+      "type": "string",
+      "title": "C\u00f3digo Material"
+    },
+    "quantity": {
+      "type": "number",
+      "title": "Cantidad"
+    },
+    "unit": {
+      "type": "string",
+      "title": "Unidad"
+    },
+    "supplier_id": {
+      "type": "string",
+      "title": "ID Proveedor"
+    },
+    "supplier_name": {
+      "type": "string",
+      "title": "Proveedor"
+    },
+    "technician_email": {
+      "type": "string",
+      "title": "Email T\u00e9cnico"
+    },
+    "technician_name": {
+      "type": "string",
+      "title": "Nombre T\u00e9cnico"
+    },
+    "status": {
+      "type": "string",
+      "title": "Estado",
+      "enum": [
+        "pendiente",
+        "validado"
+      ],
+      "default": "pendiente"
+    },
+    "validated_by": {
+      "type": "string",
+      "title": "Email Validador"
+    },
+    "validated_by_name": {
+      "type": "string",
+      "title": "Usuario Validador"
+    },
+    "validated_at": {
+      "type": "string",
+      "title": "Fecha Validaci\u00f3n",
+      "format": "date-time"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notas"
+    }
+  },
+  "required": [
+    "material_id",
+    "quantity",
+    "technician_email",
+    "albaran_number"
+  ]
+}

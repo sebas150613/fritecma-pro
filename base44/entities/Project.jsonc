@@ -1,0 +1,60 @@
+{
+  "name": "Project",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Nombre de Obra"
+    },
+    "reference": {
+      "type": "string",
+      "title": "Referencia / N\u00ba Obra"
+    },
+    "client_id": {
+      "type": "string",
+      "title": "ID Cliente"
+    },
+    "client_name": {
+      "type": "string",
+      "title": "Nombre Cliente"
+    },
+    "address": {
+      "type": "string",
+      "title": "Direcci\u00f3n de Obra"
+    },
+    "start_date": {
+      "type": "string",
+      "title": "Fecha Inicio",
+      "format": "date-time"
+    },
+    "end_date": {
+      "type": "string",
+      "title": "Fecha Fin Prevista",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "title": "Estado",
+      "enum": [
+        "en_curso",
+        "pausada",
+        "finalizada",
+        "facturada"
+      ],
+      "default": "en_curso"
+    },
+    "description": {
+      "type": "string",
+      "title": "Descripci\u00f3n"
+    },
+    "notes": {
+      "type": "string",
+      "title": "Notas Internas"
+    }
+  },
+  "required": [
+    "name",
+    "client_id",
+    "client_name"
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "name": "InvoiceRetryQueue",
+  "type": "object",
+  "properties": {
+    "invoice_id": {
+      "type": "string",
+      "title": "ID Factura"
+    },
+    "invoice_number": {
+      "type": "string",
+      "title": "N\u00famero Factura"
+    },
+    "retry_count": {
+      "type": "number",
+      "title": "Intentos Realizados",
+      "default": 0
+    },
+    "max_retries": {
+      "type": "number",
+      "title": "M\u00e1ximo de Intentos",
+      "default": 5
+    },
+    "next_retry_at": {
+      "type": "string",
+      "title": "Pr\u00f3ximo Reintento",
+      "format": "date-time"
+    },
+    "last_attempt_at": {
+      "type": "string",
+      "title": "\u00daltimo Intento",
+      "format": "date-time"
+    },
+    "last_error": {
+      "type": "string",
+      "title": "\u00daltimo Error"
+    },
+    "status": {
+      "type": "string",
+      "title": "Estado",
+      "enum": [
+        "pending",
+        "retrying",
+        "completed",
+        "failed"
+      ],
+      "default": "pending"
+    },
+    "xml_payload": {
+      "type": "string",
+      "title": "XML Payload"
+    },
+    "tipo_factura": {
+      "type": "string",
+      "title": "Tipo Factura",
+      "enum": [
+        "F1",
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5"
+      ]
+    }
+  },
+  "required": [
+    "invoice_id",
+    "invoice_number",
+    "tipo_factura"
+  ]
+}
