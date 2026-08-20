@@ -11,7 +11,7 @@
 > | 5 | Sin acceso disociado (art. 8.4) | **Corregido** — sesión de consulta, verificada en vivo contra el servidor |
 > | 6 | Sin detección de alteraciones | **Corregido y ampliado** — ver la corrección del apartado 3 |
 > | 7 | Exportación de registros insuficiente | **Corregido** — volcado XML UTF-8 con huella y encadenamiento |
-> | 8 | VPS sin backups de BD | **Pendiente** — infraestructura, requiere acceso al servidor |
+> | 8 | VPS sin backups de BD | **Corregido** — timer diario a las 03:30, copia por organización + volcado completo |
 > | 9 | Sin `RegistroAnulacion` | **Pendiente** — decisión, no está claro que sea exigible |
 >
 > Verificado: 57 tests (`npm test`), una prueba en vivo de 22 comprobaciones contra el servidor real para el acceso disociado, recorrido manual en navegador y **`npm run release:check` 18/18**.
@@ -133,7 +133,7 @@ Falta lo dicho arriba: existe el encadenamiento, no existe la función que lo re
 
 Se ha añadido `server/services/verifactu-export.js`, que vuelca los **registros de facturación** en XML con codificación UTF-8 —el formato que fija la Orden HAC/1177/2024— con huella, huella anterior, índice de cadena, tipo de huella, estado, CSV e identificador de registro de la AEAT. Acotado a la organización, ordenado por cadena y con filtro opcional por periodo, que es como el art. 9.h) de la Orden nombra la exportación. Se descarga desde Facturación → «Exportar registros (XML)» y está cubierto por seis tests.
 
-Aparte, la conservación depende de la infraestructura, y ahí tienes un problema conocido que no es de código: **el VPS no tiene copias de seguridad automáticas de la base de datos**. Para un requisito que dice "conservación durante el plazo previsto en la Ley General Tributaria", eso pesa.
+Aparte, la conservación depende de la infraestructura. **Resuelto el 2026-08-20**: hay un `frigest-backup.timer` diario (03:30 UTC) que ejecuta dos cosas —la copia cifrada por organización de la propia aplicación, y un `pg_dump` completo con retención de 14 días—. El volcado completo hacía falta porque la copia por organización filtra por `organization_id` y **se dejaba fuera las entidades globales**: 7 usuarios, 3 organizaciones y 3 planes. Sin ellas no se puede restaurar el sistema. Los permisos de `/var/backups/frigest` estaban mal desde el 4 de agosto (el servicio corre como `frigest_svc` y el directorio era de root), y también se corrigieron.
 
 ### 8.3 — Registro de eventos
 

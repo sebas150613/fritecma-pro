@@ -100,13 +100,28 @@ Para una sola instancia Express tras Nginx, **systemd es suficiente**.
 
 ## 7. Backups
 
-- **Datos aplicación:** directorios `APP_DATA_DIR` y `APP_UPLOADS_DIR`.
-- **Configuración:** copia cifrada o fuera de línea de `.env` (sin subir a git).
-- **Nginx / systemd:** copia de `/etc/nginx/sites-available/frigest` y unidad systemd.
-- **Frecuencia:** diaria incremental + retención acorde a RGPD/necesidad operativa.
-- Probad restauración en entorno de **staging** antes de confiar en el backup.
+**Montado el 2026-08-20.** Un único timer, `frigest-backup.timer`, diario a las **03:30 UTC** con `RandomizedDelaySec=900` y `Persistent=true` (si el servidor estaba apagado, se ejecuta al arrancar).
 
----
+`frigest-backup.service` hace dos cosas, en este orden:
+
+1. **Copia por organización de la aplicación** — `POST /api/backups/cron/run-all`, autenticado con la cabecera `x-backup-secret`. Cifrada con `APP_BACKUP_SECRET`, gzip, rotación propia. Queda en `/var/backups/frigest/<org_id>/`.
+2. **Volcado completo** — `/usr/local/bin/frigest-pgdump.sh`, `pg_dump` de toda la base a `/var/backups/frigest/_postgres/`, retención 14 días.
+
+**Por qué hacen falta las dos.** La copia de la aplicación filtra por `payload->>'organization_id'`, así que **no incluye las entidades globales**: `User`, `Organization` y `SubscriptionPlan`. Con solo esa copia recuperarías los datos operativos pero no las cuentas ni las empresas. El `pg_dump` cubre el hueco.
+
+**`APP_BACKUP_SECRET` no se puede cambiar.** Cifra las copias: si cambia, las anteriores dejan de poder descifrarse. Está en `/var/www/frigest/.env`; guárdalo también fuera del servidor.
+
+Permisos: `/var/backups/frigest` pertenece a `frigest_svc:frigest_svc` con modo `750`, que es el usuario con el que corre `frigest-api`. Antes era de root y el servicio fallaba con `EACCES`.
+
+Comprobar:
+
+```bash
+sudo systemctl list-timers frigest-backup.timer
+sudo systemctl start frigest-backup.service && sudo journalctl -u frigest-backup.service -n 10
+sudo ls -la /var/backups/frigest/_postgres/
+```
+
+**Pendiente:** las copias viven en el mismo servidor que la base de datos. Un fallo de disco se las lleva por delante. Conviene replicarlas fuera (Hetzner Storage Box u Object Storage).
 
 ## 8. Checks previos al primer deploy
 
