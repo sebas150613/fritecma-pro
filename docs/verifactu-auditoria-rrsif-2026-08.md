@@ -1,6 +1,6 @@
 # Auditoría de FriGest como Sistema Informático de Facturación (SIF)
 
-> ## Estado de corrección — rama `feat/rrsif-cumplimiento`
+> ## Estado de corrección — DESPLEGADO en producción el 2026-08-20 (commit `5cfa018`)
 >
 > | # | Hueco | Estado |
 > |---|---|---|
@@ -14,11 +14,11 @@
 > | 8 | VPS sin backups de BD | **Pendiente** — infraestructura, requiere acceso al servidor |
 > | 9 | Sin `RegistroAnulacion` | **Pendiente** — decisión, no está claro que sea exigible |
 >
-> Verificado: 57 tests (`npm test`), una prueba en vivo de 22 comprobaciones contra el servidor real para el acceso disociado, y `npm run release:check` pasa 17 de 18 pasos. El que falla es
-> `npm audit`, por 8 vulnerabilidades **preexistentes** en dependencias
-> (`nanoid`, `postcss`, `react-router`) que no tienen relación con este trabajo:
-> las únicas líneas tocadas en `package.json` son la versión y un script nuevo.
-> Actualizar esas dependencias merece su propia rama.
+> Verificado: 57 tests (`npm test`), una prueba en vivo de 22 comprobaciones contra el servidor real para el acceso disociado, recorrido manual en navegador y **`npm run release:check` 18/18**.
+>
+> Las 8 vulnerabilidades de `npm audit` se cerraron en el commit `688d3f2`: seis con `npm audit fix` y las dos de `react-router` con el salto a v7, que la app admite porque solo usa el subconjunto declarativo. `npm audit` da **0 vulnerabilidades**, también en el servidor.
+>
+> **Configuración aplicada en producción:** `APP_VERIFACTU_SOFTWARE_NIF=41572545E`, `APP_VERIFACTU_INSTALLATION_ID=frigest-prod-01`, `APP_VERIFACTU_MULTIPLES_OT=S`, y `APP_VERIFACTU_SOFTWARE_NAME` corregido de `FRIGEST` a `Sebastián Estela Adrover` — ese campo identifica al **productor**, no al programa, y tenía que cuadrar con el apartado 1.h) de la declaración.
 
 **Fecha:** 19 de agosto de 2026
 **Objeto:** comprobar si FriGest cumple los requisitos que debe declarar su productor en la declaración responsable del artículo 13 del RD 1007/2023.
