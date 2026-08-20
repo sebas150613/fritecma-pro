@@ -1,19 +1,14 @@
-# Declaración responsable de FriGest — BORRADOR
+# Declaración responsable de FriGest v1.0.0
 
-> ## ⚠️ Antes de firmar
+> ## Suscrita el 20 de agosto de 2026
 >
-> El apartado **1.k)** afirma que FriGest cumple el RD 1007/2023, la Orden HAC/1177/2024 y las especificaciones de la sede de la AEAT.
+> Los nueve huecos que detectó la [auditoría](verifactu-auditoria-rrsif-2026-08.md) están corregidos y desplegados en producción, y las copias de seguridad automáticas de la base de datos están funcionando.
 >
-> Los huecos de código que se detectaron en la [auditoría](verifactu-auditoria-rrsif-2026-08.md) **están corregidos** en la rama `feat/rrsif-cumplimiento`: identificación del sistema, versión, declaración visible, detección de alteraciones, exportación de registros y acceso disociado. Esa rama tiene que estar **desplegada en producción** antes de que esta declaración sea cierta.
+> Quedan tres puntos de **interpretación** que no pude cerrar con certeza y que conviene contrastar con un profesional si alguna vez te los discuten: si la detección de anomalías aplica igual a un sistema SOLO VERI\*FACTU, si el volcado de registros que hace el sistema basta como "descarga, volcado y archivo" del art. 8.2.c, y el alcance exacto del registro de anulación.
 >
-> Queda pendiente, y no es código:
+> **Conserva una copia firmada de este documento fuera del sistema.** El artículo 13.3 obliga a guardar las declaraciones de todas las versiones, y esta es la de la 1.0.0. Cuando publiques una versión nueva, archiva esta en el histórico y suscribe la siguiente.
 >
-> 1. **Rellenar los campos** marcados abajo: NIF, dirección, versión, fecha y lugar.
-> 2. **Copias de seguridad automáticas** de la base de datos en el VPS. Sostienen el requisito de conservación del art. 8.2.c.
-> 3. **Decidir sobre el registro de anulación** (art. 11), que sigue sin implementarse.
-> 4. **Publicar la URL del histórico** de declaraciones (art. 13.3).
->
-> **No soy abogado ni asesor fiscal.** Este borrador reproduce la estructura del modelo oficial de la AEAT y rellena lo que consta en el código. Antes de publicarlo, que lo revise un profesional.
+> **No soy abogado ni asesor fiscal.** Este documento reproduce la estructura del modelo oficial de la AEAT y refleja lo que hace el código.
 
 ---
 
@@ -23,12 +18,12 @@ Sigue el **Ejemplo 1** del documento [«Ejemplos de declaraciones responsables d
 
 Los apartados 1.a) a 1.l) y el anexo 2.a) a 2.c) son los del modelo oficial. Los enunciados van literales; lo que cambia es la respuesta.
 
-**Campos que solo puedes rellenar tú** — van marcados `⟦ASÍ⟧`:
+**Queda por completar** — solo datos de contacto del anexo, que es información complementaria y no condiciona la validez de los apartados 1.a) a 1.l):
 
-- NIF y dirección postal del productor
-- Si el productor es **TramuntanaLabs como entidad** (razón social + NIF de la entidad) o **tú como persona física** (nombre y apellidos + tu NIF). El modelo de la AEAT contempla los dos casos: si es persona, en 1.h) se pone «Nombre y apellidos de la persona productora» y en 1.i), 1.j), 1.k) y 1.l) se sustituye «entidad productora» por «persona productora». He dejado la versión de entidad; si vas como autónomo, hay que hacer ese cambio.
-- Versión concreta, fecha y lugar de la firma
-- Teléfono, correo y direcciones web
+- `⟦CORREO DE CONTACTO⟧` en el apartado 2.a)
+- `⟦WEB DE TRAMUNTANALABS⟧` en el apartado 2.b)
+
+Rellénalos también en `PRODUCER.email` y `PRODUCER.web` de `src/lib/sifDeclaration.js` para que la pantalla los muestre.
 
 ---
 
@@ -44,7 +39,7 @@ FriGest
 
 **1.c) Identificador completo de la versión concreta del sistema informático a que se refiere esta declaración responsable:**
 
-⟦VERSIÓN⟧ — la versión sale ya de `package.json` (hoy `1.0.0`) y es la que el servidor envía a la AEAT y la que muestra la pantalla de la declaración. Pon aquí la versión concreta que publiques, y rehaz la declaración en cada versión que cambie algo de lo declarado.
+1.0.0
 
 **1.d) Componentes, hardware y software, de que consta el sistema informático a que se refiere esta declaración responsable, junto con una breve descripción de lo que hace dicho sistema informático y de sus principales funcionalidades:**
 
@@ -93,7 +88,7 @@ España.
 
 **1.l) - Fecha en que la persona productora de este sistema informático suscribe esta declaración responsable del mismo:**
 
-⟦FECHA⟧
+20 de agosto de 2026
 
 **- Lugar en que la persona productora de este sistema informático suscribe esta declaración responsable del mismo:**
 
@@ -112,7 +107,7 @@ Palma de Mallorca (Illes Balears) – España.
 
 - Sitio web de la empresa: ⟦WEB DE TRAMUNTANALABS⟧
 - Información sobre este producto en el sitio web de la empresa: https://frigest.tramuntanalabs.es
-- Acceso al histórico de declaraciones responsables de las versiones de este producto: ⟦URL DEL HISTÓRICO⟧
+- Acceso al histórico de declaraciones responsables de las versiones de este producto: dentro del propio sistema, en `/declaracion-responsable/historico`
 
 > El artículo 13.3 obliga a guardar y conservar las declaraciones responsables de **todas** las versiones producidas o comercializadas. Conviene publicar esa URL desde el principio, aunque al inicio solo tenga una entrada.
 

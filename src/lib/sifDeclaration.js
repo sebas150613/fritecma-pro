@@ -14,8 +14,10 @@
  * y con docs/declaracion-responsable-frigest.md. El contrato
  * `npm run check:verifactu-sif` vigila esa coherencia.
  *
- * Rellena los campos vacíos y sube PRODUCER_DECLARATION.signed a true SOLO
- * cuando la declaración esté efectivamente firmada.
+ * SIGNED se pone a true SOLO cuando la declaración está efectivamente suscrita
+ * por la persona productora. Suscrita el 20 de agosto de 2026 para la versión
+ * 1.0.0; al publicar una versión nueva hay que archivar esta en
+ * DECLARATION_HISTORY y suscribir la nueva.
  */
 
 /** Datos del productor. Vacío = pendiente de completar. */
@@ -42,12 +44,12 @@ export const SYSTEM = {
 };
 
 /** ¿Está firmada y publicada? Mientras sea false, la pantalla lo advierte. */
-export const SIGNED = false;
+export const SIGNED = true;
 
 /** Fecha y lugar de suscripción (apartado 1.l). */
 export const SIGNATURE = {
-  fecha: "",
-  lugar: "",
+  fecha: "20 de agosto de 2026",
+  lugar: "Palma de Mallorca (Illes Balears) – España",
 };
 
 export const isDeclarationComplete = () =>

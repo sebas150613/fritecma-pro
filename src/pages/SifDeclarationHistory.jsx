@@ -4,6 +4,7 @@ import { Archive, ArrowLeft, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DECLARATION_HISTORY,
+  SIGNATURE,
   SIGNED,
   buildAnnexSections,
   buildDeclarationSections,
@@ -27,6 +28,8 @@ export default function SifDeclarationHistory() {
   const actual = {
     version: APP_VERSION,
     firmada: SIGNED,
+    fecha: SIGNATURE.fecha,
+    lugar: SIGNATURE.lugar,
     apartados: buildDeclarationSections(APP_VERSION),
     anexo: buildAnnexSections(),
     esActual: true,
