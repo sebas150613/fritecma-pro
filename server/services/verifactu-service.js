@@ -2,6 +2,11 @@ import { createJsonEntityStore, createJsonFileStore } from "../lib/json-store.js
 import { HttpError } from "../lib/http-error.js";
 import { createExportInvoiceRecords } from "./verifactu-export.js";
 import {
+  assertCanAnnul,
+  buildAnulacionRecord,
+  isAnulacion,
+} from "./verifactu-anulacion.js";
+import {
   DEFAULT_ORGANIZATION_ID,
   decryptOrganizationSettingsFromStorage,
   getOrganizationSettingsStore,
@@ -10,7 +15,9 @@ import {
   VERIFACTU_PRODUCTION_ENDPOINT,
   VERIFACTU_SANDBOX_ENDPOINT,
   buildVerifactuQrUrl,
+  buildVerifactuAnulacionEnvelope,
   buildVerifactuSoapEnvelope,
+  computeAeatAnulacionFingerprint,
   computeAeatInvoiceFingerprint,
   escapeXml,
   parseVerifactuSubmissionResponse,
@@ -1432,20 +1439,34 @@ export const auditInvoiceChain = (invoices = []) => {
     const problems = [];
 
     // 1. Integridad del registro: la huella almacenada debe reproducirse a
-    //    partir de los datos que la generaron.
-    const computedHash = computeInvoiceFingerprint({
-      invoiceNumber: invoice.invoice_number,
-      issueDate: invoice.issue_date,
-      issuerNif: invoice.issuer_nif,
-      issuerName: invoice.issuer_name,
-      ivaTotal: invoice.iva_total,
-      total: invoice.total,
-      previousHash: invoice.hash_anterior,
-      tipoFactura: invoice.tipo_factura || "F1",
-    });
+    //    partir de los datos que la generaron. Alta y anulación se calculan
+    //    sobre subconjuntos distintos (Orden HAC/1177/2024, art. 13.1).
+    const esAnulacion = isAnulacion(invoice);
+    const computedHash = esAnulacion
+      ? computeAeatAnulacionFingerprint({
+          issuerNif: invoice.issuer_nif,
+          invoiceNumber: invoice.factura_anulada_number || invoice.invoice_number,
+          issueDate: invoice.factura_anulada_issue_date,
+          previousHash: invoice.hash_anterior,
+          generatedAt: invoice.issue_date,
+        })
+      : computeInvoiceFingerprint({
+          invoiceNumber: invoice.invoice_number,
+          issueDate: invoice.issue_date,
+          issuerNif: invoice.issuer_nif,
+          issuerName: invoice.issuer_name,
+          ivaTotal: invoice.iva_total,
+          total: invoice.total,
+          previousHash: invoice.hash_anterior,
+          tipoFactura: invoice.tipo_factura || "F1",
+        });
 
     if (computedHash !== invoice.hash_huella) {
-      problems.push("la huella no coincide con los datos de la factura");
+      problems.push(
+        esAnulacion
+          ? "la huella no coincide con los datos del registro de anulación"
+          : "la huella no coincide con los datos de la factura"
+      );
     }
 
     // 2. Trazabilidad: el eslabón tiene que apuntar al anterior de la cadena.
@@ -1566,6 +1587,153 @@ export const verifyInvoiceHashes = async ({ payload = {}, currentUser, sendEmail
     tampered_invoices: tampered,
     checked_at: new Date().toISOString(),
   };
+};
+
+// Mutex por organización para el registro de anulación: la cadena de huellas es
+// por obligado tributario, y dos anulaciones simultáneas la partirían.
+const anulacionLocks = new Map();
+
+const acquireAnulacionLock = (organizationId) => {
+  const prev = anulacionLocks.get(organizationId) || Promise.resolve();
+  let release;
+  const next = new Promise((resolve) => {
+    release = resolve;
+  });
+  anulacionLocks.set(organizationId, next);
+  return prev.then(() => release);
+};
+
+/**
+ * Genera el registro de facturación de ANULACIÓN de una factura (art. 11 RRSIF).
+ *
+ * No borra ni modifica la factura anulada: añade un registro posterior a la
+ * cadena, que es lo que exige el art. 8.2.a.
+ */
+export const anularRegistroFacturacion = async ({ payload = {}, currentUser }) => {
+  const organizationId =
+    currentUser?.current_organization?.id || currentUser?.organization_id || null;
+
+  if (!organizationId) {
+    throw new HttpError(400, "No se pudo determinar la organización.");
+  }
+
+  const invoiceId = String(payload.invoice_id || "").trim();
+  if (!invoiceId) {
+    throw new HttpError(422, "Falta indicar qué factura se quiere anular.");
+  }
+
+  const motivo = String(payload.motivo || "").trim();
+  if (!motivo) {
+    throw new HttpError(
+      422,
+      "Indica el motivo de la anulación: queda registrado para la trazabilidad."
+    );
+  }
+
+  const release = await acquireAnulacionLock(organizationId);
+
+  try {
+    const orgRecords = await invoiceStore.filter({
+      filter: { organization_id: organizationId },
+      sort: "invoice_chain_index",
+    });
+
+    const invoice = orgRecords.find((r) => r.id === invoiceId) || null;
+    if (!invoice) {
+      // Comprobación explícita: no basta con no encontrarla, hay que asegurar
+      // que no se está anulando una factura de otra organización.
+      throw new HttpError(404, "La factura que se quiere anular no existe en esta empresa.");
+    }
+
+    assertCanAnnul(invoice, orgRecords);
+
+    const isProductionMode = currentUser?.verifactu_produccion === true;
+    const previousRecord = await getLastInvoice({
+      isProduction: isProductionMode,
+      organizationId,
+    });
+
+    const now = new Date().toISOString();
+    const record = buildAnulacionRecord({
+      invoice,
+      previousRecord,
+      organizationId,
+      motivo,
+      currentUser,
+      now,
+    });
+
+    record.retention_until = getRetentionUntil();
+    record.verifactu_status = isProductionMode ? "pendiente_envio" : "validado_sandbox";
+    record.verifactu_timestamp = now;
+    record.verifactu_response = isProductionMode
+      ? "Pendiente de envio real a AEAT"
+      : "Registro de anulacion simulado en backend REST local";
+    record.verifactu_http_status = isProductionMode ? 0 : 200;
+    record.verifactu_diagnostico = isProductionMode
+      ? "pendiente_envio"
+      : "respuesta_valida_sin_csv";
+    record.verifactu_csv = "";
+    record.verifactu_idregistro = "";
+    record.qr_url = "";
+
+    let stored = await invoiceStore.create(record);
+
+    if (isProductionMode) {
+      try {
+        const certPath = await resolveCertificateFile(currentUser?.verifactu_cert_uri);
+        const soapEnvelope = buildVerifactuAnulacionEnvelope({
+          record: stored,
+          annulled: invoice,
+          issuerNif: invoice.issuer_nif,
+          issuerName: invoice.issuer_name,
+          previousRecord,
+          generatedAt: stored.issue_date,
+        });
+
+        const response = await postSoapRequest({
+          endpoint: VERIFACTU_PRODUCTION_ENDPOINT,
+          xml: soapEnvelope,
+          certPath,
+          certPassword: currentUser?.verifactu_cert_password || "",
+        });
+
+        const parsed = parseVerifactuSubmissionResponse(
+          response.body,
+          response.httpStatus
+        );
+
+        stored = await invoiceStore.update(stored.id, {
+          xml_payload: soapEnvelope,
+          ...mapAeatResultToInvoiceUpdate(parsed, {
+            invoice: stored,
+            isProduction: true,
+          }),
+        });
+      } catch (error) {
+        // El registro ya está en la cadena y debe quedarse: se marca el fallo
+        // de envío para que el reintento lo recoja, no se borra.
+        stored = await invoiceStore.update(stored.id, {
+          verifactu_status: "error_envio",
+          verifactu_response: String(error?.message || error),
+          verifactu_diagnostico: "error_envio",
+        });
+      }
+    }
+
+    return {
+      success: true,
+      organization_id: organizationId,
+      anulacion: stored,
+      factura_anulada: {
+        id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        issue_date: invoice.issue_date,
+      },
+    };
+  } finally {
+    release();
+  }
 };
 
 export const testVerifactuSandbox = async ({ payload = {}, currentUser }) => {

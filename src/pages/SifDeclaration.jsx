@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { FileCheck, AlertTriangle } from "lucide-react";
 import {
   PRODUCER,
@@ -87,15 +88,25 @@ export default function SifDeclaration() {
 
       {PRODUCER.historicoUrl && (
         <p className="text-xs text-muted-foreground">
-          Histórico de declaraciones responsables de todas las versiones:{" "}
-          <a
-            href={PRODUCER.historicoUrl}
-            className="underline underline-offset-2"
-            target="_blank"
-            rel="noreferrer"
-          >
-            {PRODUCER.historicoUrl}
-          </a>
+          La declaración responsable es por versión concreta.{" "}
+          {PRODUCER.historicoUrl.startsWith("/") ? (
+            <Link
+              to={PRODUCER.historicoUrl}
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              Consulta el histórico de todas las versiones
+            </Link>
+          ) : (
+            <a
+              href={PRODUCER.historicoUrl}
+              className="underline underline-offset-2"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Consulta el histórico de todas las versiones
+            </a>
+          )}
+          .
         </p>
       )}
     </div>

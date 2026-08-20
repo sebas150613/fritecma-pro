@@ -53,6 +53,16 @@ const euro = (n) =>
 
 const PAYMENT_METHODS = ["Transferencia", "Recibo domiciliado", "Efectivo", "Tarjeta", "Bizum"];
 
+// Estados en los que un registro ya se remitio (o se simulo) y por tanto admite
+// un registro de anulacion. Debe cuadrar con ANULABLE_STATUSES del servidor
+// (server/services/verifactu-anulacion.js); el servidor manda.
+const ANULABLE_STATUSES = new Set([
+  "aceptado",
+  "aceptado_con_errores",
+  "duplicado",
+  "validado_sandbox",
+]);
+
 const PERIOD_LABELS = { mensual: "Mensual", trimestral: "Trimestral", semestral: "Semestral", anual: "Anual" };
 const PERIOD_MONTHS = { mensual: 1, trimestral: 3, semestral: 6, anual: 12 };
 const advancePeriod = (dateStr, periodicity) =>
@@ -77,6 +87,9 @@ export default function Invoices() {
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exportingRegistros, setExportingRegistros] = useState(false);
+  const [anulRegDialog, setAnulRegDialog] = useState(null);
+  const [anulRegMotivo, setAnulRegMotivo] = useState("");
+  const [anulRegBusy, setAnulRegBusy] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [monthFilter, setMonthFilter] = useState("all");
@@ -140,8 +153,22 @@ export default function Invoices() {
     return [...set].sort().reverse();
   }, [invoices]);
 
+  // Los registros de anulación (art. 11 RRSIF) viven en la misma cadena que las
+  // facturas, pero no son facturas: no se listan como tales. Se muestran como
+  // un distintivo sobre la factura que anulan.
+  const anuladasIds = useMemo(
+    () =>
+      new Set(
+        invoices
+          .filter((inv) => inv.record_type === "anulacion")
+          .map((inv) => inv.factura_anulada_id)
+      ),
+    [invoices]
+  );
+
   const filtered = useMemo(() => {
     return invoices.filter((inv) => {
+      if (inv.record_type === "anulacion") return false;
       if (statusFilter !== "all" && inv.verifactu_status !== statusFilter) return false;
       if (cobroFilter !== "all" && paymentInfo(inv).key !== cobroFilter) return false;
       if (monthFilter !== "all" && (!inv.issue_date || !moment(inv.issue_date).format("YYYY-MM").startsWith(monthFilter))) return false;
@@ -459,6 +486,29 @@ export default function Invoices() {
       await loadData();
     } catch (err) {
       toast.error(err?.message || "No se pudo actualizar el cobro.");
+    }
+  };
+
+  /**
+   * Registro de facturación de anulación (art. 11 RD 1007/2023): retira el
+   * registro ante la AEAT. No borra la factura ni emite una rectificativa.
+   */
+  const anularRegistro = async () => {
+    if (!anulRegDialog || !anulRegMotivo.trim()) return;
+    setAnulRegBusy(true);
+    try {
+      await appApi.functions.invoke("anularRegistroFacturacion", {
+        invoice_id: anulRegDialog.id,
+        motivo: anulRegMotivo.trim(),
+      });
+      toast.success(`Registro de anulación emitido para ${anulRegDialog.invoice_number}.`);
+      setAnulRegDialog(null);
+      setAnulRegMotivo("");
+      await loadData();
+    } catch (err) {
+      toast.error(err?.message || "No se pudo emitir el registro de anulación.");
+    } finally {
+      setAnulRegBusy(false);
     }
   };
 
@@ -795,9 +845,27 @@ export default function Invoices() {
                                 className="block text-[10px] text-red-500 hover:underline mt-1"
                                 onClick={() => { setAnnulDialog(inv); setAnnulMotivo(""); }}
                               >
-                                Anular
+                                Rectificar en negativo
                               </button>
                             )}
+                          {/* Registro de anulación (art. 11 RRSIF): retira el
+                              registro ante la AEAT. Distinto de rectificar. */}
+                          {canManagePayments &&
+                            ANULABLE_STATUSES.has(inv.verifactu_status) &&
+                            !anuladasIds.has(inv.id) && (
+                              <button
+                                type="button"
+                                className="block text-[10px] text-amber-600 hover:underline mt-1"
+                                onClick={() => { setAnulRegDialog(inv); setAnulRegMotivo(""); }}
+                              >
+                                Anular registro AEAT
+                              </button>
+                            )}
+                          {anuladasIds.has(inv.id) && (
+                            <span className="block text-[10px] text-amber-700 mt-1 font-medium">
+                              Registro anulado
+                            </span>
+                          )}
                         </span>
                       )}
                     </td>
@@ -1078,6 +1146,62 @@ export default function Invoices() {
             >
               {freeBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Receipt className="h-4 w-4 mr-2" />}
               Facturar con Veri*factu
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: registro de anulación ante la AEAT (art. 11 RRSIF) */}
+      <Dialog
+        open={!!anulRegDialog}
+        onOpenChange={(o) => !anulRegBusy && !o && setAnulRegDialog(null)}
+      >
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-amber-700">Anular registro ante la AEAT</DialogTitle>
+          </DialogHeader>
+          <div className="min-w-0 space-y-4">
+            <div className="rounded-xl border border-border bg-muted/20 p-3 text-sm">
+              <p className="font-mono text-xs">{anulRegDialog?.invoice_number}</p>
+              <p className="font-medium">{anulRegDialog?.client_name}</p>
+              <p className="font-bold mt-1">{euro(anulRegDialog?.total)}</p>
+            </div>
+
+            <div className="text-xs space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
+              <p>
+                <strong>Esto no es una rectificativa.</strong> El registro de anulación
+                retira ante Hacienda el registro de esta factura, para cuando no debió
+                existir: emitida por error, duplicada o al cliente equivocado.
+              </p>
+              <p>
+                Si lo que quieres es corregir un importe, usa{" "}
+                <strong>Rectificar en negativo</strong>: eso emite una factura
+                rectificativa y deja la original en pie.
+              </p>
+              <p>
+                La factura no se borra ni se modifica: se añade un registro posterior a
+                la cadena, como exige la normativa.
+              </p>
+            </div>
+
+            <div>
+              <Label className="text-xs">Motivo de la anulación *</Label>
+              <Input
+                className="mt-1 rounded-xl"
+                placeholder="Ej: emitida al cliente equivocado"
+                value={anulRegMotivo}
+                onChange={(e) => setAnulRegMotivo(e.target.value)}
+              />
+            </div>
+
+            <Button
+              variant="destructive"
+              className="w-full rounded-xl"
+              onClick={anularRegistro}
+              disabled={anulRegBusy || !anulRegMotivo.trim()}
+            >
+              {anulRegBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Emitir registro de anulación
             </Button>
           </div>
         </DialogContent>

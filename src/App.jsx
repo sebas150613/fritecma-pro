@@ -25,6 +25,7 @@ import Clients from './pages/Clients';
 import AppSettings from './pages/AppSettings';
 import AccountSettings from './pages/AccountSettings';
 import SifDeclaration from './pages/SifDeclaration';
+import SifDeclarationHistory from './pages/SifDeclarationHistory';
 import TimeRecords from './pages/TimeRecords';
 import GasBottles from './pages/GasBottles';
 import StockMovements from './pages/StockMovements';
@@ -163,6 +164,8 @@ const AuthenticatedApp = () => {
           {/* Art. 13.2 RD 1007/2023: la declaración responsable debe constar de
               modo visible en el propio sistema informático. */}
           <Route path="/declaracion-responsable" element={<SifDeclaration />} />
+          {/* Art. 13.3: conservar las declaraciones de todas las versiones. */}
+          <Route path="/declaracion-responsable/historico" element={<SifDeclarationHistory />} />
           <Route path="*" element={<PageNotFound />} />
         </Route>
       </Route>

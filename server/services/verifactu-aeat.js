@@ -86,6 +86,32 @@ export const computeAeatInvoiceFingerprint = ({
   return createHash("sha256").update(hashInput, "utf8").digest("hex").toUpperCase();
 };
 
+/**
+ * Huella del registro de facturación de ANULACIÓN.
+ *
+ * Se calcula sobre un subconjunto distinto del de alta. Orden HAC/1177/2024,
+ * art. 13.1.b): "1.º NIF del emisor. 2.º Numero de factura y serie. 3.º Fecha
+ * de expedición de la factura. 4.º Huella del registro de facturación anterior.
+ * 5.º Fecha, hora y huso horario de generación del registro."
+ */
+export const computeAeatAnulacionFingerprint = ({
+  issuerNif,
+  invoiceNumber,
+  issueDate,
+  previousHash,
+  generatedAt,
+}) => {
+  const hashInput = [
+    `IDEmisorFacturaAnulada=${safe(issuerNif)}`,
+    `NumSerieFacturaAnulada=${safe(invoiceNumber)}`,
+    `FechaExpedicionFacturaAnulada=${formatAeatDate(issueDate)}`,
+    `Huella=${safe(previousHash)}`,
+    `FechaHoraHusoGenRegistro=${formatOffsetDateTime(generatedAt || issueDate)}`,
+  ].join("&");
+
+  return createHash("sha256").update(hashInput, "utf8").digest("hex").toUpperCase();
+};
+
 const buildPartyXml = ({ name, nif, fallbackId }) => {
   if (safe(nif)) {
     return `<sum1:NombreRazon>${escapeXml(name || "CLIENTE VARIOS")}</sum1:NombreRazon><sum1:NIF>${escapeXml(
@@ -272,6 +298,85 @@ export const buildVerifactuSoapEnvelope = ({
           <sum1:TipoHuella>01</sum1:TipoHuella>
           <sum1:Huella>${escapeXml(invoice.hash_huella)}</sum1:Huella>
         </sum1:RegistroAlta>
+      </sum:RegistroFactura>
+    </sum:RegFactuSistemaFacturacion>
+  </soapenv:Body>
+</soapenv:Envelope>`;
+};
+
+/**
+ * Envelope SOAP del registro de facturación de ANULACIÓN (art. 11 RRSIF).
+ *
+ * Se usa para retirar un registro que no debió existir. No sustituye a la
+ * rectificativa: esa corrige el importe conservando el original; esta anula el
+ * registro. Ambos caminos dejan el registro original inalterado, como exige el
+ * art. 8.2.a.
+ *
+ * @param {object} p
+ * @param {object} p.record        registro de anulación ya generado (con su huella)
+ * @param {object} p.annulled      factura anulada
+ * @param {object} p.previousRecord último registro de la cadena, o null
+ */
+export const buildVerifactuAnulacionEnvelope = ({
+  record,
+  annulled,
+  issuerNif,
+  issuerName,
+  previousRecord,
+  generatedAt,
+}) => {
+  const previousXml = previousRecord?.hash_huella
+    ? `<sum1:RegistroAnterior><sum1:IDEmisorFactura>${escapeXml(
+        previousRecord.issuer_nif || issuerNif
+      )}</sum1:IDEmisorFactura><sum1:NumSerieFactura>${escapeXml(
+        previousRecord.invoice_number
+      )}</sum1:NumSerieFactura><sum1:FechaExpedicionFactura>${formatAeatDate(
+        previousRecord.issue_date
+      )}</sum1:FechaExpedicionFactura><sum1:Huella>${escapeXml(
+        previousRecord.hash_huella
+      )}</sum1:Huella></sum1:RegistroAnterior>`
+    : "<sum1:PrimerRegistro>S</sum1:PrimerRegistro>";
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:sum="${NS_SUM}" xmlns:sum1="${NS_INFO}">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <sum:RegFactuSistemaFacturacion>
+      <sum:Cabecera>
+        <sum1:ObligadoEmision>
+          <sum1:NombreRazon>${escapeXml(issuerName)}</sum1:NombreRazon>
+          <sum1:NIF>${escapeXml(issuerNif)}</sum1:NIF>
+        </sum1:ObligadoEmision>
+      </sum:Cabecera>
+      <sum:RegistroFactura>
+        <sum1:RegistroAnulacion>
+          <sum1:IDVersion>1.0</sum1:IDVersion>
+          <sum1:IDFactura>
+            <sum1:IDEmisorFacturaAnulada>${escapeXml(
+              issuerNif
+            )}</sum1:IDEmisorFacturaAnulada>
+            <sum1:NumSerieFacturaAnulada>${escapeXml(
+              annulled.invoice_number
+            )}</sum1:NumSerieFacturaAnulada>
+            <sum1:FechaExpedicionFacturaAnulada>${formatAeatDate(
+              annulled.issue_date
+            )}</sum1:FechaExpedicionFacturaAnulada>
+          </sum1:IDFactura>
+          <sum1:SinRegistroPrevio>N</sum1:SinRegistroPrevio>
+          <sum1:RechazoPrevio>N</sum1:RechazoPrevio>
+          <sum1:GeneradoPor>E</sum1:GeneradoPor>
+          <sum1:Generador>
+            <sum1:NombreRazon>${escapeXml(issuerName)}</sum1:NombreRazon>
+            <sum1:NIF>${escapeXml(issuerNif)}</sum1:NIF>
+          </sum1:Generador>
+          <sum1:Encadenamiento>${previousXml}</sum1:Encadenamiento>
+          ${buildSystemXml()}
+          <sum1:FechaHoraHusoGenRegistro>${formatOffsetDateTime(
+            generatedAt || record.issue_date
+          )}</sum1:FechaHoraHusoGenRegistro>
+          <sum1:TipoHuella>01</sum1:TipoHuella>
+          <sum1:Huella>${escapeXml(record.hash_huella)}</sum1:Huella>
+        </sum1:RegistroAnulacion>
       </sum:RegistroFactura>
     </sum:RegFactuSistemaFacturacion>
   </soapenv:Body>

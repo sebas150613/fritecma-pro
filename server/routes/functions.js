@@ -8,6 +8,7 @@ import { requireWritableLicense } from "../lib/license.js";
 import { mergeDecryptedOrgSecretsForServer } from "../lib/tenant.js";
 import { sendEmail } from "../services/email-service.js";
 import {
+  anularRegistroFacturacion,
   exportInvoiceRecords,
   processVerifactu,
   processVerifactuRetry,
@@ -20,6 +21,8 @@ import {
 
 const router = express.Router();
 const functionHandlers = {
+  anularRegistroFacturacion: ({ payload, currentUser }) =>
+    anularRegistroFacturacion({ payload, currentUser }),
   exportInvoiceRecords: ({ payload, currentUser }) =>
     exportInvoiceRecords({ payload, currentUser }),
   processVerifactu: ({ payload, currentUser }) =>

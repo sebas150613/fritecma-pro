@@ -29,8 +29,8 @@ export const PRODUCER = {
   email: "",
   web: "",
   // Art. 13.3: hay que conservar y poder consultar las declaraciones de TODAS
-  // las versiones publicadas. Publica esta URL antes de comercializar.
-  historicoUrl: "",
+  // las versiones publicadas. Vive dentro del propio sistema.
+  historicoUrl: "/declaracion-responsable/historico",
 };
 
 /** Identificación del sistema. Debe cuadrar con las variables APP_VERIFACTU_*. */
@@ -59,6 +59,41 @@ export const isDeclarationComplete = () =>
       SIGNATURE.fecha &&
       SIGNATURE.lugar
   );
+
+/**
+ * Histórico de declaraciones responsables (art. 13.3 RD 1007/2023).
+ *
+ * "deberá guardar y conservar las declaraciones responsables de TODAS las
+ * versiones de los sistemas informáticos producidos o comercializados"
+ *
+ * La declaración es por versión concreta, así que al publicar una versión nueva
+ * la anterior NO se sustituye: se archiva aquí.
+ *
+ * CÓMO ARCHIVAR UNA VERSIÓN, al sacar la siguiente:
+ *   1. Abre /declaracion-responsable/historico con la versión aún publicada.
+ *   2. Pulsa "Copiar instantánea de esta versión": deja en el portapapeles el
+ *      objeto ya construido, con el texto congelado tal y como se declaró.
+ *   3. Pégalo al principio de este array.
+ *   4. Sube la versión en package.json y actualiza SIGNATURE.
+ *
+ * Se congela el texto renderizado, no una referencia al código: si mañana
+ * cambia la redacción de un apartado, lo archivado debe seguir diciendo lo que
+ * se declaró en su día.
+ */
+export const DECLARATION_HISTORY = [];
+
+/** Construye la instantánea archivable de una versión. */
+export const buildDeclarationSnapshot = (version) => ({
+  version,
+  fecha: SIGNATURE.fecha,
+  lugar: SIGNATURE.lugar,
+  firmada: SIGNED,
+  productor: { ...PRODUCER },
+  sistema: { ...SYSTEM },
+  apartados: buildDeclarationSections(version),
+  anexo: buildAnnexSections(),
+  archivadaEl: new Date().toISOString().slice(0, 10),
+});
 
 const productorLabel = () =>
   PRODUCER.tipo === "persona" ? "persona productora" : "entidad productora";

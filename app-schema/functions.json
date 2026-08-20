@@ -1,5 +1,13 @@
 [
   {
+    "name": "anularRegistroFacturacion",
+    "roles": [
+      "admin",
+      "superadmin",
+      "oficina"
+    ]
+  },
+  {
     "name": "exportInvoiceRecords",
     "roles": [
       "admin",

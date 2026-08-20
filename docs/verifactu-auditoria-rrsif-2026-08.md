@@ -12,7 +12,7 @@
 > | 6 | Sin detección de alteraciones | **Corregido y ampliado** — ver la corrección del apartado 3 |
 > | 7 | Exportación de registros insuficiente | **Corregido** — volcado XML UTF-8 con huella y encadenamiento |
 > | 8 | VPS sin backups de BD | **Corregido** — timer diario a las 03:30, copia por organización + volcado completo |
-> | 9 | Sin `RegistroAnulacion` | **Pendiente** — decisión, no está claro que sea exigible |
+> | 9 | Sin `RegistroAnulacion` | **Implementado** — registro propio en la cadena, con su huella de 5 campos |
 >
 > Verificado: 57 tests (`npm test`), una prueba en vivo de 22 comprobaciones contra el servidor real para el acceso disociado, recorrido manual en navegador y **`npm run release:check` 18/18**.
 >
@@ -163,7 +163,15 @@ Verificado en vivo levantando el servidor real: 22 comprobaciones, incluidas las
 | Registro de alta (art. 9 y 10) | **Implementado.** `RegistroAlta` construido en [verifactu-aeat.js:207](server/services/verifactu-aeat.js#L207) |
 | **Registro de anulación (art. 11)** | **No implementado.** No existe `RegistroAnulacion` en el código |
 
-Sobre el registro de anulación: FriGest corrige mediante facturas rectificativas, que es el camino que pide el art. 8.2.a. El `RegistroAnulacion` sirve para anular un registro de facturación previamente enviado. **A confirmar** si un SIF debe soportarlo siempre o solo si permite ese supuesto. No me atrevo a darlo por prescindible.
+**Implementado el 2026-08-20.** FriGest ya corregía mediante rectificativas, que es el camino que pide el art. 8.2.a, pero eso no cubre el supuesto de un registro que no debió existir: una factura emitida por error, duplicada o al cliente equivocado.
+
+El registro de anulación vive en `server/services/verifactu-anulacion.js` y ocupa su propia posición en la cadena de huellas, igual que un alta. Su huella se calcula sobre un subconjunto **distinto**, verificado contra el texto de la Orden HAC/1177/2024, art. 13.1.b):
+
+> b) Para el registro de facturación de anulación: 1.º NIF del emisor. 2.º Numero de factura y serie. 3.º Fecha de expedición de la factura. 4.º Huella del registro de facturación anterior. 5.º Fecha, hora y huso horario de generación del registro.
+
+Cinco campos frente a los ocho del alta. `auditInvoiceChain` distingue ambos tipos, y la exportación emite `<RegistroAnulacion>` en vez de `<RegistroFacturacion>`.
+
+Reglas aplicadas: no se puede anular una anulación, ni anular dos veces la misma factura (409), ni anular un registro que no se ha remitido (422), y el motivo es obligatorio. La factura anulada **no se borra ni se modifica**: se añade un registro posterior, como manda el art. 8.2.a. En la interfaz es una acción distinta de «Rectificar en negativo», y el diálogo explica cuándo usar cada una.
 
 ---
 

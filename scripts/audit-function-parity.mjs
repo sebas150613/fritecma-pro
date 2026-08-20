@@ -14,6 +14,8 @@ const normalizeNames = (names) => [...new Set(names)].sort();
 const POST_MIGRATION_FUNCTIONS = new Set([
   // Volcado de registros de facturación (art. 8.2.c RD 1007/2023).
   "exportInvoiceRecords",
+  // Registro de facturación de anulación (art. 11 RD 1007/2023).
+  "anularRegistroFacturacion",
 ]);
 
 const main = async () => {

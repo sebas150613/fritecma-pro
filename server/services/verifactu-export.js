@@ -13,6 +13,7 @@
  */
 import { HttpError } from "../lib/http-error.js";
 import { escapeXml } from "./verifactu-aeat.js";
+import { isAnulacion } from "./verifactu-anulacion.js";
 
 const FISCAL_INVOICE_STATUSES = new Set([
   "aceptado",
@@ -57,10 +58,33 @@ export const buildInvoiceRecordsXml = ({
         Number(a.invoice_chain_index || 0) - Number(b.invoice_chain_index || 0)
     );
 
+  const comunes = (invoice) => `    <IndiceCadena>${text(
+    invoice.invoice_chain_index
+  )}</IndiceCadena>
+    <HuellaAnterior>${text(invoice.hash_anterior)}</HuellaAnterior>
+    <Huella>${text(invoice.hash_huella)}</Huella>
+    <TipoHuella>01</TipoHuella>
+    <EstadoRegistro>${text(invoice.verifactu_status)}</EstadoRegistro>
+    <CSV>${text(invoice.verifactu_csv)}</CSV>
+    <IDRegistroAEAT>${text(invoice.verifactu_idregistro)}</IDRegistroAEAT>
+    <FechaHoraRegistro>${text(invoice.verifactu_timestamp)}</FechaHoraRegistro>`;
+
   const body = records
-    .map(
-      (invoice) => `  <RegistroFacturacion>
-    <IndiceCadena>${text(invoice.invoice_chain_index)}</IndiceCadena>
+    .map((invoice) =>
+      isAnulacion(invoice)
+        ? `  <RegistroAnulacion>
+${comunes(invoice)}
+    <IDEmisorFacturaAnulada>${text(invoice.issuer_nif)}</IDEmisorFacturaAnulada>
+    <NumSerieFacturaAnulada>${text(
+      invoice.factura_anulada_number || invoice.invoice_number
+    )}</NumSerieFacturaAnulada>
+    <FechaExpedicionFacturaAnulada>${text(
+      invoice.factura_anulada_issue_date
+    )}</FechaExpedicionFacturaAnulada>
+    <Motivo>${text(invoice.anulacion_motivo)}</Motivo>
+  </RegistroAnulacion>`
+        : `  <RegistroFacturacion>
+${comunes(invoice)}
     <IDEmisorFactura>${text(invoice.issuer_nif)}</IDEmisorFactura>
     <NombreEmisor>${text(invoice.issuer_name)}</NombreEmisor>
     <NumSerieFactura>${text(invoice.invoice_number)}</NumSerieFactura>
@@ -71,13 +95,6 @@ export const buildInvoiceRecordsXml = ({
     <BaseImponible>${amount(invoice.subtotal)}</BaseImponible>
     <CuotaTotal>${amount(invoice.iva_total)}</CuotaTotal>
     <ImporteTotal>${amount(invoice.total)}</ImporteTotal>
-    <HuellaAnterior>${text(invoice.hash_anterior)}</HuellaAnterior>
-    <Huella>${text(invoice.hash_huella)}</Huella>
-    <TipoHuella>01</TipoHuella>
-    <EstadoRegistro>${text(invoice.verifactu_status)}</EstadoRegistro>
-    <CSV>${text(invoice.verifactu_csv)}</CSV>
-    <IDRegistroAEAT>${text(invoice.verifactu_idregistro)}</IDRegistroAEAT>
-    <FechaHoraRegistro>${text(invoice.verifactu_timestamp)}</FechaHoraRegistro>
   </RegistroFacturacion>`
     )
     .join("\n");
