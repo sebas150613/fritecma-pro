@@ -1,12 +1,14 @@
 import express from "express";
 import { asyncHandler } from "../lib/async-handler.js";
 import { requireAuth } from "../lib/auth.js";
+import { assertFiscalSessionAllowsFunction } from "../lib/fiscal-session.js";
 import { getFunctionDefinition } from "../lib/function-registry.js";
 import { HttpError, notImplemented } from "../lib/http-error.js";
 import { requireWritableLicense } from "../lib/license.js";
 import { mergeDecryptedOrgSecretsForServer } from "../lib/tenant.js";
 import { sendEmail } from "../services/email-service.js";
 import {
+  exportInvoiceRecords,
   processVerifactu,
   processVerifactuRetry,
   retryVerifactuSubmissions,
@@ -18,6 +20,8 @@ import {
 
 const router = express.Router();
 const functionHandlers = {
+  exportInvoiceRecords: ({ payload, currentUser }) =>
+    exportInvoiceRecords({ payload, currentUser }),
   processVerifactu: ({ payload, currentUser }) =>
     processVerifactu({ payload, currentUser }),
   processVerifactuRetry: ({ payload, currentUser }) =>
@@ -51,6 +55,9 @@ router.post(
         throw new HttpError(403, "Forbidden");
       }
     };
+
+    // Disociación del acceso (art. 8.4 RRSIF).
+    assertFiscalSessionAllowsFunction(req.params.name, req);
 
     const definition = getFunctionDefinition(req.params.name);
     const handler = functionHandlers[req.params.name];

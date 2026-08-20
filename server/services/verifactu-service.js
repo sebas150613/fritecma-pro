@@ -1,5 +1,6 @@
 import { createJsonEntityStore, createJsonFileStore } from "../lib/json-store.js";
 import { HttpError } from "../lib/http-error.js";
+import { createExportInvoiceRecords } from "./verifactu-export.js";
 import {
   DEFAULT_ORGANIZATION_ID,
   decryptOrganizationSettingsFromStorage,
@@ -18,6 +19,10 @@ import {
 } from "./verifactu-aeat.js";
 
 const invoiceStore = createJsonEntityStore("Invoice");
+
+// Exportacion de registros de facturacion (art. 8.2.c RD 1007/2023). Vive en su
+// propio modulo; aqui solo se le inyecta el almacen y se reexpone.
+export const exportInvoiceRecords = createExportInvoiceRecords({ invoiceStore });
 const interventionStore = createJsonEntityStore("Intervention");
 const clientStore = createJsonEntityStore("Client");
 const budgetStore = createJsonEntityStore("Budget");
@@ -1393,18 +1398,41 @@ export const sendClockInNotifications = async ({ payload = {}, sendEmail }) => {
   };
 };
 
-export const verifyInvoiceHashes = async ({ sendEmail }) => {
-  const invoices = await invoiceStore.list({ sort: "-issue_date", limit: 500 });
-  const fiscalInvoices = invoices.filter((invoice) =>
-    ["aceptado", "aceptado_con_errores", "validado_sandbox", "duplicado"].includes(
-      invoice.verifactu_status
-    )
-  );
+const FISCAL_INVOICE_STATUSES = [
+  "aceptado",
+  "aceptado_con_errores",
+  "validado_sandbox",
+  "duplicado",
+];
+
+/**
+ * Recorre una cadena de registros de facturación YA acotada a una organización
+ * y devuelve las anomalías encontradas (art. 8.2.a y 8.2.b RD 1007/2023).
+ *
+ * La norma considera alteración tanto la modificación de un registro como "la
+ * ocultación o eliminación" de cualquiera de ellos, así que no basta con
+ * recalcular la huella de cada factura por separado: hay que comprobar que cada
+ * eslabón apunta al anterior y que no falta ninguno.
+ *
+ * Función pura: recibe las facturas y no toca almacenamiento ni correo.
+ */
+export const auditInvoiceChain = (invoices = []) => {
+  const fiscalInvoices = invoices
+    .filter((invoice) => FISCAL_INVOICE_STATUSES.includes(invoice.verifactu_status))
+    .sort(
+      (a, b) =>
+        Number(a.invoice_chain_index || 0) - Number(b.invoice_chain_index || 0)
+    );
 
   const tampered = [];
   const verified = [];
+  let previous = null;
 
   for (const invoice of fiscalInvoices) {
+    const problems = [];
+
+    // 1. Integridad del registro: la huella almacenada debe reproducirse a
+    //    partir de los datos que la generaron.
     const computedHash = computeInvoiceFingerprint({
       invoiceNumber: invoice.invoice_number,
       issueDate: invoice.issue_date,
@@ -1417,6 +1445,29 @@ export const verifyInvoiceHashes = async ({ sendEmail }) => {
     });
 
     if (computedHash !== invoice.hash_huella) {
+      problems.push("la huella no coincide con los datos de la factura");
+    }
+
+    // 2. Trazabilidad: el eslabón tiene que apuntar al anterior de la cadena.
+    const expectedPrevious = previous?.hash_huella || "";
+    if ((invoice.hash_anterior || "") !== expectedPrevious) {
+      problems.push(
+        previous
+          ? `el hash anterior no apunta a ${previous.invoice_number}`
+          : "declara un hash anterior pero es la primera factura de la cadena"
+      );
+    }
+
+    // 3. Continuidad: un índice que salta delata un registro eliminado.
+    const expectedIndex = Number(previous?.invoice_chain_index || 0) + 1;
+    const actualIndex = Number(invoice.invoice_chain_index || 0);
+    if (actualIndex !== expectedIndex) {
+      problems.push(
+        `ruptura de secuencia: se esperaba el índice ${expectedIndex} y consta ${actualIndex}`
+      );
+    }
+
+    if (problems.length > 0) {
       tampered.push({
         invoice_id: invoice.id,
         invoice_number: invoice.invoice_number,
@@ -1425,47 +1476,90 @@ export const verifyInvoiceHashes = async ({ sendEmail }) => {
         computed_hash: computedHash,
         client_name: invoice.client_name,
         total: invoice.total,
+        chain_index: actualIndex,
+        problems,
       });
     } else {
       verified.push(invoice.invoice_number);
     }
+
+    previous = invoice;
   }
 
-  if (tampered.length > 0) {
+  return { fiscalInvoices, verified, tampered };
+};
+
+/**
+ * Comprobación de integridad lanzable a demanda, acotada a UNA organización: la
+ * cadena es por obligado tributario, y el aviso de anomalía solo puede ir a los
+ * administradores de esa misma organización.
+ */
+export const verifyInvoiceHashes = async ({ payload = {}, currentUser, sendEmail }) => {
+  const organizationId =
+    payload?.organization_id ||
+    currentUser?.current_organization?.id ||
+    currentUser?.organization_id ||
+    null;
+
+  if (!organizationId) {
+    throw new HttpError(
+      400,
+      "No se pudo determinar la organización cuya cadena de facturación se quiere verificar."
+    );
+  }
+
+  // Sin tope: una comprobación de integridad que solo mira las últimas N
+  // facturas deja de ser una comprobación de integridad.
+  const invoices = await invoiceStore.filter({
+    filter: { organization_id: organizationId },
+    sort: "invoice_chain_index",
+  });
+
+  const { fiscalInvoices, verified, tampered } = auditInvoiceChain(invoices);
+
+  if (tampered.length > 0 && typeof sendEmail === "function") {
+    // El aviso va solo a los administradores de ESTA organización: una anomalía
+    // en la cadena de un obligado tributario no es asunto de los demás.
     const userStore = createJsonEntityStore("User");
-    const adminUsers = await userStore.list({ sort: "full_name", limit: 200 });
-    const recipients = adminUsers.filter((user) =>
-      ["admin", "superadmin"].includes(user.role)
+    const orgUsers = await userStore.filter({
+      filter: { organization_id: organizationId },
+      sort: "full_name",
+    });
+    const recipients = orgUsers.filter(
+      (user) => ["admin", "superadmin"].includes(user.role) && user.email
     );
 
     const alertBody = [
       "ALERTA DE INTEGRIDAD VERIFACTU",
       "",
-      `Se han detectado ${tampered.length} factura(s) cuyo hash actual no coincide con el original.`,
+      `Se han detectado ${tampered.length} anomalía(s) en la cadena de registros de facturación.`,
       "",
       ...tampered.map(
         (item) =>
           `- ${item.invoice_number} · ${item.client_name} · ${formatIsoDate(
             item.issue_date
-          )} · ${clampMoney(item.total).toFixed(2)} EUR`
+          )} · ${clampMoney(item.total).toFixed(2)} EUR\n    ${item.problems.join(
+            "; "
+          )}`
       ),
+      "",
+      "Revisa estos registros: la normativa exige conservarlos inalterados.",
     ].join("\n");
 
     await Promise.allSettled(
-      recipients
-        .filter((user) => user.email)
-        .map((admin) =>
-          sendEmail({
-            to: admin.email,
-            subject: `ALERTA INTEGRIDAD FISCAL - ${tampered.length} factura(s)`,
-            body: alertBody,
-          })
-        )
+      recipients.map((admin) =>
+        sendEmail({
+          to: admin.email,
+          subject: `ALERTA INTEGRIDAD FISCAL - ${tampered.length} anomalia(s)`,
+          body: alertBody,
+        })
+      )
     );
   }
 
   return {
     success: true,
+    organization_id: organizationId,
     total_checked: fiscalInvoices.length,
     verified: verified.length,
     tampered: tampered.length,

@@ -816,7 +816,7 @@ export const assertCanAccessTargetUser = async (
 
 export const createSessionForUser = async (
   userId,
-  { allowHiddenOwner = false, organizationId = null } = {}
+  { allowHiddenOwner = false, organizationId = null, fiscalOnly = false } = {}
 ) => {
   await ensureSaasBootstrap();
   const user = await getUserById(userId);
@@ -843,6 +843,8 @@ export const createSessionForUser = async (
       organizationId: DEFAULT_ORGANIZATION_ID,
       createdAt: new Date(now).toISOString(),
       expiresAt: new Date(now + serverConfig.sessionTtlMs).toISOString(),
+      // Modo consulta para la Administracion tributaria (art. 8.4 RRSIF).
+      fiscalOnly: fiscalOnly === true,
     };
     await mutateSessions((sessions) => {
       sessions[token] = sessionRecord;
@@ -874,6 +876,8 @@ export const createSessionForUser = async (
     organizationId: selectedMembership.organization_id,
     createdAt: new Date(now).toISOString(),
     expiresAt: new Date(now + serverConfig.sessionTtlMs).toISOString(),
+    // Modo consulta para la Administracion tributaria (art. 8.4 RRSIF).
+    fiscalOnly: fiscalOnly === true,
   };
   await mutateSessions((sessions) => {
     sessions[token] = sessionRecord;
@@ -891,7 +895,7 @@ export const createSessionForUser = async (
 export const createSessionForCredentials = async (
   email,
   password,
-  { allowHiddenOwner = false, organizationId = null } = {}
+  { allowHiddenOwner = false, organizationId = null, fiscalOnly = false } = {}
 ) => {
   await ensureSaasBootstrap();
   const candidate = await getUserByEmail(email);
@@ -915,6 +919,7 @@ export const createSessionForCredentials = async (
   return createSessionForUser(candidate.id, {
     allowHiddenOwner,
     organizationId,
+    fiscalOnly,
   });
 };
 
@@ -979,6 +984,26 @@ export const invalidateSessionToken = async (token) => {
   });
 };
 
+/**
+ * Marca la petición si viene de una sesión de consulta para la Administración
+ * tributaria (art. 8.4 RRSIF), sin resolver el usuario completo.
+ *
+ * Va montado ANTES de los routers para que `blockFiscalSession` pueda decidir:
+ * `requireAuth` corre dentro de cada router, demasiado tarde para eso.
+ */
+export const attachFiscalSessionFlag = async (req, _res, next) => {
+  try {
+    const token = extractToken(req);
+    if (token) {
+      const sessions = await readSessions();
+      req.fiscalOnlySession = sessions[token]?.fiscalOnly === true;
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const requireAuth = async (req, _res, next) => {
   try {
     const context = await resolveCurrentAuthContext(req);
@@ -988,6 +1013,9 @@ export const requireAuth = async (req, _res, next) => {
     req.currentOrganizationSettings = context.currentOrganizationSettings;
     req.currentMemberships = context.currentMemberships;
     req.authSessionToken = context.sessionToken;
+    // Sesion de consulta para la Administracion tributaria: solo lectura de
+    // registros de facturacion (server/lib/fiscal-session.js).
+    req.fiscalOnlySession = context.session?.fiscalOnly === true;
     next();
   } catch (error) {
     next(error);

@@ -15,7 +15,8 @@ export type AppApi = {
     loginWithCredentials: (
       email: string,
       password: string,
-      redirectUri?: string
+      redirectUri?: string,
+      fiscalOnly?: boolean
     ) => Promise<any>;
     loginPrivateWithCredentials: (
       email: string,

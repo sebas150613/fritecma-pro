@@ -109,6 +109,42 @@ STRIPE_PRICE_ENTERPRISE=
 
 ---
 
+## VeriFactu — identificación del sistema informático (obligatorio para enviar a la AEAT)
+
+Estos valores viajan en el bloque `<SistemaInformatico>` de **cada** envío y describen al **productor del software**, no al cliente que factura. Tienen que coincidir campo a campo con la declaración responsable publicada ([`declaracion-responsable-frigest.md`](declaracion-responsable-frigest.md)); si no coinciden, se está declarando a la AEAT algo distinto de lo firmado.
+
+**`APP_VERIFACTU_SOFTWARE_NIF` e `APP_VERIFACTU_INSTALLATION_ID` no tienen valor por defecto a propósito.** Si faltan, el envío se corta con un error 500 en vez de inventarse un dato: antes el NIF caía al del obligado tributario, con lo que cada cliente declaraba haber fabricado FriGest.
+
+```bash
+# NIF de la persona o entidad PRODUCTORA del software (apartado 1.i de la declaración)
+APP_VERIFACTU_SOFTWARE_NIF=<NIF_del_productor>
+
+# Número de instalación: identifica este despliegue concreto
+APP_VERIFACTU_INSTALLATION_ID=<identificador_de_esta_instalacion>
+
+# Razón social o nombre del productor (apartado 1.h). Por defecto: FRIGEST
+APP_VERIFACTU_SOFTWARE_NAME=
+
+# Nombre y código del sistema (apartados 1.a y 1.b). Por defecto: FRIGEST y 01
+APP_VERIFACTU_SYSTEM_NAME=
+APP_VERIFACTU_SYSTEM_ID=
+
+# Versión declarada (apartado 1.c). Por defecto toma la de package.json,
+# que es lo correcto: la declaración responsable es POR VERSIÓN CONCRETA.
+APP_VERIFACTU_SYSTEM_VERSION=
+
+# S (por defecto) si esta instalación da servicio a varios obligados tributarios
+# a la vez; N en un despliegue dedicado a uno solo.
+APP_VERIFACTU_MULTIPLES_OT=S
+
+# Zona horaria para las marcas de tiempo de los registros
+APP_VERIFACTU_TIMEZONE=Europe/Madrid
+```
+
+`TipoUsoPosibleSoloVerifactu` y `TipoUsoPosibleMultiOT` **no son configurables**: son propiedades del producto (`S` y `S`) fijadas en `server/services/verifactu-aeat.js` y verificadas por `npm run check:verifactu-sif`. Cambiarlas exige rehacer la declaración responsable.
+
+---
+
 ## Otros (según `server/config.js`)
 
 ```bash

@@ -10,6 +10,7 @@ import {
   syncMembershipSnapshotForUser,
 } from "../lib/auth.js";
 import { HttpError } from "../lib/http-error.js";
+import { assertFiscalSessionAllowsEntity } from "../lib/fiscal-session.js";
 import { isKnownEntity } from "../lib/entity-registry.js";
 import { createJsonEntityStore } from "../lib/json-store.js";
 import {
@@ -151,6 +152,9 @@ const assertEntityAccessAllowed = (entityName, req) => {
   if (canAccessHiddenUsers(req.currentUser) && isTenantScopedEntity(entityName)) {
     throw new HttpError(403, "Owner account cannot access tenant operational data");
   }
+  // Disociación del acceso (art. 8.4 RRSIF): una sesión de consulta para la
+  // Administración tributaria solo puede leer registros de facturación.
+  assertFiscalSessionAllowsEntity(entityName, req);
 };
 
 const syncCurrentOrganizationMembership = async (req, user, roleOverride = null) => {

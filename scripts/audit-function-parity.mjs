@@ -8,6 +8,14 @@ const REST_REGISTRY_PATH = path.join(ROOT, "app-schema", "functions.json");
 
 const normalizeNames = (names) => [...new Set(names)].sort();
 
+// Funciones creadas DESPUÉS de la migración: no existen en el sistema heredado
+// y su ausencia allí no es una pérdida de paridad. Añadir aquí solo altas
+// deliberadas; así el audit sigue detectando desapariciones accidentales.
+const POST_MIGRATION_FUNCTIONS = new Set([
+  // Volcado de registros de facturación (art. 8.2.c RD 1007/2023).
+  "exportInvoiceRecords",
+]);
+
 const main = async () => {
   const legacyEntries = await fs.readdir(LEGACY_FUNCTIONS_DIR, {
     withFileTypes: true,
@@ -25,7 +33,8 @@ const main = async () => {
     (name) => !registryFunctions.includes(name)
   );
   const extraInRest = registryFunctions.filter(
-    (name) => !legacyFunctions.includes(name)
+    (name) =>
+      !legacyFunctions.includes(name) && !POST_MIGRATION_FUNCTIONS.has(name)
   );
 
   const ok = missingInRest.length === 0 && extraInRest.length === 0;

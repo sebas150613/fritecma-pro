@@ -24,6 +24,7 @@ import Materials from './pages/Materials';
 import Clients from './pages/Clients';
 import AppSettings from './pages/AppSettings';
 import AccountSettings from './pages/AccountSettings';
+import SifDeclaration from './pages/SifDeclaration';
 import TimeRecords from './pages/TimeRecords';
 import GasBottles from './pages/GasBottles';
 import StockMovements from './pages/StockMovements';
@@ -159,6 +160,9 @@ const AuthenticatedApp = () => {
           <Route path="/breakdowns" element={<Breakdowns />} />
           <Route path="/breakdowns/new" element={<NewBreakdown />} />
           <Route path="/breakdowns/:id" element={<BreakdownDetail />} />
+          {/* Art. 13.2 RD 1007/2023: la declaración responsable debe constar de
+              modo visible en el propio sistema informático. */}
+          <Route path="/declaracion-responsable" element={<SifDeclaration />} />
           <Route path="*" element={<PageNotFound />} />
         </Route>
       </Route>

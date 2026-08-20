@@ -11,6 +11,7 @@ export default function LoginPage() {
   const { isAuthenticated, checkAppState } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fiscalOnly, setFiscalOnly] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
 
@@ -26,9 +27,16 @@ export default function LoginPage() {
     setSubmitting(true);
 
     try {
-      await appApi.auth.loginWithCredentials(email.trim(), password);
+      await appApi.auth.loginWithCredentials(
+        email.trim(),
+        password,
+        undefined,
+        fiscalOnly
+      );
       await checkAppState();
-      navigate("/", { replace: true });
+      // El panel carga datos que una sesión de consulta no puede ver: se entra
+      // directamente a los registros de facturación.
+      navigate(fiscalOnly ? "/invoices" : "/", { replace: true });
     } catch (error) {
       setFormError(
         error?.data?.message ||
@@ -95,8 +103,26 @@ export default function LoginPage() {
               />
             </div>
 
+            {/* Art. 8.4 RD 1007/2023: acceso disociado para la Administración
+                tributaria. Como en el ejemplo oficial de la AEAT, es un control
+                que se marca antes de entrar y por defecto NO está marcado. */}
+            <label className="flex items-start gap-2.5 text-xs text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={fiscalOnly}
+                onChange={(e) => setFiscalOnly(e.target.checked)}
+                className="mt-0.5 h-3.5 w-3.5 accent-teal-700 cursor-pointer"
+              />
+              <span>
+                Acceso de consulta para la Administración tributaria
+                <span className="block text-[11px] opacity-80">
+                  Sesión de solo lectura, limitada a los registros de facturación.
+                </span>
+              </span>
+            </label>
+
             <PremiumSubmitButton loading={submitting}>
-              Entrar
+              {fiscalOnly ? "Entrar en modo consulta" : "Entrar"}
             </PremiumSubmitButton>
 
             <p className="text-center text-xs text-muted-foreground">

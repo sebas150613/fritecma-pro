@@ -1,7 +1,7 @@
 {
   "name": "frigest",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -26,6 +26,7 @@
     "check:multitenant-isolation": "node scripts/multitenant-isolation-contract.mjs",
     "check:rbac": "node scripts/rbac-contract.mjs",
     "check:price-rbac": "node scripts/price-rbac-contract.mjs",
+    "check:verifactu-sif": "node scripts/verifactu-sif-contract.mjs",
     "migrate:org-settings-secrets": "node scripts/migrate-organization-settings-secrets.mjs",
     "check:production-env": "node scripts/production-env-check.mjs --production",
     "check:secrets": "node scripts/secrets-scan.mjs",

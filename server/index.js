@@ -24,7 +24,8 @@ import stockRoutes from "./routes/stock.js";
 import cspReportRoutes from "./routes/csp-report.js";
 import backupRoutes from "./routes/backups.js";
 import breakdownRoutes from "./routes/breakdowns.js";
-import { ensureSaasBootstrap } from "./lib/auth.js";
+import { attachFiscalSessionFlag, ensureSaasBootstrap } from "./lib/auth.js";
+import { blockFiscalSession } from "./lib/fiscal-session.js";
 import { initializeStoreBackend } from "./lib/json-store.js";
 import { bootstrapOrganizationSubscriptions } from "./services/billing-service.js";
 import { startVerifactuRetryScheduler } from "./services/verifactu-service.js";
@@ -175,24 +176,29 @@ app.get("/health", (_req, res) => {
   });
 });
 
+// Marca la peticion si es una sesion de consulta para la Administracion
+// tributaria (art. 8.4 RRSIF) antes de repartir a los routers, porque
+// requireAuth corre dentro de cada uno y llegaria tarde.
+app.use("/api", attachFiscalSessionFlag);
+
 app.use("/api/apps/public", publicAppRoutes);
 app.use("/api/auth", authRateLimiter, authRoutes);
-app.use("/api/account", accountRoutes);
+app.use("/api/account", blockFiscalSession("los datos de la cuenta"), accountRoutes);
 app.use("/api/entities", entityRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/organizations", organizationRoutes);
-app.use("/api/address-autocomplete", addressAutocompleteRoutes);
-app.use("/api/files", fileRoutes);
-app.use("/api/ai", aiRateLimiter, aiRoutes);
-app.use("/api/email", emailRoutes);
-app.use("/api/business", businessNotificationRoutes);
+app.use("/api/users", blockFiscalSession("los datos de personal"), userRoutes);
+app.use("/api/organizations", blockFiscalSession("la administracion de la empresa"), organizationRoutes);
+app.use("/api/address-autocomplete", blockFiscalSession("los servicios de direcciones"), addressAutocompleteRoutes);
+app.use("/api/files", blockFiscalSession("los archivos"), fileRoutes);
+app.use("/api/ai", blockFiscalSession("las funciones de IA"), aiRateLimiter, aiRoutes);
+app.use("/api/email", blockFiscalSession("el correo"), emailRoutes);
+app.use("/api/business", blockFiscalSession("las notificaciones"), businessNotificationRoutes);
 app.use("/api/functions", functionRoutes);
-app.use("/api/billing", billingRoutes);
-app.use("/api/purchase-orders", purchaseOrderRoutes);
-app.use("/api/stock", stockRoutes);
+app.use("/api/billing", blockFiscalSession("la facturacion del servicio"), billingRoutes);
+app.use("/api/purchase-orders", blockFiscalSession("las compras"), purchaseOrderRoutes);
+app.use("/api/stock", blockFiscalSession("el almacen"), stockRoutes);
 app.use("/api/csp-report", cspReportRateLimiter, cspReportRoutes);
-app.use("/api/backups", backupRoutes);
-app.use("/api/breakdowns", breakdownRoutes);
+app.use("/api/backups", blockFiscalSession("las copias de seguridad"), backupRoutes);
+app.use("/api/breakdowns", blockFiscalSession("las averias"), breakdownRoutes);
 
 app.use((error, _req, res, _next) => {
   const status =

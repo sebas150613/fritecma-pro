@@ -285,7 +285,9 @@ export const createRestProvider = () => {
         window.location.assign(buildLogoutUrl(resolvedRedirect));
       }
     },
-    loginWithCredentials: async (email, password, redirectUri) => {
+    // fiscalOnly: sesion de consulta para la Administracion tributaria
+    // (art. 8.4 RRSIF). Solo lectura de registros de facturacion.
+    loginWithCredentials: async (email, password, redirectUri, fiscalOnly = false) => {
       const baseUrl = buildBaseUrl();
       if (!baseUrl) {
         throw new Error("API base URL is not configured.");
@@ -309,6 +311,7 @@ export const createRestProvider = () => {
           email,
           password,
           redirect_uri: resolvedRedirect,
+          ...(fiscalOnly ? { fiscal_only: true } : {}),
         }),
       });
 

@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+
+/* global __APP_VERSION__ */
+const APP_VERSION = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "0.0.0";
+
 import { useSessionGuard } from "../hooks/useSessionGuard";
 import { appApi } from "@/api/app-api";
 import { toast } from "sonner";
@@ -34,6 +38,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+
+// Sesión de consulta para la Administración tributaria (art. 8.4 RRSIF).
+// Solo lo que tiene trascendencia tributaria; el servidor bloquea el resto.
+const fiscalSessionLinks = [
+  { to: "/invoices", label: "Registros de facturación", icon: Receipt },
+  { to: "/declaracion-responsable", label: "Declaración responsable", icon: FileText },
+];
 
 const adminLinks = [
   { to: "/", label: "Panel", icon: LayoutDashboard },
@@ -169,15 +180,20 @@ export default function Layout() {
     !isHiddenOwner &&
     user?.role !== "superadmin" &&
     ["admin", "oficina", "encargado"].includes(user?.role || "");
-  const links = isHiddenOwner
-    ? ownerLinks
-    : isAdmin
-      ? injectPedidos(adminLinks, showPurchaseOrdersNav)
-      : isOficina
-        ? injectPedidos(oficinaLinks, showPurchaseOrdersNav)
-        : isAyudante
-          ? ayudanteLinks
-          : techLinks;
+  // Sesión de consulta para la Administración tributaria (art. 8.4 RRSIF): el
+  // servidor ya bloquea todo lo demás, así que el menú no debe ofrecerlo.
+  const isFiscalSession = user?.fiscal_session === true;
+  const links = isFiscalSession
+    ? fiscalSessionLinks
+    : isHiddenOwner
+      ? ownerLinks
+      : isAdmin
+        ? injectPedidos(adminLinks, showPurchaseOrdersNav)
+        : isOficina
+          ? injectPedidos(oficinaLinks, showPurchaseOrdersNav)
+          : isAyudante
+            ? ayudanteLinks
+            : techLinks;
 
   const handleLogout = () => {
     void logout();
@@ -295,6 +311,15 @@ export default function Layout() {
               <LogOut className="h-4 w-4" />
             </Button>
           </div>
+          {/* Art. 13.2 RD 1007/2023: la declaración responsable del sistema
+              informático de facturación debe constar de modo visible en el
+              propio sistema. */}
+          <Link
+            to="/declaracion-responsable"
+            className="block px-2 text-[11px] text-sidebar-foreground/45 hover:text-sidebar-foreground/80 transition-colors"
+          >
+            FriGest v{APP_VERSION} · Declaración responsable
+          </Link>
         </div>
       </aside>
 
@@ -313,6 +338,13 @@ export default function Layout() {
         </header>
 
         <main className="flex-1 overflow-y-auto pb-28 lg:pb-0">
+          {isFiscalSession && (
+            <div className="sticky top-0 z-40 border-b border-sky-200/70 bg-sky-50 text-sky-900">
+              <div className="mx-auto max-w-6xl px-4 py-3 text-sm font-medium">
+                Sesión de consulta para la Administración tributaria: solo lectura de los registros de facturación.
+              </div>
+            </div>
+          )}
           {user?.license_read_only === true && (
             <div className="sticky top-0 z-40 border-b border-amber-200/70 bg-amber-50 text-amber-900">
               <div className="mx-auto max-w-6xl px-4 py-3 text-sm font-medium">

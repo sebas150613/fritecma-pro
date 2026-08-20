@@ -1,7 +1,12 @@
 import react from '@vitejs/plugin-react'
+import { createRequire } from 'node:module'
 import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import { visualizer } from 'rollup-plugin-visualizer'
+
+// La declaración responsable del art. 13 RD 1007/2023 es por versión concreta,
+// y debe mostrarse en el propio sistema. La versión sale de package.json.
+const appVersion = createRequire(import.meta.url)('./package.json').version;
 
 export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -28,6 +33,9 @@ export default defineConfig(({ mode, command }) => {
 
   return {
     logLevel: 'error',
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion),
+    },
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),

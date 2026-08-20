@@ -12,6 +12,17 @@ const __dirname = path.dirname(__filename);
 const workspaceRoot = path.resolve(__dirname, "..");
 const protectedEnvKeys = new Set(Object.keys(process.env));
 
+/** Lee la version del producto desde package.json (fuente unica de verdad). */
+const readPackageVersion = () => {
+  try {
+    const raw = fs.readFileSync(path.join(workspaceRoot, "package.json"), "utf8");
+    const version = String(JSON.parse(raw)?.version || "").trim();
+    return version || "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+};
+
 const applyEnvFile = (envPath, { canOverrideLoadedEnv = false } = {}) => {
   if (!fs.existsSync(envPath)) {
     return;
@@ -146,6 +157,10 @@ export const serverConfig = {
   publicSignupEnabled: process.env.APP_PUBLIC_SIGNUP_ENABLED !== "false",
   requireEmailVerification: process.env.APP_REQUIRE_EMAIL_VERIFICATION === "true",
   appId: process.env.APP_ID || process.env.VITE_APP_ID || "local-app",
+  // Version del producto. La declaracion responsable del art. 13 RD 1007/2023
+  // es POR VERSION CONCRETA, y el bloque <SistemaInformatico> de cada envio a
+  // la AEAT debe declarar esta misma version.
+  appVersion: readPackageVersion(),
   // Orden de conmutación entre proveedores. Solo participan los que tengan
   // clave(s) configurada(s). Para peticiones con imagen (OCR de albaranes) se
   // omiten los proveedores sin visión (DeepSeek).

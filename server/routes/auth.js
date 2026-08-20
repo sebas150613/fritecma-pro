@@ -1347,6 +1347,11 @@ router.post(
     const userId = req.body?.user_id?.toString();
     const email = req.body?.email?.toString();
     const password = req.body?.password?.toString();
+    // Modo consulta para la Administración tributaria (art. 8.4 RRSIF): abre una
+    // sesión disociada, de solo lectura sobre los registros de facturación.
+    // Por defecto NO está activo, como en el ejemplo oficial de la AEAT.
+    const fiscalOnly =
+      req.body?.fiscal_only === true || req.body?.fiscal_only === "true";
 
     // El login por user_id (sin contraseña) es SOLO para desarrollo con bypass
     // explícito. En producción exige siempre email + contraseña.
@@ -1359,9 +1364,10 @@ router.post(
       }
 
       const session = userId
-        ? await createSessionForUser(userId)
+        ? await createSessionForUser(userId, { fiscalOnly })
         : await createSessionForCredentials(email, password, {
             allowHiddenOwner: false,
+            fiscalOnly,
           });
 
       return sendAuthSuccessResponse(req, res, session, redirectUri);
@@ -1826,7 +1832,10 @@ router.get(
   "/me",
   requireAuth,
   asyncHandler(async (req, res) => {
-    res.json(req.currentUser);
+    // La interfaz necesita saber si esta en una sesion de consulta para la
+    // Administracion tributaria (art. 8.4 RRSIF) para no ofrecer lo que el
+    // servidor ya esta bloqueando.
+    res.json({ ...req.currentUser, fiscal_session: req.fiscalOnlySession === true });
   })
 );
 

@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
-import { Settings, Users, Shield, Trash2, Upload, Key, FileCheck, Loader2, Crown, Copy, Building2, Coins, Plus, ShoppingBag, Hash } from "lucide-react";
+import { Settings, Users, Shield, Trash2, Upload, Key, FileCheck, Loader2, Crown, Copy, Building2, Coins, Plus, ShoppingBag, Hash, ShieldCheck } from "lucide-react";
 import OrganizationBillingPanel from "@/components/OrganizationBillingPanel";
 import { parseTramosJson, ensureTramoIds } from "@/lib/displacementBilling";
 import { toast } from "sonner";
@@ -26,6 +26,8 @@ export default function AppSettings() {
   const [user, setUser] = useState(null);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [checkingChain, setCheckingChain] = useState(false);
+  const [chainReport, setChainReport] = useState(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("tecnico");
   const [inviting, setInviting] = useState(false);
@@ -726,6 +728,73 @@ export default function AppSettings() {
           <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-3 rounded-xl">
             🧪 <strong>Modo Sandbox activo.</strong> Los envíos a la AEAT son simulados. El hash se genera correctamente para poder verificar el flujo. Activa el toggle para pasar a producción real.
           </p>
+        )}
+
+        {/* Comprobación de integridad de la cadena (art. 8.2.a RD 1007/2023).
+            La norma exige que el sistema detecte y avise de alteraciones; basta
+            con que la comprobación esté disponible para lanzarla a demanda. */}
+        {["admin", "superadmin"].includes(user?.role) && (
+          <div className="p-4 rounded-xl border border-border bg-muted/30 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-medium text-sm flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-accent" /> Integridad de la cadena de facturas
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Recorre todas tus facturas registradas y comprueba que ninguna se ha modificado, borrado ni desordenado. Conviene lanzarla de vez en cuando.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                className="rounded-xl shrink-0"
+                disabled={checkingChain}
+                onClick={async () => {
+                  setCheckingChain(true);
+                  setChainReport(null);
+                  try {
+                    const res = await appApi.functions.invoke("verifyInvoiceHashes", {});
+                    const report = res?.data || res;
+                    setChainReport(report);
+                    if (report?.tampered > 0) {
+                      toast.error(`Se han detectado ${report.tampered} anomalía(s) en la cadena.`);
+                    } else {
+                      toast.success(`Cadena íntegra: ${report?.verified ?? 0} factura(s) verificadas.`);
+                    }
+                  } catch (e) {
+                    toast.error(e?.message || "No se pudo comprobar la integridad.");
+                  } finally {
+                    setCheckingChain(false);
+                  }
+                }}
+              >
+                {checkingChain ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
+                Comprobar ahora
+              </Button>
+            </div>
+
+            {chainReport && chainReport.tampered === 0 && (
+              <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
+                ✓ {chainReport.verified} factura(s) verificadas. La cadena está íntegra.
+              </div>
+            )}
+
+            {chainReport && chainReport.tampered > 0 && (
+              <div className="text-xs text-red-700 bg-red-50 border border-red-200 p-3 rounded-xl space-y-2">
+                <p>
+                  <strong>⚠️ {chainReport.tampered} anomalía(s)</strong> sobre {chainReport.total_checked} factura(s) comprobadas. Se ha avisado por correo a los administradores.
+                </p>
+                <ul className="space-y-1">
+                  {(chainReport.tampered_invoices || []).map((item) => (
+                    <li key={item.invoice_id}>
+                      <span className="font-medium">{item.invoice_number}</span>
+                      {item.client_name ? ` · ${item.client_name}` : ""}
+                      <span className="block pl-3 text-red-600">{(item.problems || []).join("; ")}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         )}
       </div>
       )}

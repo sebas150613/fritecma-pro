@@ -76,6 +76,7 @@ export default function Invoices() {
   const [user, setUser] = useState(null);
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [exportingRegistros, setExportingRegistros] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [monthFilter, setMonthFilter] = useState("all");
@@ -106,7 +107,11 @@ export default function Invoices() {
   const [groupLoading, setGroupLoading] = useState(false);
   const [groupBusy, setGroupBusy] = useState(false);
 
-  const canManagePayments = ["admin", "superadmin", "oficina"].includes(user?.role);
+  // Sesión de consulta para la Administración tributaria (art. 8.4 RRSIF): el
+  // servidor rechaza cualquier escritura, así que no se ofrecen sus controles.
+  const isFiscalSession = user?.fiscal_session === true;
+  const canManagePayments =
+    !isFiscalSession && ["admin", "superadmin", "oficina"].includes(user?.role);
 
   const loadData = async () => {
     const me = await appApi.auth.me();
@@ -457,6 +462,33 @@ export default function Invoices() {
     }
   };
 
+  /**
+   * Volcado de los REGISTROS de facturación (art. 8.2.c RD 1007/2023): incluye
+   * huella, huella anterior e índice de cadena, que el CSV de gestoría no lleva.
+   * Lo genera el servidor, que es donde vive el formato del registro.
+   */
+  const downloadRegistrosXml = async () => {
+    setExportingRegistros(true);
+    try {
+      const res = await appApi.functions.invoke("exportInvoiceRecords", {});
+      const data = res?.data || res;
+      if (!data?.xml) throw new Error("El servidor no devolvió ningún registro.");
+
+      const blob = new Blob([data.xml], { type: "application/xml;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.filename || "registros-facturacion.xml";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${data.count} registro(s) de facturación exportados.`);
+    } catch (err) {
+      toast.error(err?.message || "No se pudieron exportar los registros.");
+    } finally {
+      setExportingRegistros(false);
+    }
+  };
+
   const downloadCSV = () => {
     const rows = [
       ["Número", "Serie", "Tipo", "Fecha", "Cliente", "NIF", "Base (€)", "IVA (€)", "Total (€)", "Estado VeriFactu", "Cobro", "Vencimiento", "Pagada el", "Método", "Nº Parte", "Rectifica a"],
@@ -548,6 +580,16 @@ export default function Invoices() {
                 )}
               </Button>
             )}
+            <Button
+              variant="outline"
+              onClick={downloadRegistrosXml}
+              disabled={exportingRegistros}
+              className="rounded-xl"
+              title="Volcado de los registros de facturación con su huella y encadenamiento (art. 8.2.c RD 1007/2023)"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {exportingRegistros ? "Exportando…" : "Exportar registros (XML)"}
+            </Button>
             <Button
               onClick={downloadCSV}
               disabled={filtered.length === 0}

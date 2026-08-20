@@ -100,16 +100,49 @@ const buildPartyXml = ({ name, nif, fallbackId }) => {
   )}</sum1:ID></sum1:IDOtro>`;
 };
 
-const buildSystemXml = (issuerNif) => {
+// El bloque <SistemaInformatico> identifica al PRODUCTOR del software (art. 13
+// RD 1007/2023), no al obligado tributario que factura. Debe cuadrar campo a
+// campo con la declaracion responsable publicada; ver
+// docs/declaracion-responsable-frigest.md.
+//
+// FriGest es "SOLO VERI*FACTU" (no existe modo no-VERI*FACTU) y "multiOT": un
+// mismo despliegue da soporte a la facturacion de varios obligados tributarios,
+// con numeracion y cadena de huellas separadas por organizacion.
+export const SIF_SOLO_VERIFACTU = "S";
+export const SIF_MULTI_OT = "S";
+
+const requireSystemEnv = (name, hint) => {
+  const value = safe(process.env[name]);
+  if (!value) {
+    throw new HttpError(
+      500,
+      `Falta ${name}. Es un dato del productor del software exigido por el articulo 13 del RD 1007/2023 y debe coincidir con la declaracion responsable (${hint}). Configuralo antes de enviar a la AEAT.`
+    );
+  }
+  return value;
+};
+
+const buildSystemXml = () => {
   const softwareName = safe(process.env.APP_VERIFACTU_SOFTWARE_NAME, "FRIGEST");
-  const softwareNif = safe(process.env.APP_VERIFACTU_SOFTWARE_NIF, issuerNif);
+  // Sin fallback al NIF del emisor: declararia que el cliente fabrico el
+  // software. Si falta, se corta el envio en vez de mentir a la AEAT.
+  const softwareNif = requireSystemEnv(
+    "APP_VERIFACTU_SOFTWARE_NIF",
+    "NIF de la persona o entidad productora"
+  );
   const systemName = safe(process.env.APP_VERIFACTU_SYSTEM_NAME, "FRIGEST");
   const systemId = safe(process.env.APP_VERIFACTU_SYSTEM_ID, "01").slice(0, 2);
-  const version = safe(process.env.APP_VERIFACTU_SYSTEM_VERSION, "1.0.0");
-  const installation = safe(
-    process.env.APP_VERIFACTU_INSTALLATION_ID,
-    `${serverConfig.appId}-local`
+  const version = safe(process.env.APP_VERIFACTU_SYSTEM_VERSION, serverConfig.appVersion);
+  const installation = requireSystemEnv(
+    "APP_VERIFACTU_INSTALLATION_ID",
+    "numero de instalacion del sistema informatico"
   );
+  // Indica si ESTA instalacion da servicio a varios obligados a la vez.
+  const multiplesOt = safe(process.env.APP_VERIFACTU_MULTIPLES_OT, SIF_MULTI_OT)
+    .toUpperCase()
+    .startsWith("N")
+    ? "N"
+    : "S";
 
   return `<sum1:SistemaInformatico><sum1:NombreRazon>${escapeXml(
     softwareName
@@ -123,7 +156,7 @@ const buildSystemXml = (issuerNif) => {
     version
   )}</sum1:Version><sum1:NumeroInstalacion>${escapeXml(
     installation
-  )}</sum1:NumeroInstalacion><sum1:TipoUsoPosibleSoloVerifactu>S</sum1:TipoUsoPosibleSoloVerifactu><sum1:TipoUsoPosibleMultiOT>N</sum1:TipoUsoPosibleMultiOT><sum1:IndicadorMultiplesOT>N</sum1:IndicadorMultiplesOT></sum1:SistemaInformatico>`;
+  )}</sum1:NumeroInstalacion><sum1:TipoUsoPosibleSoloVerifactu>${SIF_SOLO_VERIFACTU}</sum1:TipoUsoPosibleSoloVerifactu><sum1:TipoUsoPosibleMultiOT>${SIF_MULTI_OT}</sum1:TipoUsoPosibleMultiOT><sum1:IndicadorMultiplesOT>${multiplesOt}</sum1:IndicadorMultiplesOT></sum1:SistemaInformatico>`;
 };
 
 const buildBreakdownXml = ({ subtotal, ivaTotal }) => {
@@ -232,7 +265,7 @@ export const buildVerifactuSoapEnvelope = ({
           <sum1:CuotaTotal>${moneyText(invoice.iva_total)}</sum1:CuotaTotal>
           <sum1:ImporteTotal>${moneyText(invoice.total)}</sum1:ImporteTotal>
           <sum1:Encadenamiento>${previousXml}</sum1:Encadenamiento>
-          ${buildSystemXml(issuerNif)}
+          ${buildSystemXml()}
           <sum1:FechaHoraHusoGenRegistro>${formatOffsetDateTime(
             generatedAt || invoice.issue_date
           )}</sum1:FechaHoraHusoGenRegistro>
