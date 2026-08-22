@@ -90,6 +90,21 @@ const HiddenOwnerRouteGate = () => {
   return <Layout />;
 };
 
+/**
+ * Chrome de la declaración responsable (art. 13.2 RD 1007/2023).
+ *
+ * El artículo obliga a que la declaración conste "de modo visible en el propio
+ * sistema informático", y también "para el cliente y el comercializador en el
+ * momento de la adquisición del producto" — es decir, antes de tener cuenta.
+ * Por eso estas rutas son públicas: con sesión abierta se muestran dentro de la
+ * aplicación, y sin ella se sirven igualmente en solo lectura.
+ */
+const SifDeclarationChrome = () => {
+  const { isAuthenticated } = useAuth();
+
+  return isAuthenticated ? <Layout /> : <Outlet />;
+};
+
 const SettingsRoute = ({ user }) => {
   const role = resolveUserRole(user);
 
@@ -130,6 +145,14 @@ const AuthenticatedApp = () => {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/private-login" element={<PrivateLoginPage />} />
+      {/* Públicas a propósito: el art. 13.2 del RD 1007/2023 exige la
+          declaración responsable "para el cliente y el comercializador en el
+          momento de la adquisición del producto", cuando todavía no hay cuenta. */}
+      <Route element={<SifDeclarationChrome />}>
+        <Route path="/declaracion-responsable" element={<SifDeclaration />} />
+        {/* Art. 13.3: conservar las declaraciones de todas las versiones. */}
+        <Route path="/declaracion-responsable/historico" element={<SifDeclarationHistory />} />
+      </Route>
       <Route element={<RequireAuth />}>
         <Route element={<HiddenOwnerRouteGate />}>
           <Route path="/" element={<Dashboard />} />
@@ -161,11 +184,6 @@ const AuthenticatedApp = () => {
           <Route path="/breakdowns" element={<Breakdowns />} />
           <Route path="/breakdowns/new" element={<NewBreakdown />} />
           <Route path="/breakdowns/:id" element={<BreakdownDetail />} />
-          {/* Art. 13.2 RD 1007/2023: la declaración responsable debe constar de
-              modo visible en el propio sistema informático. */}
-          <Route path="/declaracion-responsable" element={<SifDeclaration />} />
-          {/* Art. 13.3: conservar las declaraciones de todas las versiones. */}
-          <Route path="/declaracion-responsable/historico" element={<SifDeclarationHistory />} />
           <Route path="*" element={<PageNotFound />} />
         </Route>
       </Route>

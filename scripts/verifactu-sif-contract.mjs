@@ -94,4 +94,50 @@ for (const key of [
   );
 }
 
+// 7. Art. 13.2: la declaracion responsable debe estar disponible "para el
+//    cliente y el comercializador en el momento de la adquisicion del
+//    producto", cuando todavia no hay cuenta. Si sus rutas vuelven a caer
+//    dentro de RequireAuth, deja de cumplirse.
+const app = read("src/App.jsx");
+const authBlockStart = app.indexOf("<Route element={<RequireAuth />}>");
+
+assert.ok(
+  authBlockStart !== -1,
+  "no se encuentra el bloque RequireAuth en src/App.jsx: revisa este contrato"
+);
+assert.ok(
+  !app.slice(authBlockStart).includes("declaracion-responsable"),
+  "las rutas de la declaracion responsable no pueden vivir dentro de RequireAuth: el art. 13.2 RD 1007/2023 exige que el cliente pueda consultarla antes de tener cuenta"
+);
+for (const ruta of [
+  '<Route path="/declaracion-responsable" ',
+  '<Route path="/declaracion-responsable/historico" ',
+]) {
+  assert.ok(
+    app.slice(0, authBlockStart).includes(ruta),
+    `${ruta.trim()} debe declararse como ruta publica, antes del bloque RequireAuth`
+  );
+}
+
+// 8. El anexo 2.b) pide "direcciones de internet": el historico se publica
+//    resuelto contra una base absoluta, no como ruta relativa suelta.
+const declaration = read("src/lib/sifDeclaration.js");
+assert.match(
+  declaration,
+  /baseUrl:\s*"https?:\/\//,
+  "PRODUCER.baseUrl debe ser una direccion absoluta: el anexo 2.b) pide direcciones de internet"
+);
+assert.match(
+  declaration,
+  /publicUrl\(PRODUCER\.historicoUrl\)/,
+  "el historico del anexo 2.b) debe publicarse resuelto con publicUrl(), no como ruta relativa"
+);
+for (const campo of ["email", "telefono"]) {
+  assert.match(
+    declaration,
+    new RegExp(`${campo}:\\s*"[^"]+"`),
+    `PRODUCER.${campo} no puede quedar vacio: el anexo 2.a) recoge las formas de contacto con la persona productora`
+  );
+}
+
 console.log("verifactu-sif-contract: OK");

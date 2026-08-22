@@ -28,11 +28,21 @@ export const PRODUCER = {
   nif: "41572545E",
   direccion: "C/ Ramon Serra, 9, 1º\n07010 Palma de Mallorca (Illes Balears)\nEspaña",
   telefono: "646 786 073",
-  email: "",
-  web: "",
+  email: "administracion@tramuntanalabs.es",
+  web: "https://frigest.tramuntanalabs.es",
+  // Dirección pública del sistema. El anexo 2.b) pide "direcciones de internet",
+  // así que las rutas internas se publican resueltas contra esta base.
+  baseUrl: "https://frigest.tramuntanalabs.es",
   // Art. 13.3: hay que conservar y poder consultar las declaraciones de TODAS
   // las versiones publicadas. Vive dentro del propio sistema.
   historicoUrl: "/declaracion-responsable/historico",
+};
+
+/** Resuelve una ruta del sistema como dirección de internet absoluta. */
+export const publicUrl = (ruta) => {
+  if (!ruta) return "";
+  if (/^https?:\/\//i.test(ruta)) return ruta;
+  return `${(PRODUCER.baseUrl || "").replace(/\/+$/, "")}${ruta}`;
 };
 
 /** Identificación del sistema. Debe cuadrar con las variables APP_VERIFACTU_*. */
@@ -202,7 +212,7 @@ export const buildAnnexSections = () => [
     value: [
       PRODUCER.web ? `Sitio web: ${PRODUCER.web}` : "",
       PRODUCER.historicoUrl
-        ? `Histórico de declaraciones responsables de las versiones de este producto: ${PRODUCER.historicoUrl}`
+        ? `Histórico de declaraciones responsables de las versiones de este producto: ${publicUrl(PRODUCER.historicoUrl)}`
         : "",
     ]
       .filter(Boolean)
