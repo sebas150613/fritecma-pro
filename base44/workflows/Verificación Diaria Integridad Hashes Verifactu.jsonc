@@ -1,0 +1,44 @@
+{
+  "name": "Verificaci\u00f3n Diaria Integridad Hashes Veri*factu",
+  "description": "Comprueba cada ma\u00f1ana que los hashes de todas las facturas aceptadas por la AEAT no han sido alterados. Env\u00eda email de alerta inmediata si detecta discrepancias.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 5 * * *",
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "verificaci_n_diaria_integridad_hashes_veri_factu",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "verifyInvoiceHashes",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "verifyInvoiceHashes"
+  }
+}
