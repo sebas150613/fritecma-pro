@@ -40,3 +40,4 @@ audit-frigest.json
 # Dev server logs
 dev-err.txt
 dev-out.txt
+base44/.app.jsonc
