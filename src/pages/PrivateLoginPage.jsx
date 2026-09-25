@@ -100,7 +100,7 @@ export default function PrivateLoginPage() {
             </PremiumSubmitButton>
 
             <p className="text-center text-sm text-slate-500">
-              <Link to="/login" className="text-teal-400/90 underline-offset-4 hover:underline">
+              <Link to="/login" className="text-orange-300 underline-offset-4 hover:underline">
                 Volver al acceso corporativo
               </Link>
             </p>

@@ -15,7 +15,7 @@
   transition: opacity 0.2s ease;
   background: radial-gradient(
     120% 80% at 50% 120%,
-    rgba(45, 212, 191, 0.35) 0%,
+    rgba(255, 255, 255, 0.16) 0%,
     transparent 55%
   );
 }

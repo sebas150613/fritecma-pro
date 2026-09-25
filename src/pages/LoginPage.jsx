@@ -49,14 +49,14 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-teal-50/40 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-4">
-      <div className="w-full max-w-md rounded-xl border border-teal-900/10 bg-card text-card-foreground shadow-xl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-slate-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-4">
+      <div className="w-full max-w-md rounded-xl border border-border bg-card text-card-foreground shadow-xl">
         <div className="p-6 space-y-3 border-b border-border/60">
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="FRIGEST" className="h-11 w-11 rounded-2xl shadow-md" />
             <div>
               <p className="text-lg font-black uppercase tracking-[0.22em]">FRIGEST</p>
-              <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-muted-foreground">Gestión Técnica</p>
+              <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-muted-foreground">Gestión técnica</p>
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
@@ -111,7 +111,7 @@ export default function LoginPage() {
                 type="checkbox"
                 checked={fiscalOnly}
                 onChange={(e) => setFiscalOnly(e.target.checked)}
-                className="mt-0.5 h-3.5 w-3.5 accent-teal-700 cursor-pointer"
+                className="mt-0.5 h-3.5 w-3.5 accent-orange-500 cursor-pointer"
               />
               <span>
                 Acceso de consulta para la Administración tributaria
