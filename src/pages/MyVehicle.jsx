@@ -5,7 +5,7 @@ import PullToRefresh from "../components/PullToRefresh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Car, Plus, Pencil, ArrowDownToLine, ArrowUpFromLine, History, Loader2 } from "lucide-react";
+import { Plus, Pencil, ArrowDownToLine, ArrowUpFromLine, History, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { transferToVehicle, transferToWarehouse } from "../lib/vehicleStockUtils";
@@ -155,8 +155,8 @@ export default function MyVehicle() {
       <div className="p-4 lg:p-8 max-w-3xl mx-auto space-y-6">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Car className="h-6 w-6 text-accent" /> Mi Vehículo
+            <h1 className="text-2xl font-bold tracking-tight">
+              Mi furgoneta
             </h1>
             <p className="text-muted-foreground text-sm mt-1">Material que llevas en la furgoneta</p>
           </div>

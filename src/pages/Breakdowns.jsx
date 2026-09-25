@@ -144,7 +144,7 @@ export default function Breakdowns() {
             {canCreate && (
               <Link to="/breakdowns/new">
                 <Button className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
-                  <Plus className="h-4 w-4 mr-2" /> Nueva Avería
+                  <Plus className="h-4 w-4 mr-2" /> Nueva avería
                 </Button>
               </Link>
             )}

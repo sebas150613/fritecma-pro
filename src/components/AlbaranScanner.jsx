@@ -249,7 +249,7 @@ Si no puedes leer algún campo, usa cadena vacía. Quantity siempre debe ser un 
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ScanLine className="h-5 w-5 text-accent" />
-            Escanear Albarán de Compra
+            Escanear albarán de Compra
           </DialogTitle>
         </DialogHeader>
 

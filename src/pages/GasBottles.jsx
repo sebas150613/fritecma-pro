@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "react-router-dom";
-import { Plus, ArrowRightLeft, FlaskConical, History, AlertTriangle, Pencil, Trash2, MapPin, User } from "lucide-react";
+import { Plus, ArrowRightLeft, History, AlertTriangle, Pencil, Trash2, MapPin, User } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import moment from "moment";
@@ -301,12 +301,12 @@ export default function GasBottles() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><FlaskConical className="h-6 w-6 text-accent" /> Trazabilidad de Gases</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Gases y botellas</h1>
           <p className="text-muted-foreground text-sm mt-1">Control de botellas, traspasos y saldos de gas refrigerante</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={openTransfer} className="rounded-xl gap-2"><ArrowRightLeft className="h-4 w-4" /> Traspaso</Button>
-          <Button onClick={openNew} className="rounded-xl gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"><Plus className="h-4 w-4" /> Nueva Botella</Button>
+          <Button onClick={openNew} className="rounded-xl gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"><Plus className="h-4 w-4" /> Nueva botella</Button>
         </div>
       </div>
 
@@ -473,7 +473,7 @@ export default function GasBottles() {
       {/* ── BOTTLE MODAL ── */}
       <Dialog open={bottleModal} onOpenChange={setBottleModal}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{editingBottle ? "Editar Botella" : "Nueva Botella"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingBottle ? "Editar Botella" : "Nueva botella"}</DialogTitle></DialogHeader>
           <div className="space-y-4 mt-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">

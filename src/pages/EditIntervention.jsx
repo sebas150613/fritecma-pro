@@ -408,7 +408,7 @@ export default function EditIntervention() {
       <div className="flex items-center gap-3">
         <BackButton label="Parte" to={`/interventions/${id}`} />
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Editar Parte</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Editar parte</h1>
           <p className="text-sm text-muted-foreground">{original?.number}</p>
         </div>
       </div>

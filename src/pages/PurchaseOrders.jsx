@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ShoppingBag, Plus, Loader2, Download, Search } from "lucide-react";
+import { Plus, Loader2, Download, Search } from "lucide-react";
 import { toast } from "sonner";
 const canPurchaseOrdersUser = (u) =>
   u &&
@@ -432,8 +432,8 @@ export default function PurchaseOrders() {
     <div className="p-4 lg:p-8 max-w-6xl mx-auto space-y-6 pb-28 lg:pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <ShoppingBag className="h-7 w-7 text-accent" /> Pedidos a proveedor
+          <h1 className="text-2xl font-bold tracking-tight">
+            Pedidos a proveedor
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Registra pedidos con PDF: envío por correo (SMTP propio en Configuración → Pedidos) o solo en aplicación si ya lo gestionaste con el comercial presencial o por teléfono.

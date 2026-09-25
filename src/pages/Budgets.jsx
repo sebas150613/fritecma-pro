@@ -324,8 +324,8 @@ export default function Budgets() {
       <div className="p-4 lg:p-8 max-w-6xl mx-auto space-y-6 pb-28 lg:pb-10">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <FileText className="h-7 w-7 text-accent" /> Presupuestos
+            <h1 className="text-2xl font-bold tracking-tight">
+              Presupuestos
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               Presupuesta el trabajo antes de abrir el parte. Cuando el cliente acepte, genera el parte con las líneas ya cargadas.

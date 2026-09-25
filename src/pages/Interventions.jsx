@@ -93,7 +93,7 @@ export default function Interventions() {
         <h1 className="text-2xl font-bold tracking-tight">Partes de trabajo</h1>
         <Link to="/interventions/new">
           <Button className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
-            <Plus className="h-4 w-4 mr-2" /> Nuevo Parte
+            <Plus className="h-4 w-4 mr-2" /> Nuevo parte
           </Button>
         </Link>
       </div>
@@ -109,12 +109,12 @@ export default function Interventions() {
           <TabsList className="rounded-xl">
             <TabsTrigger value="pending" className="rounded-xl gap-2">
               <AlertTriangle className="h-4 w-4" />
-              Partes en Curso
+              En curso
               {pending.length > 0 && <span className="ml-1 bg-amber-500 text-white text-xs px-1.5 py-0.5 rounded-full">{pending.length}</span>}
             </TabsTrigger>
             <TabsTrigger value="validation" className="rounded-xl gap-2">
               <CheckCircle2 className="h-4 w-4" />
-              Para Validar
+              Para validar
               {forValidation.length > 0 && <span className="ml-1 bg-emerald-500 text-white text-xs px-1.5 py-0.5 rounded-full">{forValidation.length}</span>}
             </TabsTrigger>
             <TabsTrigger value="all" className="rounded-xl gap-2">

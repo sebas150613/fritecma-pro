@@ -113,14 +113,14 @@ export default function Suppliers() {
     <div className="p-4 lg:p-8 max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <Truck className="h-6 w-6 text-accent" /> Proveedores
+          <h1 className="text-2xl font-bold tracking-tight">
+            Proveedores
           </h1>
           <p className="text-sm text-muted-foreground">Gestión de proveedores, envases y trazabilidad de compras</p>
         </div>
         {isAdmin && (
           <Button onClick={openNew} className="rounded-xl gap-2 bg-accent hover:bg-accent/90 text-accent-foreground">
-            <Plus className="h-4 w-4" /> Nuevo Proveedor
+            <Plus className="h-4 w-4" /> Nuevo proveedor
           </Button>
         )}
       </div>
@@ -278,7 +278,7 @@ export default function Suppliers() {
       <Dialog open={modal} onOpenChange={setModal}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editing ? "Editar Proveedor" : "Nuevo Proveedor"}</DialogTitle>
+            <DialogTitle>{editing ? "Editar Proveedor" : "Nuevo proveedor"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div className="grid grid-cols-2 gap-3">

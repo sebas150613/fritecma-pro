@@ -97,26 +97,30 @@ ${!isAdmin ? "⚠️ No compartas datos de otros técnicos ni información de n�
 ═══════════════════════════════════════════
 ESTRUCTURA DE LA APLICACIÓN (para guiar al usuario):
 ═══════════════════════════════════════════
-MENÚ PRINCIPAL:
-- 📊 Panel / Dashboard → Resumen del día, estadísticas, widget de fichaje
-- 📋 Intervenciones → Lista de todos los partes de trabajo. Botón "Nuevo Parte" arriba a la derecha
-- 🧰 Stock / Materiales → Inventario de materiales, precios y movimientos
-- 👥 Clientes → Ficha completa de cada cliente
-- ⏱ Registro Jornada (TimeRecords) → Historial de fichajes por día
-- 📅 Jornadas (WorkDayReport) → Registro diario de actividad por tramos
-- 🧪 Trazabilidad Gases → Botellas de gas, traspasos y consumos
-- 🏗 Obras y Proyectos → Gestión de obras con materiales y horas de personal
-- ⚙️ Configuración → Gestión de usuarios e invitaciones (solo admin)
+MENÚ PRINCIPAL (agrupado; cada rol ve solo lo suyo):
+- Panel → Lo que necesita atención (averías sin asignar, urgentes, partes por validar, cobros vencidos). El técnico ve "Inicio" con sus averías y su fichaje
+- Averías → Avisos de los clientes; se asignan a un técnico y de ellas sale el parte
+- Partes de trabajo → Lista de partes. Botón "Nuevo parte" arriba a la derecha
+- Calendario → Vista de mes con eventos y partes de cada día
+- Fichar → Entrada, pausa y salida de la jornada
+- Clientes → Ficha de cada cliente con centros de trabajo, máquinas y averías
+- Obras y proyectos → Obras con materiales y horas de personal
+- Stock y materiales → Inventario, precios y movimientos
+- Mi furgoneta → Material que lleva el técnico en su vehículo
+- Gases y botellas → Botellas de gas, traspasos y saldos
+- Facturación → Facturas Veri*factu, cobros y exportaciones
+- Historial de fichajes / Horas por cliente/obra → Control horario
+- Configuración → Pestañas: Usuarios, Empresa y facturación, Tarifas, Pedidos, Suscripción y cuenta (solo oficina/administración). El técnico ve "Mi cuenta"
 
 FLUJOS CLAVE:
-1. CREAR PARTE DE TRABAJO: Menú → Intervenciones → botón "Nuevo Parte" (arriba derecha) → Rellenar cliente, fecha, gas, materiales → "Guardar Parte"
-2. AÑADIR AYUDANTE: Al crear/editar un parte → sección "Mano de Obra" → campo "Ayudante" → seleccionar técnico del equipo
-3. FICHAR ENTRADA: Panel principal → Widget "Fichaje" → botón "Entrada"
-4. REGISTRAR JORNADA: Menú → "Mi Jornada" → Añadir tramos con inicio/fin y tipo de actividad
-5. AÑADIR MATERIAL A OBRA: Menú → Obras → botón "Vale de Salida" en la obra → seleccionar material y cantidad
-6. VER HORAS DE OBRA: Menú → Obras → botón "Detalle" → pestaña "Horas de Personal"
-7. VALIDAR PARTE (admin): Intervenciones → abrir parte → botón "Validar"
-8. INVITAR USUARIO: Configuración → sección "Usuarios" → botón "Invitar Usuario"
+1. CREAR PARTE DE TRABAJO: Menú → Partes de trabajo → botón "Nuevo parte" → cliente y máquina, descripción, gas, materiales, horas, fotos, conformidad → "Guardar parte"
+2. AÑADIR AYUDANTE: En el parte → sección "Mano de obra" → tipo de operarios → seleccionar al ayudante
+3. FICHAR ENTRADA: Menú → Fichar (o el widget de fichaje del Inicio) → "Registrar entrada"
+4. REGISTRAR JORNADA: Menú → "Mi actividad por cliente" → añadir tramos con inicio/fin y tipo de actividad
+5. AÑADIR MATERIAL A OBRA: Menú → Obras y proyectos → "Vale de salida" en la obra → material y cantidad
+6. VER HORAS DE OBRA: Menú → Obras y proyectos → "Detalle" → "Horas de personal"
+7. VALIDAR PARTE (oficina): Partes de trabajo → pestaña "Para validar" → abrir parte → validar
+8. INVITAR USUARIO: Configuración → pestaña "Usuarios" → invitar
 
 TIPOS DE ACTIVIDAD EN JORNADA: Cliente, Obra, Taller, Comida, Desplazamiento, Guardia, Formación, Otro
 

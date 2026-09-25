@@ -140,7 +140,7 @@ export default function Clients() {
         <h1 className="text-2xl font-bold tracking-tight">Clientes</h1>
         {!isTecnico && (
           <Button onClick={openNew} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
-            <Plus className="h-4 w-4 mr-2" /> Nuevo Cliente
+            <Plus className="h-4 w-4 mr-2" /> Nuevo cliente
           </Button>
         )}
       </div>
@@ -321,7 +321,7 @@ export default function Clients() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingClient ? "Editar Cliente" : "Nuevo Cliente"}</DialogTitle>
+            <DialogTitle>{editingClient ? "Editar Cliente" : "Nuevo cliente"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>

@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, CheckCircle2, Circle, Calendar as CalendarIcon, UserX } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, Circle, UserX } from "lucide-react";
 import moment from "moment";
 
 const EVENT_TYPES = { tarea: "Tarea", cita: "Cita", recordatorio: "Recordatorio", mantenimiento: "Mantenimiento", otro: "Otro" };
@@ -213,7 +213,7 @@ export default function Calendar() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><CalendarIcon className="h-6 w-6 text-accent" /> Calendario</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Calendario</h1>
           <p className="text-muted-foreground text-sm mt-1">
             {isEncargado ? "Vista maestra - Todos los técnicos" : `Mi calendario - ${user?.full_name}`}
           </p>

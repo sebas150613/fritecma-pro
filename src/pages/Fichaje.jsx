@@ -10,13 +10,13 @@ import MapLink from "../components/MapLink";
 
 const TYPE_CONFIG = {
   entrada: {
-    label: "Registrar Entrada",
+    label: "Registrar entrada",
     icon: LogIn,
     color: "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-200",
     desc: "Inicio de jornada laboral",
   },
   salida: {
-    label: "Registrar Salida",
+    label: "Registrar salida",
     icon: LogOut,
     color: "bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-200",
     desc: "Fin de jornada laboral",
@@ -205,7 +205,7 @@ export default function Fichaje() {
     <AnimatedPage>
       <div className="p-4 lg:p-8 max-w-2xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Fichaje de Presencia</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Fichaje</h1>
         <p className="text-sm text-muted-foreground">Registro oficial de inicio y fin de jornada · geolocalizado</p>
       </div>
 

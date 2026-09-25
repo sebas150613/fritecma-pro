@@ -575,8 +575,8 @@ export default function Invoices() {
       <div className="p-4 lg:p-8 max-w-6xl mx-auto space-y-6 pb-28 lg:pb-10">
         <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
           <div className="max-w-xl">
-            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-              <Receipt className="h-7 w-7 text-accent" /> Facturación
+            <h1 className="text-2xl font-bold tracking-tight">
+              Facturación
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               Listado de todas las facturas emitidas (VeriFactu). Las facturas se emiten desde el parte de trabajo y son inalterables.

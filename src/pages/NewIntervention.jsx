@@ -851,7 +851,7 @@ export default function NewIntervention() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <BackButton label={breakdown ? "Averías" : "Partes"} to={breakdown ? `/breakdowns/${breakdown.id}` : "/interventions"} />
-        <h1 className="text-2xl font-bold tracking-tight">Nuevo Parte</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Nuevo parte</h1>
       </div>
 
       {/* Breakdown context banner */}
@@ -1403,7 +1403,7 @@ export default function NewIntervention() {
             className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-8 h-12 text-base shadow-lg shadow-accent/25"
           >
             {saving ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Save className="h-5 w-5 mr-2" />}
-            Guardar Parte
+            Guardar parte
           </Button>
         </div>
       </div>

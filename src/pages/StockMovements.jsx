@@ -4,7 +4,7 @@ import PullToRefresh from "../components/PullToRefresh";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, TrendingDown, TrendingUp, ArrowUpDown, Package } from "lucide-react";
+import { AlertTriangle, TrendingDown, TrendingUp, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import moment from "moment";
 
@@ -60,7 +60,7 @@ export default function StockMovements() {
     <PullToRefresh onRefresh={loadData}>
     <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Package className="h-6 w-6 text-accent" /> Movimientos de Stock</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Movimientos de stock</h1>
         <p className="text-muted-foreground text-sm mt-1">Registro de todas las entradas y salidas de material</p>
       </div>
 

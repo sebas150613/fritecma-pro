@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ClipboardList, Plus, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Plus, CheckCircle, XCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
 import moment from "moment";
 
@@ -101,8 +101,8 @@ export default function MaterialRequests() {
     <div className="p-4 lg:p-8 max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <ClipboardList className="h-6 w-6 text-accent" /> Solicitudes de Material
+          <h1 className="text-2xl font-bold tracking-tight">
+            Solicitudes de material
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             {canApprove
@@ -111,7 +111,7 @@ export default function MaterialRequests() {
           </p>
         </div>
         <Button onClick={() => setDialogOpen(true)} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl gap-2">
-          <Plus className="h-4 w-4" /> Nueva Solicitud
+          <Plus className="h-4 w-4" /> Nueva solicitud
         </Button>
       </div>
 
@@ -187,7 +187,7 @@ export default function MaterialRequests() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Nueva Solicitud de Material</DialogTitle>
+            <DialogTitle>Nueva solicitud de Material</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
             <div className="grid grid-cols-2 gap-3">

@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Plus, Building2, ArrowDownToLine, Undo2, ChevronsUpDown, Trash2, BarChart2 } from "lucide-react";
+import { Plus, ArrowDownToLine, Undo2, ChevronsUpDown, Trash2, BarChart2 } from "lucide-react";
 import MapLink from "../components/MapLink";
 import ProjectDetailModal from "../components/ProjectDetailModal";
 import { cn } from "@/lib/utils";
@@ -202,11 +202,11 @@ export default function Projects() {
     <div className="p-4 lg:p-8 max-w-6xl mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2"><Building2 className="h-6 w-6 text-accent" /> Obras y Proyectos</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Obras y proyectos</h1>
           <p className="text-muted-foreground text-sm mt-1">Gestión de materiales por obra con trazabilidad de stock</p>
         </div>
         {canCreate && (
-          <Button onClick={openNew} className="rounded-xl gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"><Plus className="h-4 w-4" /> Nueva Obra</Button>
+          <Button onClick={openNew} className="rounded-xl gap-2 bg-accent hover:bg-accent/90 text-accent-foreground"><Plus className="h-4 w-4" /> Nueva obra</Button>
         )}
       </div>
 
@@ -281,7 +281,7 @@ export default function Projects() {
       {/* New Project Modal */}
       <Dialog open={projectModal} onOpenChange={setProjectModal}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Nueva Obra</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Nueva obra</DialogTitle></DialogHeader>
           <div className="space-y-4 mt-2">
             <div>
               <Label>Nombre de Obra *</Label>

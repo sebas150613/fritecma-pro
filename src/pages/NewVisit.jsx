@@ -237,7 +237,7 @@ export default function NewVisit() {
       <div className="flex items-center gap-3">
         <BackButton label="Parte" />
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Nueva Visita</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Nueva visita</h1>
           <p className="text-sm text-muted-foreground">{intervention?.number} · {intervention?.client_name}</p>
         </div>
       </div>

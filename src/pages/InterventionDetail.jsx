@@ -1005,7 +1005,7 @@ export default function InterventionDetail() {
           </h2>
           <Link to={`/interventions/${id}/new-visit`}>
             <Button size="sm" variant="outline" className="rounded-xl gap-1">
-              <Plus className="h-3 w-3" /> Nueva Visita
+              <Plus className="h-3 w-3" /> Nueva visita
             </Button>
           </Link>
         </div>

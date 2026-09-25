@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, CheckCircle, Package, Search, Clock } from "lucide-react";
+import { Plus, Trash2, CheckCircle, Search, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 import { formatNumber } from "@/lib/format";
@@ -221,8 +221,7 @@ export default function StockBatchEntry() {
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto pb-32 md:pb-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <Package className="h-6 w-6 text-accent" />
+        <h1 className="text-2xl font-bold text-foreground">
           Recepción de material
         </h1>
         <p className="text-muted-foreground text-sm mt-1">

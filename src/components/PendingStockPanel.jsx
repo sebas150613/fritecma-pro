@@ -46,7 +46,7 @@ export default function PendingStockPanel() {
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold flex items-center gap-2 text-sm">
           <PackagePlus className="h-4 w-4 text-accent" />
-          Entradas de Stock Pendientes de Validar
+          Entradas de material pendientes de validar
           <Badge className="bg-amber-100 text-amber-700 border border-amber-200 text-xs font-semibold">{entries.length}</Badge>
         </h3>
         <Link to="/stock-entry" className="text-xs text-accent hover:underline flex items-center gap-1">
@@ -91,7 +91,7 @@ export default function PendingStockPanel() {
               disabled={validating === e.id}
             >
               <CheckCircle className="h-3.5 w-3.5" />
-              {validating === e.id ? "Validando..." : "Validar Entrada"}
+              {validating === e.id ? "Validando..." : "Validar entrada"}
             </Button>
           </div>
         ))}
