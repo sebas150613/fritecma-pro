@@ -88,7 +88,9 @@ export default defineConfig(({ mode, command }) => {
       }
     },
     optimizeDeps: {
-      include: ['react', 'react-dom', 'react-router-dom'],
+      // moment y su idioma deben pre-empaquetarse juntos: si no, en desarrollo
+      // el locale se registra en otra copia de moment y las fechas salen en inglés.
+      include: ['react', 'react-dom', 'react-router-dom', 'moment', 'moment/dist/locale/es'],
       exclude: []
     }
   };

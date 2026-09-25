@@ -1,7 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import moment from 'moment'
-import 'moment/locale/es'
+// La versión ESM del idioma: importa la misma copia de moment (dist/moment.js)
+// que resuelve Vite para "moment"; la de moment/locale/ es UMD y registraba el
+// idioma en otra copia, así que las fechas seguían en inglés.
+import 'moment/dist/locale/es'
 import App from '@/App.jsx'
 import '@/index.css'
 

@@ -21,7 +21,7 @@ import { PRIORITY_COLORS, PRIORITY_LABELS } from "@/lib/status-constants";
 const OPEN_BREAKDOWN = (b) => b.status === "abierta" || b.status === "pendiente";
 
 /** Tarjeta de "lo que necesita atención": un número y a dónde ir a resolverlo. */
-function AttentionCard({ to, icon: Icon, label, value, hint, alert = false }) {
+function AttentionCard({ to, icon: Icon, label, value, hint = "", alert = false }) {
   return (
     <Link
       to={to}
