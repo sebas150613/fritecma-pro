@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import AnimatedPage from "../components/AnimatedPage";
 import PullToRefresh from "../components/PullToRefresh";
 import { PRIORITY_COLORS, PRIORITY_LABELS } from "@/lib/status-constants";
+import moment from "moment";
 
 const STATUS_COLORS = {
   abierta:   "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
@@ -23,6 +24,10 @@ function BreakdownCard({ breakdown }) {
   const createdDate = breakdown.created_at
     ? new Date(breakdown.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "2-digit", year: "2-digit" })
     : "—";
+  // Lo que importa en una avería abierta es cuánto lleva esperando.
+  const age = breakdown.created_at && breakdown.status !== "terminada"
+    ? moment(breakdown.created_at).fromNow()
+    : null;
 
   return (
     <Link to={`/breakdowns/${breakdown.id}`}>
@@ -54,7 +59,7 @@ function BreakdownCard({ breakdown }) {
             ) : (
               <p className="text-xs text-muted-foreground italic">Sin asignar</p>
             )}
-            <p className="text-[10px] text-muted-foreground/60">{createdDate}</p>
+            <p className="text-[11px] text-muted-foreground" title={createdDate}>{age || createdDate}</p>
           </div>
         </div>
 

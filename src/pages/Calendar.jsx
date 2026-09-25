@@ -22,6 +22,8 @@ export default function Calendar() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(moment());
+  const [interventions, setInterventions] = useState([]);
+  const [selectedDay, setSelectedDay] = useState(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [eventToDelete, setEventToDelete] = useState(null);
@@ -60,13 +62,21 @@ export default function Calendar() {
       const me = await appApi.auth.me();
       setUser(me);
 
-      const [userList, eventList] = await Promise.all([
+      // Los partes salen en el calendario con la misma visibilidad que en
+      // "Partes de trabajo": la oficina ve todos y el personal de campo, los suyos.
+      const isFieldRole = ["user", "tecnico", "ayudante"].includes(me.role);
+      const [userList, eventList, partes] = await Promise.all([
         appApi.entities.User.list("full_name", 200),
-        appApi.entities.CalendarEvent.list("-start_date", 500)
+        appApi.entities.CalendarEvent.list("-start_date", 500),
+        (isFieldRole
+          ? appApi.entities.Intervention.filter({ technician_email: me.email }, "-created_date", 300)
+          : appApi.entities.Intervention.list("-created_date", 300)
+        ).catch(() => []),
       ]);
 
       setUsers(userList || []);
       setEvents(eventList || []);
+      setInterventions((partes || []).filter((i) => i.status !== "anulado"));
     } catch (error) {
       console.error("Error loading data:", error);
     } finally {
@@ -107,6 +117,18 @@ export default function Calendar() {
     const eventDate = moment(e.start_date);
     return eventDate.isBetween(monthStart, monthEnd, null, "[]");
   });
+
+  // Rejilla del mes (semanas de lunes a domingo).
+  const gridStart = monthStart.clone().startOf("isoWeek");
+  const gridEnd = monthEnd.clone().endOf("isoWeek");
+  const gridDays = [];
+  for (let d = gridStart.clone(); d.isSameOrBefore(gridEnd, "day"); d.add(1, "day")) {
+    gridDays.push(d.clone());
+  }
+  const eventsOn = (day) => visibleEvents.filter((e) => moment(e.start_date).isSame(day, "day"));
+  const partesOn = (day) => interventions.filter((i) => i.date && moment(i.date).isSame(day, "day"));
+  const listedEvents = selectedDay ? eventsOn(selectedDay) : monthEvents;
+  const listedPartes = selectedDay ? partesOn(selectedDay) : [];
 
   const handleSave = async () => {
     if (!form.asignado_a || !form.title || !form.start_date) return;
@@ -205,27 +227,100 @@ export default function Calendar() {
             </Link>
           )}
           <Button onClick={() => setDialogOpen(true)} className="rounded-xl gap-2 bg-accent hover:bg-accent/90">
-            <Plus className="h-4 w-4" /> Nuevo Evento
+            <Plus className="h-4 w-4" /> Nuevo evento
           </Button>
         </div>
       </div>
 
       {/* Controles de mes */}
       <div className="flex items-center justify-between gap-4">
-        <Button variant="outline" onClick={() => setCurrentMonth(currentMonth.clone().subtract(1, "month"))} className="rounded-xl">
+        <Button variant="outline" onClick={() => { setSelectedDay(null); setCurrentMonth(currentMonth.clone().subtract(1, "month")); }} className="rounded-xl">
           ← Anterior
         </Button>
-        <h2 className="text-lg font-semibold">{currentMonth.format("MMMM YYYY")}</h2>
-        <Button variant="outline" onClick={() => setCurrentMonth(currentMonth.clone().add(1, "month"))} className="rounded-xl">
+        <h2 className="text-lg font-semibold first-letter:uppercase">{currentMonth.format("MMMM YYYY")}</h2>
+        <Button variant="outline" onClick={() => { setSelectedDay(null); setCurrentMonth(currentMonth.clone().add(1, "month")); }} className="rounded-xl">
           Siguiente →
         </Button>
       </div>
 
-      {/* Eventos del mes */}
+      {/* Rejilla del mes: eventos y partes de cada día */}
+      <div className="bg-card rounded-2xl border border-border overflow-hidden">
+        <div className="grid grid-cols-7 border-b border-border text-center text-xs font-medium text-muted-foreground">
+          {["L", "M", "X", "J", "V", "S", "D"].map((d) => (
+            <div key={d} className="py-2">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7">
+          {gridDays.map((day) => {
+            const inMonth = day.isSame(currentMonth, "month");
+            const isToday = day.isSame(moment(), "day");
+            const isSelected = selectedDay && day.isSame(selectedDay, "day");
+            const dayEvents = eventsOn(day);
+            const dayPartes = partesOn(day);
+            return (
+              <button
+                key={day.format("YYYY-MM-DD")}
+                type="button"
+                onClick={() => setSelectedDay(isSelected ? null : day.clone())}
+                aria-pressed={Boolean(isSelected)}
+                aria-label={`${day.format("dddd D [de] MMMM")}: ${dayEvents.length} eventos, ${dayPartes.length} partes`}
+                className={`min-h-[64px] lg:min-h-[92px] border-b border-r border-border p-1.5 text-left align-top transition-colors hover:bg-muted/40 ${inMonth ? "" : "bg-muted/20 text-muted-foreground/60"} ${isSelected ? "ring-2 ring-inset ring-accent" : ""}`}
+              >
+                <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${isToday ? "bg-accent text-accent-foreground" : ""}`}>
+                  {day.date()}
+                </span>
+                <div className="mt-1 space-y-0.5">
+                  {dayEvents.slice(0, 2).map((e) => (
+                    <p key={e.id} className="hidden lg:block truncate text-[11px] leading-tight" style={{ color: e.color || TYPE_COLORS[e.event_type] }}>
+                      {e.title}
+                    </p>
+                  ))}
+                  {dayEvents.length > 0 && (
+                    <p className="lg:hidden text-[10px] leading-tight text-accent">{dayEvents.length} ev.</p>
+                  )}
+                  {dayPartes.length > 0 && (
+                    <p className="truncate text-[10px] lg:text-[11px] leading-tight text-muted-foreground">
+                      {dayPartes.length === 1 ? "1 parte" : `${dayPartes.length} partes`}
+                    </p>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {selectedDay && (
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-semibold first-letter:uppercase">{selectedDay.format("dddd D [de] MMMM")}</h3>
+          <Button variant="ghost" size="sm" onClick={() => setSelectedDay(null)} className="rounded-xl">
+            Ver todo el mes
+          </Button>
+        </div>
+      )}
+
+      {/* Partes del día seleccionado */}
+      {listedPartes.length > 0 && (
+        <div className="bg-card rounded-2xl border border-border divide-y divide-border">
+          {listedPartes.map((i) => (
+            <Link key={i.id} to={`/interventions/${i.id}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/40">
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">{i.client_name}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {[moment(i.date).format("HH:mm"), i.number, i.technician_name].filter(Boolean).join(" · ")}
+                </p>
+              </div>
+              <span className="text-xs text-accent shrink-0">Ver parte</span>
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {/* Eventos del mes (o del día seleccionado) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {monthEvents.length === 0 ? (
-          <div className="col-span-3 text-center py-12 space-y-3">
-            <p className="text-muted-foreground">Sin eventos en este mes.</p>
+        {listedEvents.length === 0 ? (
+          <div className="col-span-3 text-center py-8 space-y-3">
+            <p className="text-muted-foreground">{selectedDay ? "Sin eventos este día." : "Sin eventos en este mes."}</p>
             {isEncargado && (
               <Button variant="outline" onClick={() => setDialogOpen(true)} className="rounded-xl">
                 <Plus className="h-4 w-4 mr-2" /> Añadir evento
@@ -233,7 +328,7 @@ export default function Calendar() {
             )}
           </div>
         ) : (
-          monthEvents.map(event => (
+          listedEvents.map(event => (
             <div key={event.id} className="bg-card rounded-xl border border-border p-4 space-y-3" style={{ borderLeftColor: event.color, borderLeftWidth: "4px" }}>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1">

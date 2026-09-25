@@ -241,7 +241,7 @@ export default function BreakdownDetail() {
               className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-8 h-12 text-base shadow-lg shadow-accent/25"
             >
               <ClipboardList className="h-5 w-5 mr-2" />
-              Crear parte / Cambiar estado
+              Crear parte o cambiar estado
             </Button>
           </div>
         </div>
