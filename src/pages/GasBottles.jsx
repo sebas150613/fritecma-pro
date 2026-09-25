@@ -23,6 +23,7 @@ import {
   GAS_OTHER_REQUIRED_MESSAGE,
 } from "@/lib/refrigerantGases";
 import { syncGasMaterialStock } from "@/lib/gasMaterialSync";
+import { formatNumber, formatQty } from "@/lib/format";
 const BOTTLE_TYPES = ["Gas", "Recuperación"];
 const LOCATION_LABELS = { taller: "Taller", furgoneta: "Furgoneta", cliente: "Cliente" };
 const STATUS_COLORS = { activa: "bg-emerald-100 text-emerald-700 border-emerald-200", vacia: "bg-amber-100 text-amber-700 border-amber-200", devuelta: "bg-blue-100 text-blue-700 border-blue-200" };
@@ -243,7 +244,7 @@ export default function GasBottles() {
     if (!transferForm.from_bottle_id || !transferForm.to_bottle_id) return setTransferError("Selecciona ambas botellas.");
     if (transferForm.from_bottle_id === transferForm.to_bottle_id) return setTransferError("Las botellas deben ser distintas.");
     if (!kg || kg <= 0) return setTransferError("Indica los Kg a traspasar.");
-    if (fromBottle && kg > (fromBottle.carga_actual || 0)) return setTransferError(`La botella origen solo tiene ${fromBottle.carga_actual} kg.`);
+    if (fromBottle && kg > (fromBottle.carga_actual || 0)) return setTransferError(`La botella origen solo tiene ${formatQty(fromBottle.carga_actual)} kg.`);
     if (
       fromBottle &&
       toBottle &&
@@ -358,8 +359,8 @@ export default function GasBottles() {
                   {b.carga_inicial > 0 && (
                     <div>
                       <div className="flex justify-between text-xs mb-1 text-muted-foreground">
-                        <span>{(b.carga_actual || 0).toFixed(2)} kg</span>
-                        <span>{b.carga_inicial} kg cap.</span>
+                        <span>{formatNumber((b.carga_actual || 0), 2)} kg</span>
+                        <span>{formatQty(b.carga_inicial)} kg cap.</span>
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div className={cn("h-full rounded-full transition-all", low ? "bg-amber-400" : "bg-emerald-400")} style={{ width: `${pct}%` }} />
@@ -400,7 +401,7 @@ export default function GasBottles() {
                       {owner === "fritecma" ? "FRIGEST" : "Cliente"}
                     </Badge>
                   </div>
-                  <p className="text-3xl font-black text-accent">{kg.toFixed(2)} <span className="text-base font-medium text-muted-foreground">kg</span></p>
+                  <p className="text-3xl font-black text-accent">{formatNumber(kg, 2)} <span className="text-base font-medium text-muted-foreground">kg</span></p>
                 </div>
               );
             })}
@@ -419,7 +420,7 @@ export default function GasBottles() {
                   <span className="px-2 py-1 bg-muted rounded-lg">{t.to_bottle_serial}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold">{t.gas_type} · <span className="text-accent">{t.kg_transferred} kg</span></p>
+                  <p className="text-sm font-semibold">{t.gas_type} · <span className="text-accent">{formatQty(t.kg_transferred)} kg</span></p>
                   <p className="text-xs text-muted-foreground">{t.technician_name} · {moment(t.timestamp).format("DD/MM/YYYY HH:mm")}{t.intervention_number ? ` · Parte: ${t.intervention_number}` : ""}</p>
                 </div>
                 {t.new_location_type && (
@@ -610,7 +611,7 @@ export default function GasBottles() {
                         {isSalida ? "─ Salida" : "+ Entrada"}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold">{t.kg_transferred} kg · {t.gas_type}</p>
+                        <p className="text-sm font-semibold">{formatQty(t.kg_transferred)} kg · {t.gas_type}</p>
                         <p className="text-xs text-muted-foreground">{isSalida ? `→ ${t.to_bottle_serial}` : `← ${t.from_bottle_serial}`} · {t.technician_name} · {moment(t.timestamp).format("DD/MM/YY HH:mm")}</p>
                         {t.intervention_number && (
                           interventionMap[t.intervention_number]
@@ -637,11 +638,11 @@ export default function GasBottles() {
                 <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Seleccionar botella origen..." /></SelectTrigger>
                 <SelectContent>
                   {bottles.filter(b => b.status === "activa" && (b.carga_actual || 0) > 0).map(b => (
-                    <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.gas_type} · {b.carga_actual} kg</SelectItem>
+                    <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.gas_type} · {formatQty(b.carga_actual)} kg</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {fromBottle && <p className="text-xs text-muted-foreground mt-1">Disponible: <strong>{fromBottle.carga_actual} kg</strong> · {LOCATION_LABELS[fromBottle.location_type]}</p>}
+              {fromBottle && <p className="text-xs text-muted-foreground mt-1">Disponible: <strong>{formatQty(fromBottle.carga_actual)} kg</strong> · {LOCATION_LABELS[fromBottle.location_type]}</p>}
             </div>
 
             <div>
@@ -650,11 +651,11 @@ export default function GasBottles() {
                 <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder="Seleccionar botella destino..." /></SelectTrigger>
                 <SelectContent>
                   {bottles.filter(b => b.id !== transferForm.from_bottle_id).map(b => (
-                    <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.gas_type} · {b.carga_actual || 0} kg</SelectItem>
+                    <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.gas_type} · {formatQty(b.carga_actual || 0)} kg</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {toBottle && <p className="text-xs text-muted-foreground mt-1">Tiene: <strong>{toBottle.carga_actual || 0} kg</strong> - {LOCATION_LABELS[toBottle.location_type]}</p>}
+              {toBottle && <p className="text-xs text-muted-foreground mt-1">Tiene: <strong>{formatQty(toBottle.carga_actual || 0)} kg</strong> - {LOCATION_LABELS[toBottle.location_type]}</p>}
               </div>
 
             <div>

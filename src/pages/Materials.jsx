@@ -23,6 +23,7 @@ import {
 } from "@/lib/gasMaterialSync";
 import { normalizeGasCompareKey } from "@/lib/refrigerantGases";
 
+import { formatEUR, formatNumber } from "@/lib/format";
 const CATEGORIES = {
   gas_refrigerante: "Gas Refrigerante",
   repuesto: "Repuesto",
@@ -216,13 +217,13 @@ export default function Materials() {
           {canSeePrices && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Precio Venta</span>
-              <span className="font-semibold">{(m.sell_price || 0).toFixed(2)} €/{m.unit || "ud"}</span>
+              <span className="font-semibold">{formatEUR((m.sell_price || 0))}/{m.unit || "ud"}</span>
             </div>
           )}
           {isAdmin && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Precio Coste</span>
-              <span>{(m.cost_price || 0).toFixed(2)} €</span>
+              <span>{formatEUR((m.cost_price || 0))}</span>
             </div>
           )}
           {!isTecnico && m.supplier_name && (
@@ -447,7 +448,7 @@ export default function Materials() {
                     </p>
                     <p>
                       Kg actuales:{" "}
-                      <strong>{(parseFloat(b.carga_actual) || 0).toFixed(2)} kg</strong>
+                      <strong>{formatNumber((parseFloat(b.carga_actual) || 0), 2)} kg</strong>
                     </p>
                     <p>
                       Estado: <strong>{b.status}</strong>

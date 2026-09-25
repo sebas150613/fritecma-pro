@@ -16,6 +16,7 @@ import { FileText, Plus, Search, ExternalLink, Send, Check, X, ClipboardList } f
 import { toast } from "sonner";
 import moment from "moment";
 
+import { formatEUR } from "@/lib/format";
 const canManageBudgets = (u) =>
   u &&
   u.is_hidden_owner !== true &&
@@ -222,7 +223,7 @@ export default function Budgets() {
   const [invoicingBudgetId, setInvoicingBudgetId] = useState(null);
 
   const invoiceBudget = async (budget) => {
-    if (!window.confirm(`Se emitirá una factura Veri*factu con las líneas del presupuesto ${budget.number} por ${(Number(budget.total) || 0).toFixed(2)} €. ¿Continuar?`)) {
+    if (!window.confirm(`Se emitirá una factura Veri*factu con las líneas del presupuesto ${budget.number} por ${formatEUR((Number(budget.total) || 0))}. ¿Continuar?`)) {
       return;
     }
     setInvoicingBudgetId(budget.id);

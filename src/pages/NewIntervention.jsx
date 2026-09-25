@@ -36,6 +36,7 @@ import {
   computeTotalsFromLines,
 } from "@/lib/displacementBilling";
 
+import { formatEUR, formatQty } from "@/lib/format";
 function buildPriorityGasTypesFromBottles(bottles) {
   const active = (bottles || []).filter(
     (b) => b.status === "activa" && (parseFloat(b.carga_actual) || 0) > 0
@@ -1064,12 +1065,12 @@ export default function NewIntervention() {
                   </SelectTrigger>
                   <SelectContent>
                     {availableBottles.map(b => (
-                      <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.carga_actual} kg disponibles</SelectItem>
+                      <SelectItem key={b.id} value={b.id}>{b.serial_number} · {formatQty(b.carga_actual)} kg disponibles</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {form.gas_bottle_id && gasBottles.find(b => b.id === form.gas_bottle_id) && (
-                  <p className="text-xs text-muted-foreground mt-1">Stock actual: <strong>{gasBottles.find(b => b.id === form.gas_bottle_id)?.carga_actual} kg</strong></p>
+                  <p className="text-xs text-muted-foreground mt-1">Stock actual: <strong>{formatQty(gasBottles.find(b => b.id === form.gas_bottle_id)?.carga_actual)} kg</strong></p>
                 )}
               </>
             )}
@@ -1218,7 +1219,7 @@ export default function NewIntervention() {
                 <SelectItem value="__none__">— Decidir en oficina —</SelectItem>
                 {tramosOptions.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
-                    {t.nombre} ({t.precio.toFixed(2)} €)
+                    {t.nombre} ({formatEUR(t.precio)})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1274,21 +1275,21 @@ export default function NewIntervention() {
           <div className="border-t border-border pt-4 space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
-              <span>{totals.subtotal.toFixed(2)} €</span>
+              <span>{formatEUR(totals.subtotal)}</span>
             </div>
             {form.discount_percent > 0 && (
               <div className="flex justify-between text-sm text-destructive">
                 <span>Descuento ({form.discount_percent}%)</span>
-                <span>-{totals.discountAmount.toFixed(2)} €</span>
+                <span>-{formatEUR(totals.discountAmount)}</span>
               </div>
             )}
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">IVA</span>
-              <span>{totals.ivaTotal.toFixed(2)} €</span>
+              <span>{formatEUR(totals.ivaTotal)}</span>
             </div>
             <div className="flex justify-between text-lg font-bold pt-2 border-t border-border">
               <span>Total</span>
-              <span>{totals.total.toFixed(2)} €</span>
+              <span>{formatEUR(totals.total)}</span>
             </div>
           </div>
         )}
@@ -1392,7 +1393,7 @@ export default function NewIntervention() {
             {canSeeBillingTotals && (
               <>
                 <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-2xl font-bold">{totals.total.toFixed(2)} €</p>
+                <p className="text-2xl font-bold">{formatEUR(totals.total)}</p>
               </>
             )}
           </div>

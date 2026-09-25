@@ -12,6 +12,7 @@ import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { cn } from "@/lib/utils";
 import moment from "moment";
 
+import { formatNumber } from "@/lib/format";
 const STATUS_COLORS = {
   borrador: "bg-slate-100 text-slate-600",
   enviado: "bg-amber-100 text-amber-700",
@@ -227,9 +228,9 @@ export default function WorkDayReport() {
                       </div>
                       <p className="text-sm text-muted-foreground">{d.name}</p>
                       <div className="grid grid-cols-3 gap-2 text-xs">
-                        <div><p className="text-muted-foreground">Fichaje</p><p className="font-semibold">{d.fichaje_hours != null ? d.fichaje_hours.toFixed(2) + "h" : "—"}</p></div>
-                        <div><p className="text-muted-foreground">Tramos</p><p className="font-semibold">{d.tramos_hours != null ? d.tramos_hours.toFixed(2) + "h" : "—"}</p></div>
-                        <div><p className="text-muted-foreground">Diferencia</p><p className={cn("font-semibold", warn ? "text-amber-600" : ok ? "text-emerald-600" : "text-muted-foreground")}>{d.diff != null ? d.diff.toFixed(2) + "h" : "—"}</p></div>
+                        <div><p className="text-muted-foreground">Fichaje</p><p className="font-semibold">{d.fichaje_hours != null ? formatNumber(d.fichaje_hours, 2) + " h" : "—"}</p></div>
+                        <div><p className="text-muted-foreground">Tramos</p><p className="font-semibold">{d.tramos_hours != null ? formatNumber(d.tramos_hours, 2) + " h" : "—"}</p></div>
+                        <div><p className="text-muted-foreground">Diferencia</p><p className={cn("font-semibold", warn ? "text-amber-600" : ok ? "text-emerald-600" : "text-muted-foreground")}>{d.diff != null ? formatNumber(d.diff, 2) + " h" : "—"}</p></div>
                       </div>
                     </div>
                   );
@@ -259,10 +260,10 @@ export default function WorkDayReport() {
                         <tr key={i} className={cn("hover:bg-muted/20", warn && "bg-amber-50", missing && "bg-slate-50")}>
                           <td className="px-4 py-3 font-medium">{moment(d.date).format("DD/MM/YY ddd")}</td>
                           <td className="px-4 py-3 text-muted-foreground">{d.name}</td>
-                          <td className="px-4 py-3 text-right font-semibold">{d.fichaje_hours != null ? d.fichaje_hours.toFixed(2) : <span className="text-muted-foreground">—</span>}</td>
-                          <td className="px-4 py-3 text-right">{d.tramos_hours != null ? d.tramos_hours.toFixed(2) : <span className="text-muted-foreground">—</span>}</td>
+                          <td className="px-4 py-3 text-right font-semibold">{d.fichaje_hours != null ? formatNumber(d.fichaje_hours, 2) : <span className="text-muted-foreground">—</span>}</td>
+                          <td className="px-4 py-3 text-right">{d.tramos_hours != null ? formatNumber(d.tramos_hours, 2) : <span className="text-muted-foreground">—</span>}</td>
                           <td className={`px-4 py-3 text-right font-semibold ${warn ? "text-amber-600" : ok ? "text-emerald-600" : "text-muted-foreground"}`}>
-                            {d.diff != null ? `${d.diff.toFixed(2)}h` : "—"}
+                            {d.diff != null ? `${formatNumber(d.diff, 2)}h` : "—"}
                           </td>
                           <td className="px-4 py-3 text-center">
                             {missing ? <span className="text-xs text-muted-foreground">Incompleto</span>
@@ -293,19 +294,19 @@ export default function WorkDayReport() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div className="bg-muted/50 rounded-lg p-2 text-center">
                       <p className="text-xs text-muted-foreground">Total</p>
-                      <p className="font-bold">{s.total_hours.toFixed(1)}h</p>
+                      <p className="font-bold">{formatNumber(s.total_hours, 1)}h</p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-2 text-center">
                       <p className="text-xs text-muted-foreground">Extra</p>
-                      <p className="font-bold text-amber-600">{s.hours_extra.toFixed(1)}h</p>
+                      <p className="font-bold text-amber-600">{formatNumber(s.hours_extra, 1)}h</p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-2 text-center">
                       <p className="text-xs text-muted-foreground">Nocturnas</p>
-                      <p className="font-bold text-indigo-600">{s.hours_nocturnas.toFixed(1)}h</p>
+                      <p className="font-bold text-indigo-600">{formatNumber(s.hours_nocturnas, 1)}h</p>
                     </div>
                     <div className="bg-muted/50 rounded-lg p-2 text-center">
                       <p className="text-xs text-muted-foreground">Sáb/Dom</p>
-                      <p className="font-bold text-rose-600">{(s.hours_sabado + s.hours_domingo).toFixed(1)}h</p>
+                      <p className="font-bold text-rose-600">{formatNumber((s.hours_sabado + s.hours_domingo), 1)}h</p>
                     </div>
                   </div>
                 </div>
@@ -327,10 +328,10 @@ export default function WorkDayReport() {
                   </div>
                   {isAdmin && <p className="text-sm text-muted-foreground">{r.technician_name}</p>}
                   <div className="flex flex-wrap gap-3 text-sm">
-                    <span>Total: <strong>{(r.total_hours || 0).toFixed(2)}h</strong></span>
+                    <span>Total: <strong>{formatNumber((r.total_hours || 0), 2)}h</strong></span>
                     {(r.hours_extra || 0) > 0 && <span className="text-amber-600">Extra: {r.hours_extra}h</span>}
                     {(r.hours_nocturnas || 0) > 0 && <span className="text-indigo-600">Noc: {r.hours_nocturnas}h</span>}
-                    {((r.hours_sabado || 0) + (r.hours_domingo || 0)) > 0 && <span className="text-rose-600">S/D: {((r.hours_sabado||0)+(r.hours_domingo||0)).toFixed(1)}h</span>}
+                    {((r.hours_sabado || 0) + (r.hours_domingo || 0)) > 0 && <span className="text-rose-600">S/D: {formatNumber(((r.hours_sabado||0)+(r.hours_domingo||0)), 1)}h</span>}
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" className="h-8 rounded-lg gap-1 text-xs flex-1" onClick={() => setDetailRecord(r)}>
@@ -367,7 +368,7 @@ export default function WorkDayReport() {
                     <tr key={r.id} className="hover:bg-muted/20">
                       <td className="px-4 py-3 font-medium">{moment(r.work_date).format("DD/MM/YY ddd")}</td>
                       {isAdmin && <td className="px-4 py-3 text-muted-foreground">{r.technician_name}</td>}
-                      <td className="px-4 py-3 text-right font-semibold">{(r.total_hours || 0).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{formatNumber(r.total_hours || 0, 2)}</td>
                       <td className="px-4 py-3 text-right text-amber-600">{r.hours_extra || 0}</td>
                       <td className="px-4 py-3 text-right text-indigo-600">{r.hours_nocturnas || 0}</td>
                       <td className="px-4 py-3 text-right text-rose-500">{r.hours_sabado || 0}</td>

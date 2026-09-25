@@ -16,6 +16,7 @@ import { validateStockAvailability, deductStockForIntervention } from "../lib/st
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import moment from "moment";
 
+import { formatEUR, formatQty } from "@/lib/format";
 const GAS_TYPES = ["R449A", "R134a", "R404A", "R410A", "R407C", "R22", "R32", "R290", "R600a", "R744", "otro"];
 
 const INCIDENT_STATUS_OPTIONS = [
@@ -302,7 +303,7 @@ export default function NewVisit() {
             <Select value={form.gas_bottle_id} onValueChange={(v) => setForm(f => ({ ...f, gas_bottle_id: v }))} disabled={!form.gas_type}>
               <SelectTrigger className="mt-1 rounded-xl"><SelectValue placeholder={form.gas_type ? "Seleccionar..." : "Selecciona gas primero"} /></SelectTrigger>
               <SelectContent>
-                {availableBottles.map(b => <SelectItem key={b.id} value={b.id}>{b.serial_number} · {b.current_kg} kg</SelectItem>)}
+                {availableBottles.map(b => <SelectItem key={b.id} value={b.id}>{b.serial_number} · {formatQty(b.current_kg)} kg</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -362,9 +363,9 @@ export default function NewVisit() {
         )}
         {(lines.length > 0 || laborLines.length > 0) && canEditPrices && (
           <div className="border-t border-border pt-4 space-y-1">
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span>{totals.subtotal.toFixed(2)} €</span></div>
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">IVA</span><span>{totals.ivaTotal.toFixed(2)} €</span></div>
-            <div className="flex justify-between text-lg font-bold pt-2 border-t border-border"><span>Total</span><span>{totals.total.toFixed(2)} €</span></div>
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span>{formatEUR(totals.subtotal)}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">IVA</span><span>{formatEUR(totals.ivaTotal)}</span></div>
+            <div className="flex justify-between text-lg font-bold pt-2 border-t border-border"><span>Total</span><span>{formatEUR(totals.total)}</span></div>
           </div>
         )}
       </div>
@@ -442,7 +443,7 @@ export default function NewVisit() {
             {canEditPrices && (
               <>
                 <p className="text-sm text-muted-foreground">Total visita</p>
-                <p className="text-2xl font-bold">{totals.total.toFixed(2)} €</p>
+                <p className="text-2xl font-bold">{formatEUR(totals.total)}</p>
               </>
             )}
           </div>

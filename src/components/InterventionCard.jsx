@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import moment from "moment";
 
+import { formatEUR, formatQty } from "@/lib/format";
 const statusColors = {
   en_curso: "bg-blue-100 text-blue-700 border-blue-200",
   pendiente_revision: "bg-amber-100 text-amber-700 border-amber-200",
@@ -89,7 +90,7 @@ function InterventionCard({ intervention, isAdmin }) {
         {gas_type && (
           <div className="flex items-center gap-2">
             <Flame className="h-3.5 w-3.5" />
-            <span>{gas_type} · {gas_loaded_kg}kg cargados · {gas_recovered_kg}kg recuperados</span>
+            <span>{gas_type} · {formatQty(gas_loaded_kg)} kg cargados · {formatQty(gas_recovered_kg)} kg recuperados</span>
           </div>
         )}
         {technician_name && (
@@ -102,7 +103,7 @@ function InterventionCard({ intervention, isAdmin }) {
 
       <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
         {isAdmin ? (
-          <p className="text-lg font-bold">{total.toFixed(2)} €</p>
+          <p className="text-lg font-bold">{formatEUR(total)}</p>
         ) : (
           <p className="text-sm text-muted-foreground">Ver detalle</p>
         )}

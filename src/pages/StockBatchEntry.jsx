@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Trash2, CheckCircle, Package, Search, Clock } from "lucide-react";
 import { toast } from "sonner";
 
+import { formatNumber } from "@/lib/format";
 const EMPTY_LINE = { materialId: "", materialName: "", materialCode: "", currentStock: 0, unit: "ud", quantity: "", supplierId: "", supplierName: "" };
 
 function parseOrderLines(json) {
@@ -417,7 +418,7 @@ export default function StockBatchEntry() {
               {/* Stock preview after entry — only for non-pending, main warehouse */}
               {!savePending && !targetWarehouseId && line.materialId && Number(line.quantity) > 0 && (
                 <div className="mt-1 ml-1 text-xs text-muted-foreground">
-                  Stock resultante: <span className="font-semibold text-green-600">{(line.currentStock + Number(line.quantity || 0)).toFixed(2)} {line.unit}</span>
+                  Stock resultante: <span className="font-semibold text-green-600">{formatNumber(line.currentStock + Number(line.quantity || 0), 2)} {line.unit}</span>
                 </div>
               )}
             </div>

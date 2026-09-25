@@ -3,6 +3,7 @@ import moment from "moment";
 import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
 
+import { formatEUR } from "@/lib/format";
 // ── Constantes de diseño ──────────────────────────────────────────────────────
 const ML    = 14;
 const PW    = 210 - ML * 2;   // 182 mm
@@ -318,13 +319,13 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
       const desc = doc.splitTextToSize(displayName, 87);
       doc.text(desc[0], ML + 3, y + 4.2);
       doc.text(`${m.quantity} ${m.unit || "ud"}`,     ML + 96,     y + 4.2, { align: "center" });
-      doc.text(`${(m.unit_price || 0).toFixed(2)} €`, ML + 122,    y + 4.2, { align: "right" });
+      doc.text(`${formatEUR((m.unit_price || 0))}`, ML + 122,    y + 4.2, { align: "right" });
       doc.text(`${m.iva_percent || 21}%`,             ML + 147,    y + 4.2, { align: "right" });
       sf(doc, 8, "bold");
       const totalVal = m.total || 0;
       const totalColor = isOriginalRef && totalVal < 0 ? RED : undefined;
       if (totalColor) doc.setTextColor(...totalColor);
-      doc.text(`${totalVal.toFixed(2)} €`, ML + PW - 2, y + 4.2, { align: "right" });
+      doc.text(`${formatEUR(totalVal)}`, ML + PW - 2, y + 4.2, { align: "right" });
       y += ROW_H;
     });
   }
@@ -354,11 +355,11 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
       const isTotalRow = i === rows.length - 1;
       sf(doc, 7.5, isTotalRow ? "bold" : "normal", DGRAY);
       doc.text(row[0],                          ML + 3,            y + 4.2);
-      doc.text(`${(row[1] || 0).toFixed(2)} €`, ML + colW3 * 1.5, y + 4.2, { align: "center" });
+      doc.text(`${formatEUR((row[1] || 0))}`, ML + colW3 * 1.5, y + 4.2, { align: "center" });
 
       const diff = (row[2] || 0) - (row[1] || 0);
       if (diff !== 0) doc.setTextColor(...RED);
-      doc.text(`${(row[2] || 0).toFixed(2)} €`, ML + colW3 * 2.5, y + 4.2, { align: "center" });
+      doc.text(`${formatEUR((row[2] || 0))}`, ML + colW3 * 2.5, y + 4.2, { align: "center" });
       doc.setTextColor(30, 30, 30);
       y += 6.5;
     });
@@ -405,12 +406,12 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
     fillRect(doc, TX, ty, TW, 6, LGRAY, [210, 215, 222]);
     sf(doc, 7.5, "normal", DGRAY);
     doc.text("Base imponible",          TX + 3,      ty + 4);
-    doc.text(`${v.base.toFixed(2)} €`,  TX + TW - 3, ty + 4, { align: "right" });
+    doc.text(`${formatEUR(v.base)}`,  TX + TW - 3, ty + 4, { align: "right" });
     ty += 6;
 
     fillRect(doc, TX, ty, TW, 6, LGRAY, [210, 215, 222]);
     doc.text(`IVA ${rate}%`,            TX + 3,      ty + 4);
-    doc.text(`${v.cuota.toFixed(2)} €`, TX + TW - 3, ty + 4, { align: "right" });
+    doc.text(`${formatEUR(v.cuota)}`, TX + TW - 3, ty + 4, { align: "right" });
     ty += 6;
   });
 
@@ -418,7 +419,7 @@ async function renderPage(doc, inv, intervention, client, emisor, opts = {}) {
   fillRect(doc, TX, ty, TW, 10, totalColor);
   sf(doc, 11, "bold", WHITE);
   doc.text("TOTAL",                            TX + 4,      ty + 7);
-  doc.text(`${(inv.total || 0).toFixed(2)} €`, TX + TW - 3, ty + 7, { align: "right" });
+  doc.text(`${formatEUR((inv.total || 0))}`, TX + TW - 3, ty + 7, { align: "right" });
   ty += 10;
   ty = Math.max(ty, pagoEnd);
 

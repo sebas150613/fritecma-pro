@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { History, ExternalLink } from "lucide-react";
 import moment from "moment";
 
+import { formatEUR } from "@/lib/format";
 const STATUS_LABELS = {
   en_curso: { label: "En curso", color: "bg-blue-100 text-blue-700" },
   pendiente_revision: { label: "Pte. Revisión", color: "bg-amber-100 text-amber-700" },
@@ -56,7 +57,7 @@ export default function WorkCenterHistory({ center, open, onClose }) {
                     <p className="text-sm font-medium truncate mt-0.5">{inv.description || "Sin descripción"}</p>
                     <p className="text-xs text-muted-foreground">
                       {moment(inv.date).format("DD/MM/YYYY HH:mm")} · {inv.technician_name}
-                      {inv.total > 0 && ` · ${inv.total.toFixed(2)} €`}
+                      {inv.total > 0 && ` · ${formatEUR(inv.total)}`}
                     </p>
                   </div>
                   <Link to={`/interventions/${inv.id}`} onClick={onClose}>

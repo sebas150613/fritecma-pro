@@ -27,6 +27,7 @@ import {
   stripDisplacementLines,
   computeTotalsFromLines,
 } from "@/lib/displacementBilling";
+import { formatEUR, formatQty } from "@/lib/format";
 	const statusColors = INTERVENTION_STATUS_COLORS;
 	const statusLabels = INTERVENTION_STATUS_LABELS;
 
@@ -538,7 +539,7 @@ export default function InterventionDetail() {
                 <p className="text-sm text-amber-700">
                   Esta acción es <strong>fiscalmente vinculante</strong>. Se generará un registro en la AEAT mediante Veri*Factu y el parte quedará <strong>bloqueado permanentemente</strong>.
                 </p>
-                <p className="text-xs text-amber-600">Cliente: {intervention.client_name} · Total: {(intervention.total || 0).toFixed(2)} €</p>
+                <p className="text-xs text-amber-600">Cliente: {intervention.client_name} · Total: {formatEUR((intervention.total || 0))}</p>
               </div>
               <div className="flex gap-3">
                 <Button
@@ -834,7 +835,7 @@ export default function InterventionDetail() {
                   <SelectItem value="__none__">— Sin tramo —</SelectItem>
                   {tramosOrg.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
-                      {t.nombre} · {t.precio.toFixed(2)} €
+                      {t.nombre} · {formatEUR(t.precio)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -898,15 +899,15 @@ export default function InterventionDetail() {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Cargados</p>
-              <p className="font-semibold">{intervention.gas_loaded_kg} kg</p>
+              <p className="font-semibold">{formatQty(intervention.gas_loaded_kg)} kg</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Recuperados</p>
-              <p className="font-semibold">{intervention.gas_recovered_kg} kg</p>
+              <p className="font-semibold">{formatQty(intervention.gas_recovered_kg)} kg</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Fuga</p>
-              <p className="font-semibold text-destructive">{intervention.gas_leak_kg} kg</p>
+              <p className="font-semibold text-destructive">{formatQty(intervention.gas_leak_kg)} kg</p>
             </div>
           </div>
         </div>
@@ -959,14 +960,14 @@ export default function InterventionDetail() {
                       </>
                     ) : (
                       <>
-                        {m.quantity} {m.unit || "ud"} × {(m.unit_price || 0).toFixed(2)}€
+                        {m.quantity} {m.unit || "ud"} × {formatEUR((m.unit_price || 0))}
                         {m.observation && ` — ${m.observation}`}
                       </>
                     )}
                   </p>
                 </div>
                 <p className="font-semibold text-sm">
-                  {isFieldStaff ? "" : `${(m.total || 0).toFixed(2)} €`}
+                  {isFieldStaff ? "" : `${formatEUR((m.total || 0))}`}
                 </p>
               </div>
             ))}
@@ -975,21 +976,21 @@ export default function InterventionDetail() {
           <div className="border-t border-border pt-3 space-y-1">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Subtotal</span>
-              <span>{(intervention.subtotal || 0).toFixed(2)} €</span>
+              <span>{formatEUR((intervention.subtotal || 0))}</span>
             </div>
             {intervention.discount_percent > 0 && (
               <div className="flex justify-between text-sm text-destructive">
                 <span>Descuento ({intervention.discount_percent}%)</span>
-                <span>-{(intervention.subtotal * intervention.discount_percent / 100).toFixed(2)} €</span>
+                <span>-{formatEUR((intervention.subtotal * intervention.discount_percent / 100))}</span>
               </div>
             )}
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">IVA</span>
-              <span>{(intervention.iva_total || 0).toFixed(2)} €</span>
+              <span>{formatEUR((intervention.iva_total || 0))}</span>
             </div>
             <div className="flex justify-between text-lg font-bold pt-2 border-t border-border">
               <span>Total</span>
-              <span>{(intervention.total || 0).toFixed(2)} €</span>
+              <span>{formatEUR((intervention.total || 0))}</span>
             </div>
           </div>
           )}
@@ -1016,7 +1017,7 @@ export default function InterventionDetail() {
             <span className="text-xs text-muted-foreground">{intervention.technician_name}</span>
           </div>
           {intervention.description && <p className="text-sm">{intervention.description}</p>}
-          {intervention.gas_loaded_kg > 0 && <p className="text-xs text-muted-foreground">Gas: {intervention.gas_type} · {intervention.gas_loaded_kg} kg cargados</p>}
+          {intervention.gas_loaded_kg > 0 && <p className="text-xs text-muted-foreground">Gas: {intervention.gas_type} · {formatQty(intervention.gas_loaded_kg)} kg cargados</p>}
         </div>
 
         {/* Additional visits */}
@@ -1027,8 +1028,8 @@ export default function InterventionDetail() {
               <span className="text-xs text-muted-foreground">{v.technician_name}</span>
             </div>
             {v.description && <p className="text-sm">{v.description}</p>}
-            {v.gas_loaded_kg > 0 && <p className="text-xs text-muted-foreground">Gas: {v.gas_type} · {v.gas_loaded_kg} kg cargados</p>}
-            {isAdmin && v.total > 0 && <p className="text-xs font-semibold">Total: {v.total.toFixed(2)} €</p>}
+            {v.gas_loaded_kg > 0 && <p className="text-xs text-muted-foreground">Gas: {v.gas_type} · {formatQty(v.gas_loaded_kg)} kg cargados</p>}
+            {isAdmin && v.total > 0 && <p className="text-xs font-semibold">Total: {formatEUR(v.total)}</p>}
           </div>
         ))}
 

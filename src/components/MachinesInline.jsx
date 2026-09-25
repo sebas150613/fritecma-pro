@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2, History, Snowflake } from "lucide-react";
 import MachineHistory from "./MachineHistory";
 
+import { formatQty } from "@/lib/format";
 export const MACHINE_TYPES = {
   camara: "Cámara frigorífica",
   vitrina: "Vitrina",
@@ -187,7 +188,7 @@ export default function MachinesInline({ client }) {
                 )}
                 {(m.gas_type || m.gas_charge_kg > 0) && (
                   <p className="text-xs text-muted-foreground">
-                    {m.gas_type}{m.gas_charge_kg > 0 && ` · ${m.gas_charge_kg} kg`}
+                    {m.gas_type}{m.gas_charge_kg > 0 && ` · ${formatQty(m.gas_charge_kg)} kg`}
                   </p>
                 )}
                 {m.machine_type === "central_frio" && (m.condenser_model || m.condenser_serial_number) && (

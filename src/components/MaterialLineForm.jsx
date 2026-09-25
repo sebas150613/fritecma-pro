@@ -7,6 +7,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Trash2, ChevronsUpDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { formatEUR } from "@/lib/format";
 function useIsMobile() {
   const [mobile, setMobile] = useState(() => window.innerWidth < 768);
   useEffect(() => {
@@ -61,7 +62,7 @@ function MaterialCommandContent({ line, index, gasItems, otherItems, isFreeText,
                     {m.name}
                   </span>
                 </span>
-                {isAdmin && <span className="text-xs text-muted-foreground shrink-0">{m.sell_price?.toFixed(2)}€/{m.unit}</span>}
+                {isAdmin && <span className="text-xs text-muted-foreground shrink-0">{formatEUR(m.sell_price)}/{m.unit}</span>}
               </CommandItem>
             ))}
           </CommandGroup>
@@ -82,7 +83,7 @@ function MaterialCommandContent({ line, index, gasItems, otherItems, isFreeText,
                     {m.name}
                   </span>
                 </span>
-                {isAdmin && <span className="text-xs text-muted-foreground shrink-0">{m.sell_price?.toFixed(2)}€/{m.unit}</span>}
+                {isAdmin && <span className="text-xs text-muted-foreground shrink-0">{formatEUR(m.sell_price)}/{m.unit}</span>}
               </CommandItem>
             ))}
           </CommandGroup>
@@ -234,7 +235,7 @@ export default function MaterialLineForm({ line, index, materials, onUpdate, onR
         {isAdmin && (
           <div>
             <label className="text-xs text-muted-foreground">Total</label>
-            <Input value={`${(line.total || 0).toFixed(2)} €`} readOnly className="bg-muted font-semibold" />
+            <Input value={`${formatEUR((line.total || 0))}`} readOnly className="bg-muted font-semibold" />
           </div>
         )}
       </div>

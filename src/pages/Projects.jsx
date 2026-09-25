@@ -15,6 +15,7 @@ import ProjectDetailModal from "../components/ProjectDetailModal";
 import { cn } from "@/lib/utils";
 import moment from "moment";
 
+import { formatEUR } from "@/lib/format";
 const STATUS_COLORS = {
   en_curso: "bg-blue-100 text-blue-700 border-blue-200",
   pausada: "bg-amber-100 text-amber-700 border-amber-200",
@@ -239,7 +240,7 @@ export default function Projects() {
                         <span className="truncate flex-1">{line.material_name}</span>
                         <div className="flex items-center gap-2 ml-2 shrink-0">
                             <span className="font-medium">{line.net} {line.unit}</span>
-                           {canSeePrices && <span className="text-xs text-muted-foreground">{((line.net * (line.unit_price || 0)).toFixed(2))} €</span>}
+                           {canSeePrices && <span className="text-xs text-muted-foreground">{formatEUR(line.net * (line.unit_price || 0))}</span>}
                           <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-accent" onClick={() => openReturn(project, line)} title="Devolver">
                             <Undo2 className="h-3.5 w-3.5" />
                           </Button>
@@ -251,7 +252,7 @@ export default function Projects() {
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-border">
-                {canSeePrices && <p className="text-sm font-bold">Total consumido: {total.toFixed(2)} €</p>}
+                {canSeePrices && <p className="text-sm font-bold">Total consumido: {formatEUR(total)}</p>}
                 {!canSeePrices && <span />}
                 <div className="flex gap-2">
                   {isAdmin && (

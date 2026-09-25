@@ -6,6 +6,7 @@ import { appApi } from "@/api/app-api";
 import { Download, Package, Clock, Users } from "lucide-react";
 import moment from "moment";
 
+import { formatEUR, formatNumber } from "@/lib/format";
 const STATUS_COLORS = {
   en_curso: "bg-blue-100 text-blue-700",
   pausada: "bg-amber-100 text-amber-700",
@@ -102,7 +103,7 @@ export default function ProjectDetailModal({ project, projectMaterials, onClose 
   });
 
   const totalMinutes = hoursRows.reduce((s, r) => s + r.minutes, 0);
-  const totalHours = (totalMinutes / 60).toFixed(2);
+  const totalHours = formatNumber(totalMinutes / 60, 2);
 
   // Group hours by technician
   const byTech = {};
@@ -126,7 +127,7 @@ export default function ProjectDetailModal({ project, projectMaterials, onClose 
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-muted/50 rounded-xl p-3 text-center">
             <p className="text-xs text-muted-foreground">Total Materiales</p>
-            <p className="font-bold text-lg">{matTotal.toFixed(2)} €</p>
+            <p className="font-bold text-lg">{formatEUR(matTotal)}</p>
           </div>
           <div className="bg-muted/50 rounded-xl p-3 text-center">
             <p className="text-xs text-muted-foreground">Total Horas</p>
@@ -153,14 +154,14 @@ export default function ProjectDetailModal({ project, projectMaterials, onClose 
                   <div key={m.material_id} className="p-3 flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{m.material_name}</p>
-                      <p className="text-xs text-muted-foreground">{m.net} {m.unit} × {(m.unit_price || 0).toFixed(2)} €</p>
+                      <p className="text-xs text-muted-foreground">{m.net} {m.unit} × {formatEUR((m.unit_price || 0))}</p>
                     </div>
-                    <p className="font-bold text-sm shrink-0">{(m.net * (m.unit_price || 0)).toFixed(2)} €</p>
+                    <p className="font-bold text-sm shrink-0">{formatEUR((m.net * (m.unit_price || 0)))}</p>
                   </div>
                 ))}
                 <div className="p-3 bg-muted/30 flex justify-between font-bold text-sm">
                   <span>Total Materiales</span>
-                  <span>{matTotal.toFixed(2)} €</span>
+                  <span>{formatEUR(matTotal)}</span>
                 </div>
               </div>
               {/* Desktop table */}
@@ -178,13 +179,13 @@ export default function ProjectDetailModal({ project, projectMaterials, onClose 
                     <tr key={m.material_id} className="hover:bg-muted/20">
                       <td className="px-3 py-2">{m.material_name}</td>
                       <td className="px-3 py-2 text-right">{m.net} {m.unit}</td>
-                      <td className="px-3 py-2 text-right text-muted-foreground">{(m.unit_price || 0).toFixed(2)} €</td>
-                      <td className="px-3 py-2 text-right font-medium">{(m.net * (m.unit_price || 0)).toFixed(2)} €</td>
+                      <td className="px-3 py-2 text-right text-muted-foreground">{formatEUR((m.unit_price || 0))}</td>
+                      <td className="px-3 py-2 text-right font-medium">{formatEUR((m.net * (m.unit_price || 0)))}</td>
                     </tr>
                   ))}
                   <tr className="bg-muted/30 font-bold">
                     <td colSpan={3} className="px-3 py-2 text-right">Total Materiales</td>
-                    <td className="px-3 py-2 text-right">{matTotal.toFixed(2)} €</td>
+                    <td className="px-3 py-2 text-right">{formatEUR(matTotal)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -203,7 +204,7 @@ export default function ProjectDetailModal({ project, projectMaterials, onClose 
             <div className="flex flex-wrap gap-2 mb-3">
               {Object.values(byTech).map(t => (
                 <span key={t.name} className="bg-primary/10 text-primary text-xs font-medium px-3 py-1 rounded-full flex items-center gap-1">
-                  <Users className="h-3 w-3" />{t.name}: {(t.minutes / 60).toFixed(2)}h
+                  <Users className="h-3 w-3" />{t.name}: {formatNumber((t.minutes / 60), 2)}h
                 </span>
               ))}
             </div>
@@ -223,7 +224,7 @@ export default function ProjectDetailModal({ project, projectMaterials, onClose 
                   <div key={i} className="p-3 space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-sm">{r.techName}</span>
-                      <span className="font-bold text-sm">{(r.minutes / 60).toFixed(2)} h</span>
+                      <span className="font-bold text-sm">{formatNumber((r.minutes / 60), 2)} h</span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span>{moment(r.date).format("DD/MM/YY")}</span>
@@ -256,7 +257,7 @@ export default function ProjectDetailModal({ project, projectMaterials, onClose 
                       <td className="px-3 py-2 text-muted-foreground">{moment(r.date).format("DD/MM/YY")}</td>
                       <td className="px-3 py-2 font-mono">{r.start || "—"}</td>
                       <td className="px-3 py-2 font-mono">{r.end || "—"}</td>
-                      <td className="px-3 py-2 text-right font-medium">{(r.minutes / 60).toFixed(2)}</td>
+                      <td className="px-3 py-2 text-right font-medium">{formatNumber(r.minutes / 60, 2)}</td>
                       <td className="px-3 py-2 text-xs text-muted-foreground">{r.other_data || "—"}</td>
                     </tr>
                   ))}

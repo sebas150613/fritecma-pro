@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Clock, Users, AlertCircle } from "lucide-react";
 import { getTarifa1Oficial, getTarifaOficialAyudante } from "@/lib/organizationTariffs";
 
+import { formatNumber } from "@/lib/format";
 const SCHEDULE_TYPES = [
   { value: "normal",   label: "Normal (horario laboral)" },
   { value: "extra",    label: "Extra (horas extra)" },
@@ -166,7 +167,7 @@ export default function LaborSection({
           {hours > 0 ? (
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2 w-full text-center">
               <p className="text-xs text-emerald-600 font-medium">Tiempo</p>
-              <p className="text-lg font-bold text-emerald-700">{hours.toFixed(2)} h</p>
+              <p className="text-lg font-bold text-emerald-700">{formatNumber(hours, 2)} h</p>
             </div>
           ) : (
             <div className="bg-muted rounded-xl px-4 py-2 w-full text-center">

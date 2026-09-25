@@ -31,6 +31,7 @@ import {
   computeTotalsFromLines,
 } from "@/lib/displacementBilling";
 
+import { formatEUR } from "@/lib/format";
 const STATUS_OPTIONS = [
   { value: "en_curso", label: "En Curso" },
   { value: "pendiente_revision", label: "Pendiente Revisión" },
@@ -570,7 +571,7 @@ export default function EditIntervention() {
                   <SelectItem value="__none__">— Sin tramo —</SelectItem>
                   {tramosOrg.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
-                      {t.nombre} · {t.precio.toFixed(2)} €
+                      {t.nombre} · {formatEUR(t.precio)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -606,9 +607,9 @@ export default function EditIntervention() {
         </div>
         {lines.length > 0 && canEditPrices && (
           <div className="border-t border-border pt-4 space-y-1">
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span>{totals.subtotal.toFixed(2)} €</span></div>
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">IVA</span><span>{totals.ivaTotal.toFixed(2)} €</span></div>
-            <div className="flex justify-between text-lg font-bold pt-2 border-t border-border"><span>Total</span><span>{totals.total.toFixed(2)} €</span></div>
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">Subtotal</span><span>{formatEUR(totals.subtotal)}</span></div>
+            <div className="flex justify-between text-sm"><span className="text-muted-foreground">IVA</span><span>{formatEUR(totals.ivaTotal)}</span></div>
+            <div className="flex justify-between text-lg font-bold pt-2 border-t border-border"><span>Total</span><span>{formatEUR(totals.total)}</span></div>
           </div>
         )}
       </div>
@@ -616,7 +617,7 @@ export default function EditIntervention() {
       {/* Guardar */}
       <div className="fixed bottom-0 left-0 right-0 lg:left-64 bg-card/80 backdrop-blur-xl border-t border-border p-4">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <p className="text-2xl font-bold">{canEditPrices ? `${totals.total.toFixed(2)} €` : ""}</p>
+          <p className="text-2xl font-bold">{canEditPrices ? `${formatEUR(totals.total)}` : ""}</p>
           <Button onClick={handleSave} disabled={saving} className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-8 h-12 text-base shadow-lg shadow-accent/25">
             {saving ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Save className="h-5 w-5 mr-2" />}
             Guardar Cambios

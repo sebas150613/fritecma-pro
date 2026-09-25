@@ -5,6 +5,7 @@ import { CheckCircle2, Clock, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import moment from "moment";
 
+import { formatNumber } from "@/lib/format";
 const STATUS_COLORS = {
   borrador: "bg-slate-100 text-slate-600",
   enviado: "bg-amber-100 text-amber-700",
@@ -136,7 +137,7 @@ export default function WorkDayDetailModal({ record, clients, onClose, onValidat
           )}
           <div className="flex justify-between border-t border-border pt-2 font-bold text-base">
             <span>Total Netas</span>
-            <span className="text-primary">{minutesToHHMM(totalMinutes)} ({(totalMinutes / 60).toFixed(2)}h)</span>
+            <span className="text-primary">{minutesToHHMM(totalMinutes)} ({formatNumber((totalMinutes / 60), 2)}h)</span>
           </div>
         </div>
 
