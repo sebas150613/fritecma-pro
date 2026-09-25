@@ -777,7 +777,7 @@ export default function InterventionDetail() {
           </div>
 
           {intervention.validated_by && (
-            <p className="text-xs text-muted-foreground">✓ Validado por {intervention.validated_by} el {intervention.validated_at ? new Date(intervention.validated_at).toLocaleString("es") : ""}</p>
+            <p className="text-xs text-muted-foreground">✓ Validado por {intervention.validated_by_name || intervention.validated_by} el {intervention.validated_at ? moment(intervention.validated_at).format("DD/MM/YYYY [a las] HH:mm") : ""}</p>
           )}
           {intervention.rectified_by_info && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
@@ -1040,8 +1040,13 @@ export default function InterventionDetail() {
             intervention.incident_status === "pendiente_parada" ? "bg-red-50 text-red-700 border border-red-200" :
             "bg-amber-50 text-amber-700 border border-amber-200"
           }`}>
-            <AlertTriangle className="h-4 w-4" />
-            {intervention.incident_status === "finalizado" ? "Finalizado (Revisar y Facturar)" :
+            {intervention.incident_status === "finalizado"
+              ? <CheckCircle2 className="h-4 w-4" />
+              : <AlertTriangle className="h-4 w-4" />}
+            {intervention.incident_status === "finalizado"
+              ? (["validado", "completado", "facturado"].includes(intervention.status)
+                  ? "Trabajo finalizado"
+                  : "Trabajo finalizado · pendiente de revisar y facturar") :
              intervention.incident_status === "pendiente_parada" ? "Pendiente (Máquina Parada)" :
              "Pendiente (Máquina Operativa)"}
           </div>
@@ -1052,7 +1057,7 @@ export default function InterventionDetail() {
       {invoice && (
         <div className="bg-card rounded-2xl border border-border p-5 space-y-3">
           <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-            <Receipt className="h-4 w-4" /> Factura · Diagnóstico Veri*factu
+            <Receipt className="h-4 w-4" /> Factura
           </h2>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
@@ -1071,16 +1076,14 @@ export default function InterventionDetail() {
                 <span className="font-mono text-xs">{invoice.verifactu_csv}</span>
               </div>
             )}
-            {invoice.verifactu_idregistro && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">ID Registro</span>
-                <span className="font-mono text-xs">{invoice.verifactu_idregistro}</span>
-              </div>
-            )}
             {invoice.verifactu_timestamp && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Recepción AEAT</span>
-                <span className="text-xs">{invoice.verifactu_timestamp}</span>
+                <span className="text-muted-foreground">Recibida por la AEAT</span>
+                <span className="text-xs">
+                  {moment(invoice.verifactu_timestamp).isValid()
+                    ? moment(invoice.verifactu_timestamp).format("DD/MM/YYYY HH:mm")
+                    : invoice.verifactu_timestamp}
+                </span>
               </div>
             )}
             {invoice.codigo_error_aeat && (
@@ -1090,22 +1093,33 @@ export default function InterventionDetail() {
                 {invoice.descripcion_error_aeat && <p className="text-xs text-red-700"><span className="font-medium">Detalle: </span>{invoice.descripcion_error_aeat}</p>}
               </div>
             )}
-            {invoice.verifactu_http_status > 0 && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">HTTP Status</span>
-                <span className="font-mono text-xs">{invoice.verifactu_http_status}</span>
-              </div>
-            )}
-            {invoice.verifactu_diagnostico && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Diagnóstico</span>
-                <span className="font-mono text-xs text-amber-700">{invoice.verifactu_diagnostico}</span>
-              </div>
-            )}
-            {invoice.verifactu_response && (
-              <details className="mt-2">
-                <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">Ver respuesta completa AEAT ({invoice.verifactu_response?.length} chars)</summary>
-                <pre className="mt-2 text-xs bg-muted/60 p-2 rounded-lg overflow-auto max-h-60 whitespace-pre-wrap break-all">{invoice.verifactu_response}</pre>
+            {/* Datos para soporte: se conservan, pero plegados para no confundir al usuario. */}
+            {(invoice.verifactu_idregistro || invoice.verifactu_http_status > 0 || invoice.verifactu_diagnostico || invoice.verifactu_response) && (
+              <details className="mt-2 rounded-xl border border-border/60 px-3 py-2">
+                <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">Detalles técnicos (para soporte)</summary>
+                <div className="mt-2 space-y-2">
+                  {invoice.verifactu_idregistro && (
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">ID Registro</span>
+                      <span className="font-mono text-xs break-all text-right">{invoice.verifactu_idregistro}</span>
+                    </div>
+                  )}
+                  {invoice.verifactu_http_status > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">HTTP</span>
+                      <span className="font-mono text-xs">{invoice.verifactu_http_status}</span>
+                    </div>
+                  )}
+                  {invoice.verifactu_diagnostico && (
+                    <div className="flex justify-between gap-3">
+                      <span className="text-muted-foreground">Diagnóstico</span>
+                      <span className="font-mono text-xs text-amber-700 break-all text-right">{invoice.verifactu_diagnostico}</span>
+                    </div>
+                  )}
+                  {invoice.verifactu_response && (
+                    <pre className="text-xs bg-muted/60 p-2 rounded-lg overflow-auto max-h-60 whitespace-pre-wrap break-all">{invoice.verifactu_response}</pre>
+                  )}
+                </div>
               </details>
             )}
           </div>

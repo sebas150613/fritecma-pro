@@ -46,6 +46,22 @@ const authRateLimiter = createRateLimiter({
   max: 80,
 });
 
+// GET /api/auth/me se llama en cada carga de la app (unas 4 veces). Con el
+// límite general de 80/15 min, una oficina con la IP compartida acababa
+// expulsada al login tras unas 20 recargas entre todos. La lectura de la
+// sesión tiene su propio límite, holgado; login, alta y OTP conservan el
+// general además de sus limitadores específicos en routes/auth.js.
+const authSessionReadRateLimiter = createRateLimiter({
+  namespace: "auth-me",
+  windowMs: 15 * 60 * 1000,
+  max: 1200,
+});
+
+const selectAuthRateLimiter = (req) =>
+  req.method === "GET" && req.path === "/me" ? authSessionReadRateLimiter : authRateLimiter;
+
+const authRateLimiterByRoute = (req, res, next) => selectAuthRateLimiter(req)(req, res, next);
+
 const aiRateLimiter = createRateLimiter({
   namespace: "ai",
   windowMs: 60 * 1000,
@@ -182,7 +198,7 @@ app.get("/health", (_req, res) => {
 app.use("/api", attachFiscalSessionFlag);
 
 app.use("/api/apps/public", publicAppRoutes);
-app.use("/api/auth", authRateLimiter, authRoutes);
+app.use("/api/auth", authRateLimiterByRoute, authRoutes);
 app.use("/api/account", blockFiscalSession("los datos de la cuenta"), accountRoutes);
 app.use("/api/entities", entityRoutes);
 app.use("/api/users", blockFiscalSession("los datos de personal"), userRoutes);

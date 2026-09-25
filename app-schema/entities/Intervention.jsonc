@@ -88,6 +88,10 @@
       "type": "string",
       "title": "Validado por (email)"
     },
+    "validated_by_name": {
+      "type": "string",
+      "title": "Validado por (nombre)"
+    },
     "validated_at": {
       "type": "string",
       "title": "Fecha Validaci\u00f3n",

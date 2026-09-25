@@ -589,8 +589,8 @@ export default function Invoices() {
   return (
     <PullToRefresh onRefresh={loadData}>
       <div className="p-4 lg:p-8 max-w-6xl mx-auto space-y-6 pb-28 lg:pb-10">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
+        <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
+          <div className="max-w-xl">
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <Receipt className="h-7 w-7 text-accent" /> Facturación
             </h1>
@@ -598,7 +598,7 @@ export default function Invoices() {
               Listado de todas las facturas emitidas (VeriFactu). Las facturas se emiten desde el parte de trabajo y son inalterables.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 shrink-0">
+          <div className="flex flex-wrap gap-2 xl:justify-end">
             {canManagePayments && (
               <Button
                 onClick={openFreeDialog}
@@ -641,9 +641,10 @@ export default function Invoices() {
               {exportingRegistros ? "Exportando…" : "Exportar registros (XML)"}
             </Button>
             <Button
+              variant="outline"
               onClick={downloadCSV}
               disabled={filtered.length === 0}
-              className="rounded-xl bg-accent hover:bg-accent/90 text-accent-foreground"
+              className="rounded-xl"
             >
               <Download className="h-4 w-4 mr-2" /> Exportar CSV (gestoría)
             </Button>

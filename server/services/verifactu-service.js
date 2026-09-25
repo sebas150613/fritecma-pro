@@ -578,6 +578,7 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
     await interventionStore.update(intervention.id, {
       status: "completado",
       validated_by: currentUser?.email || "",
+      validated_by_name: currentUser?.full_name || "",
       validated_at: now,
     });
 
@@ -886,6 +887,7 @@ const _processVerifactuLocked = async ({ payload, currentUser, interventionId, m
     await interventionStore.update(item.id, {
       status: mode === "rectificar_corregida" ? (item.status || "facturado") : nextInterventionStatus,
       validated_by: currentUser?.email || "",
+      validated_by_name: currentUser?.full_name || "",
       validated_at: now,
       ...(isGroupedInvoice
         ? { invoice_id: invoiceRecord.id, invoice_number: invoiceNumber }

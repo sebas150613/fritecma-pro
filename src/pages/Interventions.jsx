@@ -58,9 +58,12 @@ export default function Interventions() {
   const isAyudante = user?.role === "ayudante";
   const isTecnico = !isAdmin && !isOficina;
 
-  // Pending: incident not finalizado
+  // Pending: incident not finalizado. Un parte anulado no está "en curso"
+  // aunque conserve el incident_status que tenía al anularse.
   const pending = interventions.filter(i =>
-    (i.incident_status === "pendiente_operativa" || i.incident_status === "pendiente_parada") && matchesSearch(i)
+    (i.incident_status === "pendiente_operativa" || i.incident_status === "pendiente_parada") &&
+    i.status !== "anulado" &&
+    matchesSearch(i)
   );
 
   // For validation (office): finalizado but not yet validado/completado/facturado
