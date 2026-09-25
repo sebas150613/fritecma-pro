@@ -343,7 +343,7 @@ export default function NewVisit() {
       {/* Materiales */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Materiales y Mano de Obra</h2>
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Materiales y otros conceptos</h2>
           <Button variant="outline" size="sm" onClick={() => setLines(prev => [...prev, { _id: Date.now() + Math.random(), material_id: "", material_name: "", quantity: 1, unit_price: 0, total: 0, observation: "", unit: "ud", iva_percent: 21 }])} className="rounded-xl">
             <Plus className="h-4 w-4 mr-1" /> Añadir Línea
           </Button>

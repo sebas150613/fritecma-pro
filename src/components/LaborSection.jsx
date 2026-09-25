@@ -194,9 +194,11 @@ export default function LaborSection({
             <AlertCircle className="h-3 w-3" /> Obligatorio: selecciona el tipo de horario para registrar las horas
           </p>
         )}
-        <p className="text-xs text-muted-foreground mt-1.5">
-          Tarifas de operarios según la empresa (Configuración → Tarifas). Si no hay valores personalizados, se usan los importes por defecto.
-        </p>
+        {_isAdmin && (
+          <p className="text-xs text-muted-foreground mt-1.5">
+            Tarifas de operarios según la empresa (Configuración → Tarifas). Si no hay valores personalizados, se usan los importes por defecto.
+          </p>
+        )}
       </div>
 
       <div>

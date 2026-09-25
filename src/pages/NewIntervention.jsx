@@ -1027,6 +1027,53 @@ export default function NewIntervention() {
         </div>
       </div>
 
+      {/* Description */}
+      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Descripción</h2>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAiDiagnosis(true)}
+            className="rounded-xl gap-1.5 border-accent/40 text-accent hover:bg-accent/5"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Diagnóstico IA
+          </Button>
+        </div>
+        <Textarea
+          placeholder="Descripción del trabajo realizado..."
+          value={form.description}
+          onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
+          rows={3}
+          className="rounded-xl"
+        />
+        <Textarea
+          placeholder="Notas técnicas internas..."
+          value={form.technician_notes}
+          onChange={(e) => setForm(f => ({ ...f, technician_notes: e.target.value }))}
+          rows={2}
+          className="rounded-xl"
+        />
+      </div>
+
+      <AiDiagnosis
+        open={showAiDiagnosis}
+        onClose={() => setShowAiDiagnosis(false)}
+        context={{
+          clientName: form.client_name,
+          machineName: form.machine_name,
+          description: breakdown?.description || form.description,
+        }}
+        onInsert={(text) =>
+          setForm((f) => ({
+            ...f,
+            technician_notes: f.technician_notes ? `${f.technician_notes}\n\n${text}` : text,
+          }))
+        }
+      />
+
       {/* Gas Section */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Control de Gas Refrigerante</h2>
@@ -1103,52 +1150,61 @@ export default function NewIntervention() {
         </div>
       </div>
 
-      {/* Description */}
+      {/* Material Lines */}
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Descripción</h2>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAiDiagnosis(true)}
-            className="rounded-xl gap-1.5 border-accent/40 text-accent hover:bg-accent/5"
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            Diagnóstico IA
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Materiales y otros conceptos</h2>
+          <Button variant="outline" size="sm" onClick={addLine} className="rounded-xl">
+            <Plus className="h-4 w-4 mr-1" /> Añadir Línea
           </Button>
         </div>
-        <Textarea
-          placeholder="Descripción del trabajo realizado..."
-          value={form.description}
-          onChange={(e) => setForm(f => ({ ...f, description: e.target.value }))}
-          rows={3}
-          className="rounded-xl"
-        />
-        <Textarea
-          placeholder="Notas técnicas internas..."
-          value={form.technician_notes}
-          onChange={(e) => setForm(f => ({ ...f, technician_notes: e.target.value }))}
-          rows={2}
-          className="rounded-xl"
-        />
-      </div>
 
-      <AiDiagnosis
-        open={showAiDiagnosis}
-        onClose={() => setShowAiDiagnosis(false)}
-        context={{
-          clientName: form.client_name,
-          machineName: form.machine_name,
-          description: breakdown?.description || form.description,
-        }}
-        onInsert={(text) =>
-          setForm((f) => ({
-            ...f,
-            technician_notes: f.technician_notes ? `${f.technician_notes}\n\n${text}` : text,
-          }))
-        }
-      />
+        {lines.length === 0 ? (
+          <p className="text-center text-muted-foreground text-sm py-6">
+            Pulsa "Añadir Línea" para agregar materiales
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {lines.map((line, i) => (
+              <MaterialLineForm
+                key={line._id || i}
+                line={line}
+                index={i}
+                materials={materials}
+                onUpdate={updateLine}
+                onRemove={removeLine}
+                isAdmin={canSeeBillingTotals}
+                vehicles={vehicles}
+                warehouses={warehouses}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Totals */}
+        {(lines.length > 0 || laborLines.length > 0) && canSeeBillingTotals && (
+          <div className="border-t border-border pt-4 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span>{formatEUR(totals.subtotal)}</span>
+            </div>
+            {form.discount_percent > 0 && (
+              <div className="flex justify-between text-sm text-destructive">
+                <span>Descuento ({form.discount_percent}%)</span>
+                <span>-{formatEUR(totals.discountAmount)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">IVA</span>
+              <span>{formatEUR(totals.ivaTotal)}</span>
+            </div>
+            <div className="flex justify-between text-lg font-bold pt-2 border-t border-border">
+              <span>Total</span>
+              <span>{formatEUR(totals.total)}</span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Labor Section */}
       {!adjuntoPresupuesto && (
@@ -1229,7 +1285,7 @@ export default function NewIntervention() {
                 Opcional. Si lo dejas en blanco, la oficina lo asignará al revisar el parte.
               </p>
             )}
-            {!tramosOptions.length && (
+            {!tramosOptions.length && !isFieldStaff && (
               <p className="text-xs text-amber-700 mt-1.5">
                 No hay tramos configurados. Añádelos en Configuración → Tarifas → Tramos de desplazamiento.
               </p>
@@ -1238,62 +1294,6 @@ export default function NewIntervention() {
         )}
       </div>
       )}
-
-      {/* Material Lines */}
-      <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">Materiales y Mano de Obra</h2>
-          <Button variant="outline" size="sm" onClick={addLine} className="rounded-xl">
-            <Plus className="h-4 w-4 mr-1" /> Añadir Línea
-          </Button>
-        </div>
-
-        {lines.length === 0 ? (
-          <p className="text-center text-muted-foreground text-sm py-6">
-            Pulsa "Añadir Línea" para agregar materiales
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {lines.map((line, i) => (
-              <MaterialLineForm
-                key={line._id || i}
-                line={line}
-                index={i}
-                materials={materials}
-                onUpdate={updateLine}
-                onRemove={removeLine}
-                isAdmin={canSeeBillingTotals}
-                vehicles={vehicles}
-                warehouses={warehouses}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Totals */}
-        {(lines.length > 0 || laborLines.length > 0) && canSeeBillingTotals && (
-          <div className="border-t border-border pt-4 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span>{formatEUR(totals.subtotal)}</span>
-            </div>
-            {form.discount_percent > 0 && (
-              <div className="flex justify-between text-sm text-destructive">
-                <span>Descuento ({form.discount_percent}%)</span>
-                <span>-{formatEUR(totals.discountAmount)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">IVA</span>
-              <span>{formatEUR(totals.ivaTotal)}</span>
-            </div>
-            <div className="flex justify-between text-lg font-bold pt-2 border-t border-border">
-              <span>Total</span>
-              <span>{formatEUR(totals.total)}</span>
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* Fotos y vídeos del parte (matrícula de mural, gas, pieza rota...) */}
       <GasMediaSection media={gasMedia} onChange={setGasMedia} />

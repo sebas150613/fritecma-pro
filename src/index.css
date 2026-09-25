@@ -92,6 +92,13 @@
     min-height: 44px;
     min-width: 44px;
   }
+  /* Casillas e interruptores también son <button>: con el mínimo de 44 px se
+     deformaban (casillas gigantes, interruptores como bolas). Su zona de toque
+     la da la etiqueta que los acompaña. */
+  button[role="checkbox"], button[role="switch"] {
+    min-height: 0;
+    min-width: 0;
+  }
   input, textarea, select {
     -webkit-user-select: text;
     user-select: text;
