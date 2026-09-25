@@ -376,7 +376,7 @@ export default function AiDiagnosis({ open, onClose, context, onInsert }) {
 
                 {result.info_adicional && (
                   <p className="text-xs text-muted-foreground bg-muted/40 rounded-xl p-3">
-                    💡 {result.info_adicional}
+                    {result.info_adicional}
                   </p>
                 )}
               </>

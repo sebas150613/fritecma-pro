@@ -285,7 +285,7 @@ export default function Fichaje() {
 
         {actions.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-2">
-            ✅ Jornada cerrada. Hasta mañana.
+            Jornada cerrada. Hasta mañana.
           </p>
         )}
 
@@ -312,7 +312,7 @@ export default function Fichaje() {
                   <span className="text-muted-foreground">{moment(r.timestamp).format("HH:mm:ss")}</span>
                 </div>
                 {r.location_lat && r.location_lng ? (
-                  <MapLink lat={r.location_lat} lng={r.location_lng} address="📍 Ver mapa" className="text-xs" />
+                  <MapLink lat={r.location_lat} lng={r.location_lng} address="Ver mapa" className="text-xs" />
                 ) : (
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3 text-amber-500" /> Sin GPS

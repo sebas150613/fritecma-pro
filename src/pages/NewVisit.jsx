@@ -400,7 +400,7 @@ export default function NewVisit() {
         </Select>
         <p className="text-xs text-muted-foreground">
           {form.incident_status === "finalizado"
-            ? "✅ La incidencia pasará a validación de oficina."
+            ? "La incidencia pasará a validación de oficina."
             : "⏳ La incidencia permanecerá activa como tarea pendiente."}
         </p>
       </div>

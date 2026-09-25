@@ -654,7 +654,7 @@ export default function InterventionDetail() {
                             <p className="text-xs text-red-600 mt-1">La factura queda bloqueada y se reintentará el envío automáticamente.</p>
                           </div>
                         )}
-                        <p className="text-xs text-muted-foreground">⚠️ Este parte queda bloqueado y no puede editarse ni eliminarse.</p>
+                        <p className="text-xs text-muted-foreground">Este parte queda bloqueado y no puede editarse ni eliminarse.</p>
                       </>
                     );
                   })()}

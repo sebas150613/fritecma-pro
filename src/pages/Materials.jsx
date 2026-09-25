@@ -526,7 +526,7 @@ export default function Materials() {
                     <p className="font-mono font-semibold">S/N {b.serial_number}</p>
                     <p>
                       Propietario gas:{" "}
-                      <strong>{b.owner_type === "fritecma" ? "FRIGEST" : "Cliente"}</strong>
+                      <strong>{b.owner_type === "fritecma" ? "Propia" : "Cliente"}</strong>
                       {b.owner_type === "cliente" && b.owner_client_name && (
                         <span> · {b.owner_client_name}</span>
                       )}

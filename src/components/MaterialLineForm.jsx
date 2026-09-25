@@ -43,7 +43,7 @@ function MaterialCommandContent({ line, index, gasItems, otherItems, isFreeText,
             className="flex items-center gap-2 text-amber-700 font-medium"
           >
             <Check className={cn("h-3.5 w-3.5 shrink-0", isFreeText ? "opacity-100" : "opacity-0")} />
-            ⚠️ MATERIAL NO REGISTRADO
+            Material no registrado
           </CommandItem>
         </CommandGroup>
         {gasItems.length > 0 && (
@@ -147,7 +147,7 @@ export default function MaterialLineForm({ line, index, materials, onUpdate, onR
       >
         <span className="truncate text-left">
           {isFreeText
-            ? "⚠️ Material no registrado"
+            ? "Material no registrado"
             : selectedMaterial
               ? `${selectedMaterial.code ? `[${selectedMaterial.code}] ` : ""}${selectedMaterial.name}`
               : <span className="text-muted-foreground">Buscar material...</span>}

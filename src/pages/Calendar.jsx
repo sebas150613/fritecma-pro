@@ -252,11 +252,11 @@ export default function Calendar() {
 
               <p className="text-sm text-muted-foreground">{moment(event.start_date).format("DD/MM/YYYY HH:mm")}</p>
               {event.description && <p className="text-sm">{event.description}</p>}
-              {event.location && <p className="text-xs text-muted-foreground">📍 {event.location}</p>}
+              {event.location && <p className="text-xs text-muted-foreground">{event.location}</p>}
 
               <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border">
                 <span>{EVENT_TYPES[event.event_type]}</span>
-                {isEncargado && <span>👤 {event.asignado_a_name}</span>}
+                {isEncargado && <span>{event.asignado_a_name}</span>}
               </div>
             </div>
           ))

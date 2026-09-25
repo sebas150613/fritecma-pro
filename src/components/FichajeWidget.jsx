@@ -136,7 +136,7 @@ export default function FichajeWidget({ user, onStatusChange }) {
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Jornada cerrada. Nos vemos mañana 👋
+          Jornada cerrada. Nos vemos mañana.
         </p>
       )}
 

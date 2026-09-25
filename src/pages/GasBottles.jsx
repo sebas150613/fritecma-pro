@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ConfirmModal } from "@/components/ui/confirm-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "react-router-dom";
-import { Plus, ArrowRightLeft, FlaskConical, History, AlertTriangle, Pencil, Trash2 } from "lucide-react";
+import { Plus, ArrowRightLeft, FlaskConical, History, AlertTriangle, Pencil, Trash2, MapPin, User } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import moment from "moment";
@@ -26,6 +26,7 @@ import { syncGasMaterialStock } from "@/lib/gasMaterialSync";
 import { formatNumber, formatQty } from "@/lib/format";
 const BOTTLE_TYPES = ["Gas", "Recuperación"];
 const LOCATION_LABELS = { taller: "Taller", furgoneta: "Furgoneta", cliente: "Cliente" };
+const STATUS_LABELS = { activa: "Activa", vacia: "Vacía", devuelta: "Devuelta" };
 const STATUS_COLORS = { activa: "bg-emerald-100 text-emerald-700 border-emerald-200", vacia: "bg-amber-100 text-amber-700 border-amber-200", devuelta: "bg-blue-100 text-blue-700 border-blue-200" };
 
 const EMPTY_BOTTLE = {
@@ -335,7 +336,7 @@ export default function GasBottles() {
               <SelectTrigger className="w-40 rounded-xl"><SelectValue placeholder="Propietario" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="fritecma">FRIGEST</SelectItem>
+                <SelectItem value="fritecma">Propia</SelectItem>
                 <SelectItem value="cliente">Cliente</SelectItem>
               </SelectContent>
             </Select>
@@ -352,7 +353,7 @@ export default function GasBottles() {
                       <p className="font-mono text-xs text-muted-foreground">S/N: {b.serial_number}</p>
                       <h3 className="font-bold text-lg">{b.gas_type}</h3>
                     </div>
-                    <Badge variant="outline" className={cn("border text-xs", STATUS_COLORS[b.status])}>{b.status}</Badge>
+                    <Badge variant="outline" className={cn("border text-xs", STATUS_COLORS[b.status])}>{STATUS_LABELS[b.status] || b.status}</Badge>
                   </div>
 
                   {/* Fill bar */}
@@ -370,8 +371,16 @@ export default function GasBottles() {
                   )}
 
                   <div className="text-xs text-muted-foreground space-y-1">
-                    <p>📍 {LOCATION_LABELS[b.location_type]}{b.location_detail ? ` · ${b.location_detail}` : ""}</p>
-                    <p>👤 {b.owner_type === "fritecma" ? "FRIGEST" : `Cliente: ${b.owner_client_name || "-"}`}</p>
+                    <p className="flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5 shrink-0" />
+                      {[LOCATION_LABELS[b.location_type], b.location_detail].filter(Boolean).join(" · ") || "Ubicación sin indicar"}
+                    </p>
+                    <p className="flex items-center gap-1.5">
+                      <User className="h-3.5 w-3.5 shrink-0" />
+                      {b.owner_type === "fritecma"
+                        ? "Botella propia"
+                        : `De cliente${b.owner_client_name ? `: ${b.owner_client_name}` : ""}`}
+                    </p>
                   </div>
 
                   <div className="flex gap-2 pt-1">
@@ -398,7 +407,7 @@ export default function GasBottles() {
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="font-bold text-xl">{gas}</h3>
                     <Badge variant="outline" className={owner === "fritecma" ? "border-primary/30 text-primary" : "border-amber-300 text-amber-700"}>
-                      {owner === "fritecma" ? "FRIGEST" : "Cliente"}
+                      {owner === "fritecma" ? "Propia" : "Cliente"}
                     </Badge>
                   </div>
                   <p className="text-3xl font-black text-accent">{formatNumber(kg, 2)} <span className="text-base font-medium text-muted-foreground">kg</span></p>
@@ -425,7 +434,7 @@ export default function GasBottles() {
                 </div>
                 {t.new_location_type && (
                   <span className="text-xs px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
-                    📍 → {LOCATION_LABELS[t.new_location_type]}{t.new_location_detail ? ` ${t.new_location_detail}` : ""}
+                    → {LOCATION_LABELS[t.new_location_type]}{t.new_location_detail ? ` ${t.new_location_detail}` : ""}
                   </span>
                 )}
                 {t.notes && <p className="text-xs text-muted-foreground w-full">{t.notes}</p>}
@@ -496,7 +505,7 @@ export default function GasBottles() {
               <div>
                 <Label>Estado (Solo lectura)</Label>
                 <div className="mt-1 px-3 py-2 rounded-xl border border-input bg-muted/50 text-sm text-muted-foreground">
-                  {bottleForm.status === "activa" ? "✅ Activa (Carga ≥ 1 kg)" : bottleForm.status === "vacia" ? "⚠️ Vacía (Carga < 1 kg)" : "↩️ Devuelta"}
+                  {bottleForm.status === "activa" ? "Activa (Carga ≥ 1 kg)" : bottleForm.status === "vacia" ? "Vacía (Carga < 1 kg)" : "Devuelta"}
                   {bottleForm.tipo_botella === "Gas" && bottleForm.status === "vacia" && (
                     <div className="mt-2">
                       <Label className="text-xs">Marcar como Devuelta</Label>
@@ -526,7 +535,7 @@ export default function GasBottles() {
                 <Select value={bottleForm.owner_type} onValueChange={v => setBottleForm(f => ({ ...f, owner_type: v }))}>
                   <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="fritecma">FRIGEST</SelectItem>
+                    <SelectItem value="fritecma">Propia</SelectItem>
                     <SelectItem value="cliente">Cliente</SelectItem>
                   </SelectContent>
                 </Select>
@@ -546,7 +555,7 @@ export default function GasBottles() {
                 >
                   <SelectTrigger className="mt-1 rounded-xl"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__fritecma__">FRIGEST (propio)</SelectItem>
+                    <SelectItem value="__fritecma__">Propio (de la empresa)</SelectItem>
                     {suppliers.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>

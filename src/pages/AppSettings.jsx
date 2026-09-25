@@ -710,8 +710,8 @@ export default function AppSettings() {
             <p className="font-medium text-sm">Modo Producción AEAT</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {modoProduccion
-                ? '🔴 PRODUCCIÓN — Las facturas se envían a Hacienda de forma real.'
-                : '🟢 SANDBOX — Modo de pruebas. Los envíos son simulados.'}
+                ? 'PRODUCCIÓN — Las facturas se envían a Hacienda de forma real.'
+                : 'SANDBOX — Modo de pruebas. Los envíos son simulados.'}
             </p>
           </div>
           <Switch checked={modoProduccion} onCheckedChange={async (val) => {
@@ -721,12 +721,12 @@ export default function AppSettings() {
         </div>
         {modoProduccion && (
           <p className="text-xs text-red-600 bg-red-50 border border-red-200 p-3 rounded-xl">
-            ⚠️ <strong>Modo Producción activo.</strong> Asegúrate de tener el certificado .p12 real configurado y el NIF/CIF correcto antes de facturar.
+            <strong>Modo Producción activo.</strong> Asegúrate de tener el certificado .p12 real configurado y el NIF/CIF correcto antes de facturar.
           </p>
         )}
         {!modoProduccion && (
           <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-3 rounded-xl">
-            🧪 <strong>Modo Sandbox activo.</strong> Los envíos a la AEAT son simulados. El hash se genera correctamente para poder verificar el flujo. Activa el toggle para pasar a producción real.
+            <strong>Modo Sandbox activo.</strong> Los envíos a la AEAT son simulados. El hash se genera correctamente para poder verificar el flujo. Activa el toggle para pasar a producción real.
           </p>
         )}
 
@@ -781,7 +781,7 @@ export default function AppSettings() {
             {chainReport && chainReport.tampered > 0 && (
               <div className="text-xs text-red-700 bg-red-50 border border-red-200 p-3 rounded-xl space-y-2">
                 <p>
-                  <strong>⚠️ {chainReport.tampered} anomalía(s)</strong> sobre {chainReport.total_checked} factura(s) comprobadas. Se ha avisado por correo a los administradores.
+                  <strong>{chainReport.tampered} anomalía(s)</strong> sobre {chainReport.total_checked} factura(s) comprobadas. Se ha avisado por correo a los administradores.
                 </p>
                 <ul className="space-y-1">
                   {(chainReport.tampered_invoices || []).map((item) => (
