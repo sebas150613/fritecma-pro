@@ -107,7 +107,7 @@ const ownerLinks = [
 // Grupos del menú lateral, en orden. Lo que no esté en ninguno va al final.
 const NAV_GROUPS = [
   { label: null, paths: ["/", "/breakdowns", "/interventions", "/calendar", "/fichaje", "/workday"] },
-  { label: "Clientes", paths: ["/clients", "/projects", "/budgets"] },
+  { label: "Clientes y obras", paths: ["/clients", "/projects", "/budgets"] },
   { label: "Almacén y gas", paths: ["/materials", "/my-vehicle", "/material-requests", "/stock-entry", "/purchase-orders", "/suppliers", "/gas-bottles"] },
   { label: "Oficina", paths: ["/invoices", "/time-records", "/workday-report", "/absences"] },
 ];

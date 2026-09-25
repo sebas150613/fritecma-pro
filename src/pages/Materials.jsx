@@ -243,10 +243,13 @@ export default function Materials() {
                           <Edit className="h-4 w-4" />
                         </Button>
                       )}
-                      {isGas && (
+                      {/* Hueco fijo para que los iconos queden en columna en todas las filas */}
+                      {isGas ? (
                         <Button variant="ghost" size="icon" title="Botellas" aria-label={`Botellas de ${m.name}`} onClick={() => setGasDetailMaterial(m)} className="rounded-xl">
                           <FlaskConical className="h-4 w-4" />
                         </Button>
+                      ) : (
+                        <span className="w-11 shrink-0" aria-hidden="true" />
                       )}
                       <Button variant="ghost" size="icon" title="Historial" aria-label={`Historial de ${m.name}`} onClick={() => openHistory(m)} className="rounded-xl">
                         <History className="h-4 w-4" />
@@ -526,7 +529,7 @@ export default function Materials() {
                     <p className="font-mono font-semibold">S/N {b.serial_number}</p>
                     <p>
                       Propietario gas:{" "}
-                      <strong>{b.owner_type === "fritecma" ? "Propia" : "Cliente"}</strong>
+                      <strong>{b.owner_type === "cliente" ? "Cliente" : "Propia"}</strong>
                       {b.owner_type === "cliente" && b.owner_client_name && (
                         <span> · {b.owner_client_name}</span>
                       )}

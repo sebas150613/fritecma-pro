@@ -377,9 +377,10 @@ export default function GasBottles() {
                     </p>
                     <p className="flex items-center gap-1.5">
                       <User className="h-3.5 w-3.5 shrink-0" />
-                      {b.owner_type === "fritecma"
-                        ? "Botella propia"
-                        : `De cliente${b.owner_client_name ? `: ${b.owner_client_name}` : ""}`}
+                      {/* Sin propietario guardado cuenta como propia (el valor por defecto del alta). */}
+                      {b.owner_type === "cliente"
+                        ? `De cliente${b.owner_client_name ? `: ${b.owner_client_name}` : ""}`
+                        : "Botella propia"}
                     </p>
                   </div>
 
@@ -406,8 +407,8 @@ export default function GasBottles() {
                 <div key={key} className="bg-card rounded-2xl border border-border p-5">
                   <div className="flex items-center justify-between mb-1">
                     <h3 className="font-bold text-xl">{gas}</h3>
-                    <Badge variant="outline" className={owner === "fritecma" ? "border-primary/30 text-primary" : "border-amber-300 text-amber-700"}>
-                      {owner === "fritecma" ? "Propia" : "Cliente"}
+                    <Badge variant="outline" className={owner !== "cliente" ? "border-primary/30 text-primary" : "border-amber-300 text-amber-700"}>
+                      {owner === "cliente" ? "Cliente" : "Propia"}
                     </Badge>
                   </div>
                   <p className="text-3xl font-black text-accent">{formatNumber(kg, 2)} <span className="text-base font-medium text-muted-foreground">kg</span></p>
