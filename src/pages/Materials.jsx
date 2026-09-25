@@ -23,7 +23,7 @@ import {
 } from "@/lib/gasMaterialSync";
 import { normalizeGasCompareKey } from "@/lib/refrigerantGases";
 
-import { formatEUR, formatNumber } from "@/lib/format";
+import { formatEUR, formatNumber, formatQty } from "@/lib/format";
 const CATEGORIES = {
   gas_refrigerante: "Gas Refrigerante",
   repuesto: "Repuesto",
@@ -178,7 +178,7 @@ export default function Materials() {
     return acc;
   }, {});
 
-  function renderCard(m) {
+  function deriveStock(m) {
     const isGas = m.category === "gas_refrigerante";
     const syncedKg = isGas ? getSyncedKgForGasMaterial(m, gasBottles) : null;
     const whRows = isGas
@@ -187,7 +187,100 @@ export default function Materials() {
     const whTotal = whRows.reduce((sum, r) => sum + (r.quantity || 0), 0);
     const totalStock = (m.stock_quantity || 0) + whTotal;
     const stockShow = isGas ? syncedKg : totalStock;
-    const stockLow = isGas ? false : totalStock <= m.min_stock;
+    // Mismo criterio que el aviso del panel: solo hay "stock bajo" si hay un mínimo definido.
+    const isLabor = m.category === "mano_de_obra";
+    const stockLow = isGas || isLabor ? false : m.min_stock > 0 && totalStock <= m.min_stock;
+    return { isGas, whRows, stockShow, isLabor, stockLow };
+  }
+
+  // Vista de tabla (escritorio): mismas acciones y mismos permisos que la tarjeta.
+  function renderTable(items) {
+    return (
+      <div className="hidden md:block bg-card rounded-2xl border border-border overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs text-muted-foreground">
+              <th className="px-4 py-3 font-medium">Material</th>
+              <th className="px-4 py-3 font-medium">Categoría</th>
+              {canSeePrices && <th className="px-4 py-3 font-medium text-right">Venta</th>}
+              {isAdmin && <th className="px-4 py-3 font-medium text-right">Coste</th>}
+              {!isTecnico && <th className="px-4 py-3 font-medium">Proveedor</th>}
+              <th className="px-4 py-3 font-medium text-right">Stock</th>
+              <th className="px-4 py-3" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {items.map((m) => {
+              const { isGas, stockShow, isLabor, stockLow } = deriveStock(m);
+              return (
+                <tr key={m.id} className="hover:bg-muted/30">
+                  <td className="px-4 py-3">
+                    <p className="font-medium">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {[m.code, m.subfamily_name].filter(Boolean).join(" · ")}
+                    </p>
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground">{CATEGORIES[m.category] || m.category}</td>
+                  {canSeePrices && (
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      {formatEUR(m.sell_price || 0)}<span className="text-muted-foreground">/{m.unit || "ud"}</span>
+                    </td>
+                  )}
+                  {isAdmin && <td className="px-4 py-3 text-right whitespace-nowrap text-muted-foreground">{formatEUR(m.cost_price || 0)}</td>}
+                  {!isTecnico && <td className="px-4 py-3 text-muted-foreground max-w-[180px] truncate">{m.supplier_name || "—"}</td>}
+                  <td className={cn("px-4 py-3 text-right whitespace-nowrap font-medium", stockLow && "text-destructive")}>
+                    {isLabor ? <span className="text-muted-foreground">—</span> : (
+                      <>
+                        {formatQty(stockShow)} {m.unit || "ud"}
+                        {stockLow && <AlertTriangle className="inline h-3 w-3 ml-1" />}
+                      </>
+                    )}
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="flex justify-end gap-1">
+                      {!isTecnico && (
+                        <Button variant="ghost" size="icon" title="Editar" aria-label={`Editar ${m.name}`} onClick={() => openEdit(m)} className="rounded-xl">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {isGas && (
+                        <Button variant="ghost" size="icon" title="Botellas" aria-label={`Botellas de ${m.name}`} onClick={() => setGasDetailMaterial(m)} className="rounded-xl">
+                          <FlaskConical className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" title="Historial" aria-label={`Historial de ${m.name}`} onClick={() => openHistory(m)} className="rounded-xl">
+                        <History className="h-4 w-4" />
+                      </Button>
+                      {isAdmin && (
+                        <Button variant="ghost" size="icon" title="Eliminar" aria-label={`Eliminar ${m.name}`} onClick={() => handleDelete(m)} className="rounded-xl text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // Tarjetas en el móvil, tabla en escritorio.
+  function renderItems(items) {
+    return (
+      <>
+        {renderTable(items)}
+        <div className="grid sm:grid-cols-2 gap-4 md:hidden">
+          {items.map(m => renderCard(m))}
+        </div>
+      </>
+    );
+  }
+
+  function renderCard(m) {
+    const { isGas, whRows, stockShow, isLabor, stockLow } = deriveStock(m);
 
     return (
       <div
@@ -232,13 +325,13 @@ export default function Materials() {
               <span className="text-xs truncate max-w-[120px]">{m.supplier_name}</span>
             </div>
           )}
-          <div className="flex justify-between items-center">
+          {!isLabor && (<div className="flex justify-between items-center">
             <span className="text-muted-foreground">Stock</span>
             <span className={cn("font-semibold", stockLow && "text-destructive")}>
-              {stockShow} {m.unit || "ud"}
+              {formatQty(stockShow)} {m.unit || "ud"}
               {stockLow && <AlertTriangle className="inline h-3 w-3 ml-1" />}
             </span>
-          </div>
+          </div>)}
           {whRows.length > 0 && (
             <p className="text-xs text-muted-foreground leading-snug">
               Principal: {m.stock_quantity || 0}
@@ -320,7 +413,7 @@ export default function Materials() {
     <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h1 className="text-2xl font-bold tracking-tight">
-          {isAdmin ? "Stock / Materiales" : "Catálogo de Materiales"}
+          {isAdmin ? "Stock y materiales" : "Catálogo de materiales"}
         </h1>
         {isAdmin && (
           <div className="flex gap-2">
@@ -388,9 +481,7 @@ export default function Materials() {
           <p className="text-muted-foreground">No se encontraron materiales</p>
         </div>
       ) : familyFilter !== "all" ? (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(m => renderCard(m))}
-        </div>
+        renderItems(filtered)
       ) : (
         <div className="space-y-6">
           {Object.entries(filtered.reduce((acc, m) => { const key = m.family_name || "Sin familia"; if (!acc[key]) acc[key] = []; acc[key].push(m); return acc; }, {})).sort(([a],[b]) => a === "Sin familia" ? 1 : b === "Sin familia" ? -1 : a.localeCompare(b)).map(([familyName, items]) => (
@@ -398,9 +489,7 @@ export default function Materials() {
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3 flex items-center gap-2">
                 <Layers className="h-4 w-4" /> {familyName} <span className="text-xs font-normal normal-case">({items.length})</span>
               </h2>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {items.map(m => renderCard(m))}
-              </div>
+              {renderItems(items)}
             </div>
           ))}
         </div>

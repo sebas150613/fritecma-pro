@@ -121,7 +121,9 @@ export default function Clients() {
   };
 
   const filtered = clients.filter(c => {
-    return !search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.cif?.toLowerCase().includes(search.toLowerCase());
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return [c.name, c.cif, c.city, c.phone, c.contact_person].some((v) => v?.toLowerCase().includes(q));
   });
 
   if (loading) {
@@ -145,7 +147,7 @@ export default function Clients() {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Buscar por nombre o CIF..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 rounded-xl bg-card" />
+        <Input placeholder="Buscar por nombre, CIF, población o teléfono..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 rounded-xl bg-card" />
       </div>
 
       {filtered.length === 0 ? (
@@ -171,6 +173,14 @@ export default function Clients() {
         </div>
       ) : (
         <div className="space-y-2">
+          {/* Cabecera de columnas (solo escritorio) */}
+          <div className="hidden md:grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_1.5rem] gap-4 px-5 text-xs font-medium text-muted-foreground">
+            <span>Cliente</span>
+            <span>Población</span>
+            <span>Teléfono</span>
+            <span>CIF / NIF</span>
+            <span />
+          </div>
           {filtered.map(c => {
             const isExpanded = expandedClient === c.id;
             return (
@@ -178,10 +188,23 @@ export default function Clients() {
                 {/* Collapsed/Header View */}
                 <button
                   onClick={() => handleToggleClient(c.id)}
-                  className="w-full px-3 sm:px-5 py-3 flex items-center justify-between hover:bg-accent/5 transition-colors text-left"
+                  aria-expanded={isExpanded}
+                  className="w-full px-3 sm:px-5 py-3 grid grid-cols-[minmax(0,1fr)_1.5rem] md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_1.5rem] items-center gap-x-4 hover:bg-accent/5 transition-colors text-left"
                 >
-                  <h3 className="font-semibold text-sm whitespace-normal break-words flex-1 pr-2">{c.name}</h3>
-                  <span className="text-muted-foreground text-lg flex-shrink-0">{isExpanded ? '−' : '+'}</span>
+                  <span className="min-w-0">
+                    <span className="block font-semibold text-sm break-words">{c.name}</span>
+                    {/* En el móvil, lo básico bajo el nombre */}
+                    <span className="md:hidden block text-xs text-muted-foreground truncate">
+                      {[c.city, c.phone].filter(Boolean).join(" · ")}
+                    </span>
+                    {c.contact_person && (
+                      <span className="hidden md:block text-xs text-muted-foreground truncate">{c.contact_person}</span>
+                    )}
+                  </span>
+                  <span className="hidden md:block text-sm text-muted-foreground truncate">{c.city || "—"}</span>
+                  <span className="hidden md:block text-sm text-muted-foreground truncate">{c.phone || "—"}</span>
+                  <span className="hidden md:block text-sm text-muted-foreground font-mono truncate">{c.cif || "—"}</span>
+                  <span className="text-muted-foreground text-lg text-right">{isExpanded ? '−' : '+'}</span>
                 </button>
 
                 {/* Expanded View */}
@@ -218,8 +241,9 @@ export default function Clients() {
                     )}
 
                     <div className="flex gap-2 pt-3 border-t border-border">
+                      {/* Antes decía "Ver centros de trabajo" pero lo que hacía era cerrar la ficha. */}
                       <Button variant="outline" size="sm" onClick={() => setExpandedClient(null)} className="flex-1 rounded-xl text-xs">
-                        Ver centros de trabajo
+                        Cerrar ficha
                       </Button>
                       {!isTecnico && (
                         <>
