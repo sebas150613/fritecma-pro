@@ -254,7 +254,8 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 px-3 mt-1 overflow-y-auto space-y-4 pb-2">
-          {groupNavLinks(links).map((group, gi) => (
+          {/* La sesión de la AEAT y el owner tienen dos opciones: sin grupos. */}
+          {(isFiscalSession || isHiddenOwner ? [{ label: null, items: links }] : groupNavLinks(links)).map((group, gi) => (
             <div key={group.label || `g${gi}`} className="space-y-0.5">
               {group.label && (
                 <p className="px-4 pb-1 text-[11px] font-medium text-sidebar-foreground/45">
