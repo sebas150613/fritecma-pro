@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Lock } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -21,6 +22,7 @@ import {
   isOfficialGasType,
   GAS_TYPE_OTHER_LABEL,
   GAS_OTHER_REQUIRED_MESSAGE,
+  computeGasLeakKg,
 } from "@/lib/refrigerantGases";
 import {
   parseTramosJson,
@@ -63,6 +65,7 @@ export default function EditIntervention() {
     gas_other_input: "",
     gas_loaded_kg: 0,
     gas_recovered_kg: 0,
+    gas_puesta_en_marcha: false,
     description: "",
     technician_notes: "",
     discount_percent: 0,
@@ -149,6 +152,7 @@ export default function EditIntervention() {
         gas_other_input: isOther ? gt : "",
         gas_loaded_kg: inv.gas_loaded_kg || 0,
         gas_recovered_kg: inv.gas_recovered_kg || 0,
+        gas_puesta_en_marcha: !!inv.gas_puesta_en_marcha,
         description: inv.description || "",
         technician_notes: inv.technician_notes || "",
         discount_percent: inv.discount_percent || 0,
@@ -209,7 +213,7 @@ export default function EditIntervention() {
       }
     }
     const totals = calcTotals(outLines);
-    const gasLeak = Math.max(0, (form.gas_loaded_kg || 0) - (form.gas_recovered_kg || 0));
+    const gasLeak = computeGasLeakKg({ loadedKg: form.gas_loaded_kg, recoveredKg: form.gas_recovered_kg, puestaEnMarcha: form.gas_puesta_en_marcha });
 
     // Build changes summary for audit
     const changes = [];
@@ -253,6 +257,7 @@ export default function EditIntervention() {
       gas_loaded_kg: form.gas_loaded_kg,
       gas_recovered_kg: form.gas_recovered_kg,
       gas_leak_kg: gasLeak,
+      gas_puesta_en_marcha: !!form.gas_puesta_en_marcha,
       description: form.description,
       technician_notes: form.technician_notes,
       discount_percent: form.discount_percent,
@@ -503,6 +508,18 @@ export default function EditIntervention() {
             <Input type="number" min="0" step="0.1" value={form.gas_recovered_kg} onChange={(e) => setForm(f => ({ ...f, gas_recovered_kg: parseFloat(e.target.value) || 0 }))} className="mt-1 rounded-xl" />
           </div>
         </div>
+        <label htmlFor="gas-puesta-en-marcha-edit" className="flex items-start gap-3 rounded-xl bg-muted/50 p-3 cursor-pointer">
+          <Checkbox
+            id="gas-puesta-en-marcha-edit"
+            checked={!!form.gas_puesta_en_marcha}
+            onCheckedChange={(v) => setForm(f => ({ ...f, gas_puesta_en_marcha: v === true }))}
+            className="mt-0.5"
+          />
+          <span className="text-sm">
+            <span className="font-medium">Puesta en marcha</span>
+            <span className="block text-xs text-muted-foreground">Carga inicial de una instalación nueva: no cuenta como fuga. Si no la marcas, la fuga es lo cargado menos lo recuperado.</span>
+          </span>
+        </label>
       </div>
 
       {/* Descripción */}

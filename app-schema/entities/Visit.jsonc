@@ -87,6 +87,11 @@
       "title": "Fuga (kg)",
       "default": 0
     },
+    "gas_puesta_en_marcha": {
+      "type": "boolean",
+      "title": "Puesta en marcha (carga inicial, no cuenta como fuga)",
+      "default": false
+    },
     "description": {
       "type": "string",
       "title": "Descripci\u00f3n del Trabajo"

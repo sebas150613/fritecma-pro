@@ -158,6 +158,11 @@
       "title": "Fuga Estimada (kg)",
       "default": 0
     },
+    "gas_puesta_en_marcha": {
+      "type": "boolean",
+      "title": "Puesta en marcha (carga inicial, no cuenta como fuga)",
+      "default": false
+    },
     "gas_media": {
       "type": "array",
       "title": "Fotos y vídeos del parte",

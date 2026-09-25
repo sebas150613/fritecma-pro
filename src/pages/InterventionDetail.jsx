@@ -906,8 +906,17 @@ export default function InterventionDetail() {
               <p className="font-semibold">{formatQty(intervention.gas_recovered_kg)} kg</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Fuga</p>
-              <p className="font-semibold text-destructive">{formatQty(intervention.gas_leak_kg)} kg</p>
+              {intervention.gas_puesta_en_marcha ? (
+                <>
+                  <p className="text-xs text-muted-foreground">Operación</p>
+                  <p className="font-semibold">Puesta en marcha</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">Fuga</p>
+                  <p className={`font-semibold ${intervention.gas_leak_kg > 0 ? "text-destructive" : ""}`}>{formatQty(intervention.gas_leak_kg)} kg</p>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1017,7 +1026,7 @@ export default function InterventionDetail() {
             <span className="text-xs text-muted-foreground">{intervention.technician_name}</span>
           </div>
           {intervention.description && <p className="text-sm">{intervention.description}</p>}
-          {intervention.gas_loaded_kg > 0 && <p className="text-xs text-muted-foreground">Gas: {intervention.gas_type} · {formatQty(intervention.gas_loaded_kg)} kg cargados</p>}
+          {intervention.gas_loaded_kg > 0 && <p className="text-xs text-muted-foreground">Gas: {intervention.gas_type} · {formatQty(intervention.gas_loaded_kg)} kg cargados{intervention.gas_puesta_en_marcha ? " · puesta en marcha" : ""}</p>}
         </div>
 
         {/* Additional visits */}
@@ -1028,7 +1037,7 @@ export default function InterventionDetail() {
               <span className="text-xs text-muted-foreground">{v.technician_name}</span>
             </div>
             {v.description && <p className="text-sm">{v.description}</p>}
-            {v.gas_loaded_kg > 0 && <p className="text-xs text-muted-foreground">Gas: {v.gas_type} · {formatQty(v.gas_loaded_kg)} kg cargados</p>}
+            {v.gas_loaded_kg > 0 && <p className="text-xs text-muted-foreground">Gas: {v.gas_type} · {formatQty(v.gas_loaded_kg)} kg cargados{v.gas_puesta_en_marcha ? " · puesta en marcha" : ""}</p>}
             {isAdmin && v.total > 0 && <p className="text-xs font-semibold">Total: {formatEUR(v.total)}</p>}
           </div>
         ))}

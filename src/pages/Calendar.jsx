@@ -97,8 +97,8 @@ export default function Calendar() {
   const getVisibleEvents = () => {
     if (!user) return [];
     
-    if (["encargado", "admin", "superadmin"].includes(user.role)) {
-      // Encargado ve todos los eventos
+    if (["encargado", "admin", "superadmin", "oficina"].includes(user.role)) {
+      // Encargado y oficina ven todos los eventos (antes la oficina no veía ninguno)
       return events;
     } else if (["user", "tecnico", "ayudante"].includes(user.role)) {
       // Técnico solo ve sus propios eventos asignados
@@ -205,6 +205,8 @@ export default function Calendar() {
   };
 
   const isEncargado = ["encargado", "admin", "superadmin"].includes(user?.role);
+  // La oficina ve la agenda de todo el equipo (Ausencias sigue siendo solo de encargado/admin).
+  const seesAllEvents = isEncargado || user?.role === "oficina";
 
   if (loading) return <div className="flex items-center justify-center h-full"><div className="w-8 h-8 border-4 border-muted border-t-accent rounded-full animate-spin" /></div>;
 
@@ -215,7 +217,7 @@ export default function Calendar() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Calendario</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {isEncargado ? "Vista maestra - Todos los técnicos" : `Mi calendario - ${user?.full_name}`}
+            {seesAllEvents ? "Vista de todo el equipo" : `Mi calendario · ${user?.full_name}`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -338,7 +340,7 @@ export default function Calendar() {
                     </button>
                     <h3 className={`font-semibold ${event.completed ? "line-through text-muted-foreground" : ""}`}>{event.title}</h3>
                   </div>
-                  <Badge className={`mt-1 ${PRIORITY_COLORS[event.priority]}`}>{event.priority}</Badge>
+                  <Badge className={`mt-1 ${PRIORITY_COLORS[event.priority]}`}>{({ baja: "Baja", normal: "Normal", alta: "Alta", urgente: "Urgente" })[event.priority] || event.priority}</Badge>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => handleDelete(event)} className="text-destructive hover:text-destructive rounded-lg">
                   <Trash2 className="h-4 w-4" />
@@ -351,7 +353,7 @@ export default function Calendar() {
 
               <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border">
                 <span>{EVENT_TYPES[event.event_type]}</span>
-                {isEncargado && <span>{event.asignado_a_name}</span>}
+                {seesAllEvents && <span>{event.asignado_a_name}</span>}
               </div>
             </div>
           ))

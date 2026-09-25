@@ -25,6 +25,7 @@ import {
   resolveCanonicalGasLabel,
   normalizeGasCompareKey,
   GAS_OTHER_REQUIRED_MESSAGE,
+  computeGasLeakKg,
 } from "@/lib/refrigerantGases";
 import { syncGasMaterialStock, findGasMaterialForType } from "@/lib/gasMaterialSync";
 import { buildOrganizationTariffProfile } from "@/lib/organizationTariffs";
@@ -114,6 +115,7 @@ export default function NewIntervention() {
     gas_bottle_id: "",
     gas_loaded_kg: 0,
     gas_recovered_kg: 0,
+    gas_puesta_en_marcha: false,
     description: "",
     technician_notes: "",
     discount_percent: 0,
@@ -622,7 +624,8 @@ export default function NewIntervention() {
         gas_bottle_serial: gasBottles.find(b => b.id === form.gas_bottle_id)?.serial_number || undefined,
         gas_loaded_kg: form.gas_loaded_kg,
         gas_recovered_kg: form.gas_recovered_kg,
-        gas_leak_kg: Math.max(0, (form.gas_loaded_kg || 0) - (form.gas_recovered_kg || 0)),
+        gas_puesta_en_marcha: !!form.gas_puesta_en_marcha,
+        gas_leak_kg: computeGasLeakKg({ loadedKg: form.gas_loaded_kg, recoveredKg: form.gas_recovered_kg, puestaEnMarcha: form.gas_puesta_en_marcha }),
         gas_media: gasMedia.length
           ? gasMedia.map(({ _previewUrl, ...item }) => item)
           : undefined,
@@ -1148,6 +1151,18 @@ export default function NewIntervention() {
             />
           </div>
         </div>
+        <label htmlFor="gas-puesta-en-marcha" className="flex items-start gap-3 rounded-xl bg-muted/50 p-3 cursor-pointer">
+          <Checkbox
+            id="gas-puesta-en-marcha"
+            checked={!!form.gas_puesta_en_marcha}
+            onCheckedChange={(v) => setForm(f => ({ ...f, gas_puesta_en_marcha: v === true }))}
+            className="mt-0.5"
+          />
+          <span className="text-sm">
+            <span className="font-medium">Puesta en marcha</span>
+            <span className="block text-xs text-muted-foreground">Carga inicial de una instalación nueva: no cuenta como fuga. Si no la marcas, la fuga es lo cargado menos lo recuperado.</span>
+          </span>
+        </label>
       </div>
 
       {/* Material Lines */}

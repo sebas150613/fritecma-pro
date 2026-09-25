@@ -131,3 +131,14 @@ export function validateOtherGasDraft(otherUiActive, otherDraft) {
   if (!otherUiActive) return true;
   return String(otherDraft || "").trim().length > 0;
 }
+
+/**
+ * Fuga de gas de un parte o visita.
+ * - Puesta en marcha (carga inicial de una instalación nueva): no hay fuga, todo
+ *   el gas cargado es la carga de la máquina.
+ * - Resto de operaciones: fuga = kg cargados − kg recuperados (nunca negativa).
+ */
+export function computeGasLeakKg({ loadedKg, recoveredKg, puestaEnMarcha }) {
+  if (puestaEnMarcha) return 0;
+  return Math.max(0, (Number(loadedKg) || 0) - (Number(recoveredKg) || 0));
+}
