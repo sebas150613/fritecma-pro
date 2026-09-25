@@ -90,7 +90,7 @@ export default function Interventions() {
       <PullToRefresh onRefresh={loadData}>
         <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold tracking-tight">Partes</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Partes de trabajo</h1>
         <Link to="/interventions/new">
           <Button className="bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl px-6 shadow-lg shadow-accent/25">
             <Plus className="h-4 w-4 mr-2" /> Nuevo Parte
@@ -142,7 +142,7 @@ export default function Interventions() {
           <TabsContent value="validation" className="mt-4">
             {forValidation.length === 0 ? (
               <div className="bg-card rounded-2xl border border-border p-12 text-center">
-                <p className="text-muted-foreground">No hay intervenciones pendientes de validar</p>
+                <p className="text-muted-foreground">No hay partes pendientes de validar</p>
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -154,7 +154,7 @@ export default function Interventions() {
           <TabsContent value="all" className="mt-4">
             {allFiltered.length === 0 ? (
               <div className="bg-card rounded-2xl border border-border p-12 text-center">
-                <p className="text-muted-foreground">No se encontraron intervenciones</p>
+                <p className="text-muted-foreground">No se encontraron partes</p>
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -190,7 +190,7 @@ export default function Interventions() {
           <TabsContent value="all" className="mt-4">
             {allFiltered.length === 0 ? (
               <div className="bg-card rounded-2xl border border-border p-12 text-center space-y-3">
-                <p className="text-muted-foreground">No se encontraron intervenciones</p>
+                <p className="text-muted-foreground">No se encontraron partes</p>
                 <Link to="/interventions/new">
                   <Button variant="outline" className="rounded-xl">
                     <Plus className="h-4 w-4 mr-2" /> Crear nuevo parte

@@ -12,11 +12,7 @@ import { Receipt, Download, Search, ExternalLink, QrCode, HandCoins, Loader2, Fi
 import { toast } from "sonner";
 import moment from "moment";
 import { downloadFacturaE } from "@/utils/generateFacturaE";
-
-const canViewInvoices = (u) =>
-  u &&
-  u.is_hidden_owner !== true &&
-  ["admin", "superadmin", "encargado", "oficina"].includes(u.role);
+import { canViewInvoices, paymentInfo } from "@/lib/invoicePayment";
 
 const MESES_ES = [
   "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -68,19 +64,7 @@ const PERIOD_MONTHS = { mensual: 1, trimestral: 3, semestral: 6, anual: 12 };
 const advancePeriod = (dateStr, periodicity) =>
   moment(dateStr || undefined).add(PERIOD_MONTHS[periodicity] || 1, "months").format("YYYY-MM-DD");
 
-// Estado de cobro efectivo: "vencida" se deriva de pendiente + due_date pasada.
-const paymentInfo = (inv) => {
-  if (inv.payment_status === "no_aplica") {
-    return { key: "no_aplica", label: "No aplica", color: "bg-slate-100 text-slate-500 border-slate-200" };
-  }
-  if (inv.payment_status === "pagada") {
-    return { key: "pagada", label: "Pagada", color: "bg-emerald-100 text-emerald-700 border-emerald-200" };
-  }
-  if (inv.due_date && moment(inv.due_date).isBefore(moment(), "day")) {
-    return { key: "vencida", label: "Vencida", color: "bg-red-100 text-red-700 border-red-200" };
-  }
-  return { key: "pendiente", label: "Pendiente", color: "bg-amber-100 text-amber-700 border-amber-200" };
-};
+// Estado de cobro efectivo ("vencida" = pendiente + due_date pasada): ver lib/invoicePayment.js.
 
 export default function Invoices() {
   const [user, setUser] = useState(null);

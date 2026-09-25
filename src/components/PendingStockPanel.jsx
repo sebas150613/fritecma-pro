@@ -74,7 +74,11 @@ export default function PendingStockPanel() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{e.material_name}</p>
               <p className="text-xs text-muted-foreground">
-                Alb: {e.albaran_number} · {e.technician_name} · {moment(e.created_date).fromNow()}
+                {[
+                  e.albaran_number ? `Albarán ${e.albaran_number}` : null,
+                  e.technician_name,
+                  e.created_date ? moment(e.created_date).fromNow() : null,
+                ].filter(Boolean).join(" · ")}
               </p>
             </div>
             <Badge variant="outline" className="text-xs font-mono shrink-0">
