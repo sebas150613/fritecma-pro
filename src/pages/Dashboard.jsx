@@ -183,10 +183,14 @@ export default function Dashboard() {
       </Button>
     </Link>
   ) : (
-    <Button disabled className="rounded-xl px-6" title="Debes fichar entrada primero">
-      <Plus className="h-4 w-4 mr-2" />
-      Nuevo parte
-    </Button>
+    <div className="space-y-1">
+      <Button disabled className="rounded-xl px-6 w-full sm:w-auto" title="Debes fichar entrada primero">
+        <Plus className="h-4 w-4 mr-2" />
+        Nuevo parte
+      </Button>
+      {/* En el móvil no hay tooltip: se explica por qué está desactivado. */}
+      <p className="text-xs text-muted-foreground text-center sm:text-right">Ficha la entrada para crear partes</p>
+    </div>
   );
 
   return (
