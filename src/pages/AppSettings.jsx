@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ConfirmModal } from "@/components/ui/confirm-modal";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings, Users, Shield, Trash2, Upload, Key, FileCheck, Loader2, Crown, Copy, Building2, Coins, Plus, ShoppingBag, Hash, ShieldCheck } from "lucide-react";
 import OrganizationBillingPanel from "@/components/OrganizationBillingPanel";
 import { parseTramosJson, ensureTramoIds } from "@/lib/displacementBilling";
@@ -24,6 +25,14 @@ const ROLE_LABELS = {
 export default function AppSettings() {
   const { logout } = useAuth();
   const [user, setUser] = useState(null);
+  // Pestaña de Configuración; admite ?tab=tarifas para enlazar desde otras pantallas.
+  const [settingsTab, setSettingsTab] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("tab");
+    } catch {
+      return null;
+    }
+  });
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checkingChain, setCheckingChain] = useState(false);
@@ -338,6 +347,21 @@ export default function AppSettings() {
     !isOwner &&
     ["admin", "oficina", "encargado"].includes(user?.role) &&
     user?.role !== "superadmin";
+  const showUsersTab = canManageClientUsers;
+  const showFiscalTab = ["admin", "superadmin", "oficina"].includes(user?.role);
+  // Mismas condiciones que tenía cada bloque: una pestaña solo aparece si el rol
+  // podía ver ese bloque en la página única de antes.
+  const settingsTabs = [
+    showUsersTab && { id: "usuarios", label: "Usuarios" },
+    showFiscalTab && { id: "empresa", label: "Empresa y facturación" },
+    canEditTarifas && { id: "tarifas", label: "Tarifas" },
+    canEditPedidosSettings && { id: "pedidos", label: "Pedidos" },
+    isOwner && { id: "plataforma", label: "Plataforma" },
+    { id: "cuenta", label: "Suscripción y cuenta" },
+  ].filter(Boolean);
+  const activeSettingsTab = settingsTabs.some((t) => t.id === settingsTab)
+    ? settingsTab
+    : settingsTabs[0].id;
 
   const parseTarifaInput = (v) => {
     const x = parseFloat(String(v ?? "").replace(",", "."));
@@ -420,6 +444,15 @@ export default function AppSettings() {
         <h1 className="text-2xl font-bold tracking-tight">Configuración</h1>
       </div>
 
+      <Tabs value={activeSettingsTab} onValueChange={setSettingsTab}>
+      <TabsList className="flex flex-wrap h-auto justify-start gap-1 bg-muted/60 p-1 rounded-xl">
+        {settingsTabs.map((t) => (
+          <TabsTrigger key={t.id} value={t.id} className="rounded-lg">{t.label}</TabsTrigger>
+        ))}
+      </TabsList>
+
+      {showUsersTab && (
+      <TabsContent value="usuarios" className="space-y-6 mt-4">
       {/* User Management */}
       {canManageClientUsers && (
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
@@ -589,7 +622,11 @@ export default function AppSettings() {
         </div>
       </div>
       )}
+      </TabsContent>
+      )}
 
+      {showFiscalTab && (
+      <TabsContent value="empresa" className="space-y-6 mt-4">
       {/* Verifactu / Datos Empresa + Certificado Digital */}
       {["admin", "superadmin", "oficina"].includes(user?.role) && (
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
@@ -897,7 +934,11 @@ export default function AppSettings() {
         </Button>
       </div>
       )}
+      </TabsContent>
+      )}
 
+      {canEditTarifas && (
+      <TabsContent value="tarifas" className="space-y-6 mt-4">
       {canEditTarifas && (
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2">
@@ -1043,7 +1084,11 @@ export default function AppSettings() {
         </Button>
       </div>
       )}
+      </TabsContent>
+      )}
 
+      {canEditPedidosSettings && (
+      <TabsContent value="pedidos" className="space-y-6 mt-4">
       {canEditPedidosSettings && (
       <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2">
@@ -1202,7 +1247,11 @@ export default function AppSettings() {
         </div>
       </div>
       )}
+      </TabsContent>
+      )}
 
+      {isOwner && (
+      <TabsContent value="plataforma" className="space-y-6 mt-4">
       {isOwner && (
       <div className="bg-card rounded-2xl border border-amber-300/60 p-5 space-y-4">
         <h2 className="font-semibold flex items-center gap-2">
@@ -1372,7 +1421,11 @@ export default function AppSettings() {
       </div>
 
       )}
+      </TabsContent>
+      )}
 
+      {(
+      <TabsContent value="cuenta" className="space-y-6 mt-4">
       <OrganizationBillingPanel user={user} onChange={loadData} ownerOrganizations={ownerOrganizations} />
 
       {/* App Info */}
@@ -1396,6 +1449,21 @@ export default function AppSettings() {
         </p>
       </div>
 
+      {/* Delete Account */}
+      <div className="bg-card rounded-2xl border border-destructive/30 p-5 space-y-3">
+        <h2 className="font-semibold text-destructive flex items-center gap-2">
+          <Trash2 className="h-4 w-4" /> Zona de peligro
+        </h2>
+        <p className="text-sm text-muted-foreground">Eliminar tu cuenta es una acción irreversible. Perderás el acceso inmediatamente.</p>
+        <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)} className="rounded-xl">
+          Eliminar mi cuenta
+        </Button>
+      </div>
+      </TabsContent>
+      )}
+
+      </Tabs>
+
       <ConfirmModal
         icon={null}
         open={!!userAccessToRemove}
@@ -1415,17 +1483,6 @@ export default function AppSettings() {
         variant="danger"
         onConfirm={confirmDeleteOrganizationUser}
       />
-
-      {/* Delete Account */}
-      <div className="bg-card rounded-2xl border border-destructive/30 p-5 space-y-3">
-        <h2 className="font-semibold text-destructive flex items-center gap-2">
-          <Trash2 className="h-4 w-4" /> Zona de peligro
-        </h2>
-        <p className="text-sm text-muted-foreground">Eliminar tu cuenta es una acción irreversible. Perderás el acceso inmediatamente.</p>
-        <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)} className="rounded-xl">
-          Eliminar mi cuenta
-        </Button>
-      </div>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>

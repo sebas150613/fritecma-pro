@@ -73,6 +73,8 @@ const L = {
   horas: { to: "/workday-report", label: "Horas por cliente/obra", icon: BarChart3 },
   ausencias: { to: "/absences", label: "Ausencias", icon: UserMinus },
   config: { to: "/settings", label: "Configuración", icon: Settings },
+  // Al personal de campo /settings le abre su cuenta (AccountSettings), no la configuración.
+  miCuenta: { to: "/settings", label: "Mi cuenta", icon: Settings },
 };
 
 const adminLinks = [
@@ -89,12 +91,12 @@ const oficinaLinks = [
 
 const techLinks = [
   L.inicio, L.fichaje, L.averias, L.partes, L.actividad, L.calendario, L.clientes, L.stock,
-  L.vehiculo, L.recepcion, L.pedirMaterial, L.proveedores, L.gases, L.obras, L.config,
+  L.vehiculo, L.recepcion, L.pedirMaterial, L.proveedores, L.gases, L.obras, L.miCuenta,
 ];
 
 const ayudanteLinks = [
   L.panel, L.fichaje, L.averias, L.partes, L.actividad, L.calendario, L.clientes, L.proveedores,
-  L.materiales, L.vehiculo, L.pedirMaterial, L.config,
+  L.materiales, L.vehiculo, L.pedirMaterial, L.miCuenta,
 ];
 
 const ownerLinks = [
